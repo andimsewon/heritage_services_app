@@ -1,14 +1,7 @@
-// lib/screens/asset_select_screen.dart (③ 국유재 선택 화면 - API 연동/페이징 완전본)
-//
-// - 검색(엔터/버튼) → 서버 프록시(Env.proxyBase) 호출
-// - 무한 스크롤 페이징, 당겨서 새로고침
-// - 항목 선택 시 ④ BasicInfoScreen 으로 전달
-
 import 'package:flutter/material.dart';
-import '../ui/widgets/yellow_nav_button.dart';
-import 'basic_info_screen.dart';
 import '../data/heritage_api.dart';
 import '../env.dart';
+import 'basic_info_screen.dart';
 
 class AssetSelectScreen extends StatefulWidget {
   static const route = '/asset-select';
@@ -19,18 +12,26 @@ class AssetSelectScreen extends StatefulWidget {
 }
 
 class _AssetSelectScreenState extends State<AssetSelectScreen> {
-  final _q = TextEditingController();
+  final _keyword = TextEditingController();
   final _scroll = ScrollController();
-
-  // 프록시 서버 기준 API 클라이언트
   late final HeritageApi _api = HeritageApi(Env.proxyBase);
 
-  // 상태
-  final List<HeritageItem> _items = [];
+  // 필터 값 (샘플 코드표 — 실제는 서버/상수로 치환 가능)
+  String? _kind = '';
+  String? _region = '';
+
+  final _kindOptions = const <String, String>{
+    '': '종목전체', '11': '국보', '12': '보물', '13': '사적', '15': '천연기념물',
+  };
+  final _regionOptions = const <String, String>{
+    '': '지역전체', '11': '서울', '24': '전북', '34': '충남', '48': '경남',
+  };
+
+  final List<HeritageRow> _rows = [];
   int _page = 1;
   bool _hasMore = true;
   bool _loading = false;
-  String _currentQuery = '';
+  String _curKeyword = '';
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   void dispose() {
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
-    _q.dispose();
+    _keyword.dispose();
     super.dispose();
   }
 
@@ -53,59 +54,77 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
 
     if (reset) {
       _page = 1;
+      _rows.clear();
       _hasMore = true;
-      _items.clear();
-      _currentQuery = _q.text.trim();
+      _curKeyword = _keyword.text.trim();
     }
 
     try {
       final res = await _api.fetchList(
-        query: _currentQuery,
+        keyword: _curKeyword.isEmpty ? null : _curKeyword,
+        kind: (_kind == null || _kind!.isEmpty) ? null : _kind,
+        region: (_region == null || _region!.isEmpty) ? null : _region,
         page: _page,
         size: 20,
       );
-
       setState(() {
-        _items.addAll(res.items);
+        _rows.addAll(res.items);
         _page += 1;
-        _hasMore = _items.length < res.totalCount;
+        _hasMore = _rows.length < res.totalCount;
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('목록 로드 실패: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('검색 실패: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   void _onScroll() {
-    if (!_hasMore || _loading) return;
-    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
-      _fetch(); // 다음 페이지
+    if (_hasMore && !_loading &&
+        _scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
+      _fetch();
     }
   }
 
   void _onSearch() => _fetch(reset: true);
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('국유재 선택')),
+      appBar: AppBar(centerTitle: true, title: const Text('국가 유산 검색')),
       body: Column(
         children: [
-          // 검색 영역
+          // ── 필터 바: 종목/지역/조건
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
             child: Row(
               children: [
+                DropdownButton<String>(
+                  value: _kind ?? '',
+                  items: _kindOptions.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _kind = v),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: _region ?? '',
+                  items: _regionOptions.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _region = v),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
-                    controller: _q,
+                    controller: _keyword,
                     decoration: const InputDecoration(
-                      labelText: '검색(명칭/코드/지역)',
+                      labelText: '조건(유산명 등)',
                       prefixIcon: Icon(Icons.search),
+                      isDense: true,
                     ),
                     onSubmitted: (_) => _onSearch(),
                   ),
@@ -121,52 +140,71 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           ),
           const Divider(height: 0),
 
-          // 리스트
+          // 헤더
+          Container(
+            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: const Row(
+              children: [
+                _CellHeader('종목', flex: 2),
+                _CellHeader('유산명', flex: 4),
+                _CellHeader('소재지', flex: 3),
+                _CellHeader('주소', flex: 3),
+              ],
+            ),
+          ),
+
+          // 표 리스트
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => _fetch(reset: true),
               child: ListView.separated(
                 controller: _scroll,
-                itemCount: _items.length + 1,
+                itemCount: _rows.length + 1,
                 separatorBuilder: (_, __) => const Divider(height: 0),
                 itemBuilder: (context, i) {
-                  // 로딩/빈 목록 표시용 마지막 셀
-                  if (i == _items.length) {
+                  if (i == _rows.length) {
                     if (_loading) {
                       return const Padding(
                         padding: EdgeInsets.all(16),
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
-                    if (_items.isEmpty) {
+                    if (_rows.isEmpty) {
                       return const Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: EdgeInsets.all(24),
                         child: Center(child: Text('데이터가 없습니다')),
                       );
                     }
                     return const SizedBox.shrink();
                   }
 
-                  final it = _items[i];
-                  return ListTile(
-                    leading: const Icon(Icons.place_outlined),
-                    title: Text(it.name),
-                    subtitle: Text('${it.code} · ${it.region}'),
-                    trailing: YellowNavButton(
-                      label: '선택',
-                      onTap: () => Navigator.pushNamed(
+                  final r = _rows[i];
+                  return InkWell(
+                    onTap: () {
+                      Navigator.pushNamed(
                         context,
                         BasicInfoScreen.route,
                         arguments: {
-                          'name': it.name,
-                          'region': it.region,
-                          'code': it.code,
-                          'id': it.id,
-                          // 상세 조회용 3요소 같이 전달
-                          'ccbaKdcd': it.ccbaKdcd,
-                          'ccbaAsno': it.ccbaAsno,
-                          'ccbaCtcd': it.ccbaCtcd,
+                          'id': r.id,
+                          'name': r.name,
+                          'region': r.addr,
+                          'code': r.kindCode,
+                          'ccbaKdcd': r.ccbaKdcd,
+                          'ccbaAsno': r.ccbaAsno,
+                          'ccbaCtcd': r.ccbaCtcd,
                         },
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          _Cell(r.kindName, flex: 2),
+                          _Cell(r.name, flex: 4),
+                          _Cell(r.sojaeji, flex: 3),
+                          _Cell(r.addr, flex: 3),
+                        ],
                       ),
                     ),
                   );
@@ -176,6 +214,32 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CellHeader extends StatelessWidget {
+  final String text;
+  final int flex;
+  const _CellHeader(this.text, {this.flex = 1});
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold)),
+    );
+  }
+}
+
+class _Cell extends StatelessWidget {
+  final String text;
+  final int flex;
+  const _Cell(this.text, {this.flex = 1});
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
     );
   }
 }
