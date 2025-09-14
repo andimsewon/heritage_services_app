@@ -1,7 +1,11 @@
 // lib/main.dart
-// 앱 전체 진입점 + 라우팅 정의 (보강: onGenerateRoute / onUnknownRoute)
+// 앱 전체 진입점 + 라우팅 정의 (Firebase 초기화 추가)
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/asset_select_screen.dart';
@@ -10,9 +14,27 @@ import 'screens/detail_survey_screen.dart';
 import 'screens/damage_model_screen.dart';
 import 'screens/damage_map_preview_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // ✅ Firebase 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // ✅ Firestore 연결 테스트
+  try {
+    final fs = FirebaseFirestore.instance;
+    final docRef = fs.collection('test').doc('hello');
+    await docRef.set({'msg': 'Firebase 연결 성공!', 'ts': DateTime.now()});
+    final snap = await docRef.get();
+    print("🔥 Firestore 테스트 결과: ${snap.data()}");
+  } catch (e) {
+    print("❌ Firestore 테스트 실패: $e");
+  }
+
   runApp(const HeritageApp());
 }
+
 
 class HeritageApp extends StatelessWidget {
   const HeritageApp({super.key});
@@ -36,16 +58,16 @@ class HeritageApp extends StatelessWidget {
 
       // ✅ 정적 라우트 등록
       routes: {
-        LoginScreen.route: (_) => const LoginScreen(),                 // ① 로그인
-        HomeScreen.route: (_) => const HomeScreen(),                   // ② 홈
-        AssetSelectScreen.route: (_) => const AssetSelectScreen(),     // ③ 국유재 선택
-        BasicInfoScreen.route: (_) => const BasicInfoScreen(),         // ④ 기본정보 입력
-        DetailSurveyScreen.route: (_) => const DetailSurveyScreen(),   // ⑤ 상세조사
-        DamageModelScreen.route: (_) => const DamageModelScreen(),     // ⑥ 손상예측/모델
-        DamageMapPreviewScreen.route: (_) => const DamageMapPreviewScreen(), // ⑦ 손상지도
+        LoginScreen.route: (_) => const LoginScreen(),
+        HomeScreen.route: (_) => const HomeScreen(),
+        AssetSelectScreen.route: (_) => const AssetSelectScreen(),
+        BasicInfoScreen.route: (_) => const BasicInfoScreen(),
+        DetailSurveyScreen.route: (_) => const DetailSurveyScreen(),
+        DamageModelScreen.route: (_) => const DamageModelScreen(),
+        DamageMapPreviewScreen.route: (_) => const DamageMapPreviewScreen(),
       },
 
-      // ✅ 예비: 동적/미등록 라우트 처리 (인자 전달 시 유용)
+      // ✅ 동적 라우트 처리
       onGenerateRoute: (settings) {
         switch (settings.name) {
           case LoginScreen.route:
@@ -63,10 +85,10 @@ class HeritageApp extends StatelessWidget {
           case DamageMapPreviewScreen.route:
             return MaterialPageRoute(builder: (_) => const DamageMapPreviewScreen(), settings: settings);
         }
-        return null; // 모르면 아래 onUnknownRoute로
+        return null;
       },
 
-      // ✅ 안전망: 잘못된 이름으로 pushNamed 했을 때
+      // ✅ 안전망: 잘못된 라우트 처리
       onUnknownRoute: (settings) {
         return MaterialPageRoute(
           builder: (_) => Scaffold(
