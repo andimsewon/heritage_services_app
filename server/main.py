@@ -1,7 +1,8 @@
 # server/main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import httpx, xmltodict, os
+from typing import Optional   # ✅ 추가
 
 KHS_BASE = "http://www.khs.go.kr/cha"
 
@@ -16,8 +17,8 @@ def _pick(d, k, default=""):
 
 def _first_non_empty(*vals):
     for v in vals:
-      if isinstance(v, str) and v.strip():
-        return v
+        if isinstance(v, str) and v.strip():
+            return v
     return ""
 
 def _extract_items(xml_dict):
@@ -63,17 +64,16 @@ async def health():
 
 @app.get("/heritage/list")
 async def heritage_list(
-    keyword: str | None = None,  # ccbaMnm1(유산명)
-    kind: str | None = None,     # ccbaKdcd(종목 코드)
-    region: str | None = None,   # ccbaCtcd(시·도 코드)
-    page: int = 1,
-    size: int = 20,
+        keyword: Optional[str] = None,  # ✅ 수정
+        kind:    Optional[str] = None,  # ✅ 수정
+        region:  Optional[str] = None,  # ✅ 수정
+        page: int = 1,
+        size: int = 20,
 ):
-    # 시도별로 실제 스펙이 달라질 수 있어 파라미터 셋을 여러 개 시도
     param_variants = [
         {"pageIndex": str(page), "pageUnit": str(size)},
         {"pageNo": str(page), "numOfRows": str(size)},
-        {},  # 마지막엔 페이지 파라미터 없이도 한 번
+        {},
     ]
     base_common = {}
     if keyword: base_common["ccbaMnm1"] = keyword.strip()
@@ -88,7 +88,6 @@ async def heritage_list(
         try:
             async with httpx.AsyncClient(timeout=12.0, headers={"User-Agent": "heritage-proxy/1.0"}) as client:
                 r = await client.get(url, params=params)
-            # 디버그 로그
             print(f"[LIST] GET {r.request.url} -> {r.status_code}")
             if r.status_code != 200:
                 last_error = HTTPException(502, f"KHS error {r.status_code}")
@@ -98,7 +97,6 @@ async def heritage_list(
             items_node = _extract_items(data)
             print(f"[LIST] root keys: {list(data.keys())}  items: {len(items_node)}")
 
-            # items 없으면 다음 variant 시도
             if not items_node:
                 continue
 
@@ -125,7 +123,6 @@ async def heritage_list(
                     "ccbaCtcd": ccbaCtcd,
                 })
 
-            # totalCount 추정 (루트마다 키가 달라서 안전하게)
             total = 0
             for k in ["totalCount", "totalCnt", "totalcount", "total"]:
                 v = data.get("result", data).get(k) if isinstance(data.get("result", data), dict) else None
@@ -156,3 +153,15 @@ async def heritage_detail(ccbaKdcd: str, ccbaAsno: str, ccbaCtcd: str):
         raise HTTPException(502, f"KHS error {r.status_code}")
     data = xmltodict.parse(r.text)
     return data
+
+@app.post("/ai/damage/infer")
+async def ai_damage_infer(image: UploadFile = File(...)):
+    """
+    업로드된 이미지에서 손상 부위를 탐지하는 AI API (현재는 더미 응답).
+    추후 실제 모델 서버 호출(httpx)로 교체 가능.
+    """
+    return {
+        "detections": [
+            {"label": "갈라짐", "score": 0.88, "x": 0.35, "y": 0.25, "w": 0.20, "h": 0.15}
+        ]
+    }

@@ -1,3 +1,4 @@
+// lib/services/firebase_service.dart
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,72 +8,90 @@ import 'package:uuid/uuid.dart';
 class FirebaseService {
   final _fs = FirebaseFirestore.instance;
   final _st = FirebaseStorage.instance;
-  final _uuid = const Uuid();
 
-  /// 사진 업로드 + 문서 생성
-  /// [imageBytes]: JPEG/PNG 바이트
-  /// [sizeGetter]: 이미지의 width/height를 미리 계산해서 전달(웹/모바일 처리 방식이 달라서 콜백 사용)
+  /// 문화유산 사진 업로드 (현황/조사 공용)
+  /// folder: 'photos' | 'damage_surveys'
+  Future<String> uploadImage({
+    required String heritageId,
+    required String folder,
+    required Uint8List bytes,
+  }) async {
+    final id = const Uuid().v4();
+    final ref =
+    _st.ref().child('heritages/$heritageId/$folder/$id.jpg');
+
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    return await ref.getDownloadURL();
+  }
+
+  /// 현황 사진 문서 생성
   Future<void> addPhoto({
     required String heritageId,
     required String title,
     required Uint8List imageBytes,
     required Future<ui.Size> Function() sizeGetter,
+    String folder = 'photos',
   }) async {
-    final id = _uuid.v4();
-    final path = 'heritages/$heritageId/photos/$id.jpg';
+    final url = await uploadImage(
+      heritageId: heritageId,
+      folder: folder,
+      bytes: imageBytes,
+    );
+    final size = await sizeGetter();
 
-    // 1) Storage 업로드
-    final task = await _st.ref(path).putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'));
-    final url = await task.ref.getDownloadURL();
-
-    // 2) 메타데이터 (width/height 계산)
-    final sz = await sizeGetter();
-    final width = sz.width.toInt();
-    final height = sz.height.toInt();
-
-    // 3) Firestore 문서
-    await _fs.collection('heritages').doc(heritageId)
-        .collection('photos').doc(id)
-        .set({
-      'title': title,
+    final col = _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection(folder);
+    final id = const Uuid().v4();
+    await col.doc(id).set({
       'url': url,
-      'width': width,
-      'height': height,
-      'bytes': imageBytes.lengthInBytes,
-      'createdAt': FieldValue.serverTimestamp(),
+      'title': title,
+      'width': size.width,
+      'height': size.height,
+      'timestamp': DateTime.now().toIso8601String(),
     });
   }
 
-  /// 손상부 조사 결과 저장
+  /// 손상부 조사 문서 생성 (AI 결과 포함)
   Future<void> addDamageSurvey({
     required String heritageId,
-    required Uint8List imageBytes,
     required String imageUrl,
-    required List<Map<String, dynamic>> detections, // label, score, x,y,w,h (0~1)
-    String? severity,
-    String? memo,
+    required List<Map<String, dynamic>> detections,
+    String? desc,
   }) async {
-    final id = _uuid.v4();
-    await _fs.collection('heritages').doc(heritageId)
-        .collection('damage_surveys').doc(id)
-        .set({
+    final col = _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('damage_surveys');
+    final id = const Uuid().v4();
+    await col.doc(id).set({
       'imageUrl': imageUrl,
       'detections': detections,
-      'severity': severity,
-      'memo': memo,
-      'createdAt': FieldValue.serverTimestamp(),
+      'desc': desc ?? '손상부 조사',
+      'timestamp': DateTime.now().toIso8601String(),
     });
   }
 
-  /// 스트림 (사진 리스트)
-  Stream<QuerySnapshot<Map<String, dynamic>>> photosStream(String heritageId) {
-    return _fs.collection('heritages').doc(heritageId)
-        .collection('photos').orderBy('createdAt', descending: true).snapshots();
+  /// 현황 사진 스트림
+  Stream<QuerySnapshot<Map<String, dynamic>>> photosStream(
+      String heritageId) {
+    return _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('photos')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
   }
 
-  /// 스트림 (손상부 조사 리스트)
-  Stream<QuerySnapshot<Map<String, dynamic>>> damageStream(String heritageId) {
-    return _fs.collection('heritages').doc(heritageId)
-        .collection('damage_surveys').orderBy('createdAt', descending: true).snapshots();
+  /// 손상부 조사 스트림 (최신 먼저)
+  Stream<QuerySnapshot<Map<String, dynamic>>> damageStream(
+      String heritageId) {
+    return _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('damage_surveys')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
   }
 }

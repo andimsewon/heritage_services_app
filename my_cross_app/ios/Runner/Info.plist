@@ -4,6 +4,10 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+    <string>손상부 조사 사진 촬영을 위해 카메라 접근이 필요합니다.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>갤러리에서 사진을 선택하기 위해 접근이 필요합니다.</string>
 	<key>CFBundleDisplayName</key>
 	<string>My Cross App</string>
 	<key>CFBundleExecutable</key>
