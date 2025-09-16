@@ -1,10 +1,16 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
 import '../data/heritage_api.dart';
 import '../env.dart';
+import '../services/firebase_service.dart';
+import '../services/image_acquire.dart';
 
 /// ④ 기본개요 화면
-/// - ③에서 넘어온 ccbaKdcd/ccbaAsno/ccbaCtcd로 상세 조회
-/// - 문화유산청 상세 응답을 방어적으로 파싱하여 섹션별로 표시
 class BasicInfoScreen extends StatefulWidget {
   static const route = '/basic-info';
   const BasicInfoScreen({super.key});
@@ -17,13 +23,17 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   Map<String, dynamic>? _args;
   Map<String, dynamic>? _detail; // 상세 API 원본(JSON)
   bool _loading = true;
+  late String heritageId;
   late final HeritageApi _api = HeritageApi(Env.proxyBase);
+  final _fb = FirebaseService();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_args == null) {
       _args = (ModalRoute.of(context)?.settings.arguments ?? {}) as Map<String, dynamic>;
+      heritageId =
+      "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
       _load();
     }
   }
@@ -46,10 +56,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     }
   }
 
-  // ─────────────────────────────────────────────────────
-  // XML→JSON 루트가 호출 시점마다 조금 달라서 방어적으로 값 읽기
-  // 우선경로 → 대체경로 순으로 시도
-  // ─────────────────────────────────────────────────────
   String _read(List<List<String>> paths) {
     if (_detail == null) return '';
     for (final path in paths) {
@@ -68,11 +74,101 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     return '';
   }
 
-  // 편의 단축키
   String get _name => _read([
     ['result', 'item', 'ccbaMnm1'],
     ['item', 'ccbaMnm1'],
   ]);
+
+  // ───────────────────────── 문화유산 현황 사진 업로드
+  Future<void> _addPhoto() async {
+    final pair = await ImageAcquire.pick(context);
+    if (pair == null) return;
+    final (bytes, sizeGetter) = pair;
+
+    final title = await _askTitle(context);
+    if (title == null) return;
+
+    await _fb.addPhoto(
+      heritageId: heritageId,
+      title: title,
+      imageBytes: bytes,
+      sizeGetter: sizeGetter,
+    );
+  }
+
+  Future<String?> _askTitle(BuildContext context) async {
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('사진 제목 입력'),
+        content: TextField(
+            controller: c,
+            decoration: const InputDecoration(hintText: '예: 남측면 전경')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, c.text.trim()),
+              child: const Text('등록')),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────── 손상부 조사 촬영→AI 분석→저장
+  Future<void> _startDamageSurvey() async {
+    final pair = await ImageAcquire.pick(context);
+    if (pair == null) return;
+    final (bytes, sizeGetter) = pair;
+
+    // 원본 사진 업로드
+    await _fb.addPhoto(
+      heritageId: heritageId,
+      title: '손상부 조사 원본',
+      imageBytes: bytes,
+      sizeGetter: sizeGetter,
+      folder: 'damage_surveys',
+    );
+
+    // 최신 업로드 URL 가져오기
+    final latest = await FirebaseFirestore.instance
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('damage_surveys')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+    final imageUrl = (latest.docs.first.data())['url'] as String;
+
+    // AI 분석 (더미, 나중에 FastAPI 교체)
+    final detections = await _callDamageAI(bytes);
+
+    // Firestore에 손상부 조사 문서 저장
+    await _fb.addDamageSurvey(
+      heritageId: heritageId,
+      imageUrl: imageUrl,
+      detections: detections,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('손상부 조사 등록 완료')));
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _callDamageAI(Uint8List bytes) async {
+    // ⚠️ 더미 응답 (향후 FastAPI로 교체)
+    return [
+      {
+        'label': '갈라짐',
+        'score': 0.88,
+        'x': 0.35,
+        'y': 0.25,
+        'w': 0.20,
+        'h': 0.15
+      },
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,112 +176,24 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // ── 주요 필드 매핑 (문화유산청 공식 문서 키 기준)
-    final kind = _read([
-      ['result', 'item', 'ccmaName'],
-      ['item', 'ccmaName'],
-    ]); // 종목 (예: 국보)
-
-    final kind1 = _read([
-      ['result', 'item', 'gcodeName'],
-      ['item', 'gcodeName'],
-    ]); // 분류1
-    final kind2 = _read([
-      ['result', 'item', 'bcodeName'],
-      ['item', 'bcodeName'],
-    ]);
-    final kind3 = _read([
-      ['result', 'item', 'mcodeName'],
-      ['item', 'mcodeName'],
-    ]);
-    final kind4 = _read([
-      ['result', 'item', 'scodeName'],
-      ['item', 'scodeName'],
-    ]);
-
-    final qty = _read([
-      ['result', 'item', 'ccbaQuan'],
-      ['item', 'ccbaQuan'],
-    ]); // 수량
-
-    final asdt = _read([
-      ['result', 'item', 'ccbaAsdt'],
-      ['item', 'ccbaAsdt'],
-    ]); // 지정(등록)일
-
-    final owner = _read([
-      ['result', 'item', 'ccbaPoss'],
-      ['item', 'ccbaPoss'],
-      ['result', 'item', 'owner'],
-      ['item', 'owner'],
-    ]); // 소유자
-
-    final admin = _read([
-      ['result', 'item', 'ccbaAdmin'],
-      ['item', 'ccbaAdmin'],
-      ['result', 'item', 'manage'],
-      ['item', 'manage'],
-    ]); // 관리자
-
-    final era = _read([
-      ['result', 'item', 'ccceName'],
-      ['item', 'ccceName'],
-    ]); // 시대
-
-    final lcto = _read([
-      ['result', 'item', 'ccbaLcto'],
-      ['item', 'ccbaLcto'],
-    ]); // 소재지(주소 요약)
-    final lcad = _read([
-      ['result', 'item', 'ccbaLcad'],
-      ['item', 'ccbaLcad'],
-    ]); // 소재지 상세
-
-    final cpno = _read([
-      ['result', 'item', 'ccbaCpno'],
-      ['item', 'ccbaCpno'],
-    ]); // 국가유산연계번호
-
-    final kdcd = _read([
-      ['result', 'item', 'ccbaKdcd'],
-      ['item', 'ccbaKdcd'],
-    ]);
-    final asno = _read([
-      ['result', 'item', 'ccbaAsno'],
-      ['item', 'ccbaAsno'],
-    ]);
-    final ctcd = _read([
-      ['result', 'item', 'ccbaCtcd'],
-      ['item', 'ccbaCtcd'],
-    ]);
-
-    final lat = _read([
-      ['result', 'item', 'latitude'],
-      ['item', 'latitude'],
-    ]);
-    final lon = _read([
-      ['result', 'item', 'longitude'],
-      ['item', 'longitude'],
-    ]);
-
-    final regDt = _read([
-      ['result', 'item', 'regDt'],
-      ['item', 'regDt'],
-    ]); // 최종수정일시(있을 때)
+    final kind = _read([['result', 'item', 'ccmaName'], ['item', 'ccmaName']]);
+    final asdt = _read([['result', 'item', 'ccbaAsdt'], ['item', 'ccbaAsdt']]);
+    final owner = _read([['result', 'item', 'ccbaPoss'], ['item', 'ccbaPoss']]);
+    final admin = _read([['result', 'item', 'ccbaAdmin'], ['item', 'ccbaAdmin']]);
+    final lcto = _read([['result', 'item', 'ccbaLcto'], ['item', 'ccbaLcto']]);
+    final lcad = _read([['result', 'item', 'ccbaLcad'], ['item', 'ccbaLcad']]);
 
     return Scaffold(
       appBar: AppBar(centerTitle: true, title: const Text('기본개요')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 제목
           Text(
             '국가유산명: ${_name.isEmpty ? '미상' : _name}',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
 
-          // ── 핵심 정보 블록 (스케치 요구안: 국가유산명/지정/지정일/소유자/관리자/소재지)
           _InfoRow('종목', kind),
           _InfoRow('지정(등록)일', asdt),
           _InfoRow('소유자', owner),
@@ -193,49 +201,96 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
           _InfoRow('소재지', lcto),
           if (lcad.isNotEmpty) _InfoRow('소재지 상세', lcad),
 
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 8),
+          const Divider(height: 32),
 
-          // ── 분류/수량/시대 등 추가 메타
-          const Text('분류 정보', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          _InfoRow('분류1', kind1),
-          _InfoRow('분류2', kind2),
-          _InfoRow('분류3', kind3),
-          _InfoRow('분류4', kind4),
-          _InfoRow('수량', qty),
-          _InfoRow('시대', era),
-
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 8),
-
-          // ── 식별자/좌표
-          const Text('식별자/좌표', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          _InfoRow('연계번호', cpno),
-          _InfoRow('키(종목/관리/시도)', [kdcd, asno, ctcd].where((e) => e.isNotEmpty).join(' / ')),
-          _InfoRow('위치(위도/경도)', (lat.isNotEmpty || lon.isNotEmpty) ? '$lat / $lon' : ''),
-          if (regDt.isNotEmpty) _InfoRow('최종수정일시', regDt),
-
-          const SizedBox(height: 24),
-          const Divider(),
-
-          // ── 보존관리 이력 (후속)
-          const Text('보존관리 이력 (후속 단계 연동 예정)',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).dividerColor),
-              borderRadius: BorderRadius.circular(8),
+          // ───── 문화유산 현황(사진)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                const Text('문화유산 현황',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: _addPhoto,
+                  icon: const Icon(Icons.add_a_photo),
+                  label: const Text('사진 등록'),
+                )
+              ],
             ),
-            child: const Text('※ 차기 단계에서 내부 DB/엑셀/포털 추가 API로 연동'),
+          ),
+          SizedBox(
+            height: 150,
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _fb.photosStream(heritageId),
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snap.data!.docs;
+                if (docs.isEmpty) {
+                  return const Center(child: Text('등록된 사진이 없습니다'));
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (_, i) {
+                    final d = docs[i].data();
+                    return _PhotoCard(
+                      title: (d['title'] as String?) ?? '',
+                      url: (d['url'] as String?) ?? '',
+                      meta:
+                      '${d['width'] ?? '?'}x${d['height'] ?? '?'}',
+                    );
+                  },
+                );
+              },
+            ),
           ),
 
-          const SizedBox(height: 24),
+          const Divider(height: 32),
+
+          // ───── 손상부 조사
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Row(
+              children: [
+                const Text('손상부 조사',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: _startDamageSurvey,
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('촬영하여 조사'),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 220,
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _fb.damageStream(heritageId),
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final docs = snap.data!.docs;
+                if (docs.isEmpty) {
+                  return const Center(
+                      child: Text('등록된 손상부 조사가 없습니다'));
+                }
+                final d = docs.first.data();
+                final url = d['imageUrl'] as String? ?? '';
+                final dets =
+                (d['detections'] as List? ?? []).cast<Map<String, dynamic>>();
+                return _DamagePreview(url: url, detections: dets);
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -271,5 +326,94 @@ class _InfoRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _PhotoCard extends StatelessWidget {
+  final String title, url, meta;
+  const _PhotoCard(
+      {required this.title, required this.url, required this.meta});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withOpacity(0.3),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                    const Center(child: Icon(Icons.broken_image))),
+              )),
+          const SizedBox(height: 6),
+          Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(meta, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _DamagePreview extends StatelessWidget {
+  final String url;
+  final List<Map<String, dynamic>> detections; // label, score, x,y,w,h
+  const _DamagePreview({required this.url, required this.detections});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(url, fit: BoxFit.contain),
+          ...detections.map((m) {
+            final x = (m['x'] as num).toDouble();
+            final y = (m['y'] as num).toDouble();
+            final w = (m['w'] as num).toDouble();
+            final h = (m['h'] as num).toDouble();
+            return FractionallySizedBox(
+              widthFactor: w,
+              heightFactor: h,
+              alignment: Alignment(-1 + x * 2 + w, -1 + y * 2 + h),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(width: 2, color: Colors.red),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    margin: const EdgeInsets.all(2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 2),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surface
+                        .withOpacity(0.8),
+                    child: Text(
+                        '${m['label']} ${(m['score'] as num).toStringAsFixed(2)}'),
+                  ),
+                ),
+              ),
+            );
+          })
+        ],
+      );
+    });
   }
 }
