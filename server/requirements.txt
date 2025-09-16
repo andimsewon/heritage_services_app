@@ -1,0 +1,5 @@
+# requirements.txt
+fastapi>=0.95.0,<1.0        # 웹 프레임워크
+uvicorn[standard]>=0.22.0   # ASGI 서버 (Hot reload 등 표준 옵션 포함)
+httpx>=0.24.0               # 비동기 HTTP 클라이언트
+xmltodict>=0.13.0           # XML → dict 변환

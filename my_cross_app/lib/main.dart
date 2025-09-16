@@ -1,7 +1,5 @@
 // lib/main.dart
-// 앱 전체 진입점 + 라우팅 정의 (Firebase 초기화 추가)
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+// 앱 전체 진입점: Firebase 초기화 + 라우팅 정의
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -14,30 +12,18 @@ import 'screens/detail_survey_screen.dart';
 import 'screens/damage_model_screen.dart';
 import 'screens/damage_map_preview_screen.dart';
 
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-@app.post("/ai/damage/infer")
-async def ai_damage_infer(image: UploadFile = File(...)):
-    # TODO: 추후 실제 모델 서버로 포워딩(예: httpx로 외부 API 호출)
-    # 지금은 더미 박스 1개 반환
-    return {
-      "detections": [
-          {"label":"갈라짐","score":0.88,"x":0.35,"y":0.25,"w":0.20,"h":0.15}
-      ]
-    }
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // ✅ Firebase 초기화
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
-  // ✅ Firestore 연결 테스트
+  // ✅ Firebase 초기화 (중복 방지)
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+
+  // 🔎 Firestore 연결 테스트 (원할 때만 주석 해제)
+  /*
   try {
     final fs = FirebaseFirestore.instance;
     final docRef = fs.collection('test').doc('hello');
@@ -47,10 +33,10 @@ Future<void> main() async {
   } catch (e) {
     print("❌ Firestore 테스트 실패: $e");
   }
+  */
 
   runApp(const HeritageApp());
 }
-
 
 class HeritageApp extends StatelessWidget {
   const HeritageApp({super.key});
@@ -69,10 +55,10 @@ class HeritageApp extends StatelessWidget {
         ),
       ),
 
-      // ✅ 명시적 초기 라우트
+      // ✅ 초기 라우트
       initialRoute: LoginScreen.route,
 
-      // ✅ 정적 라우트 등록
+      // ✅ 라우트 매핑
       routes: {
         LoginScreen.route: (_) => const LoginScreen(),
         HomeScreen.route: (_) => const HomeScreen(),
@@ -83,28 +69,7 @@ class HeritageApp extends StatelessWidget {
         DamageMapPreviewScreen.route: (_) => const DamageMapPreviewScreen(),
       },
 
-      // ✅ 동적 라우트 처리
-      onGenerateRoute: (settings) {
-        switch (settings.name) {
-          case LoginScreen.route:
-            return MaterialPageRoute(builder: (_) => const LoginScreen(), settings: settings);
-          case HomeScreen.route:
-            return MaterialPageRoute(builder: (_) => const HomeScreen(), settings: settings);
-          case AssetSelectScreen.route:
-            return MaterialPageRoute(builder: (_) => const AssetSelectScreen(), settings: settings);
-          case BasicInfoScreen.route:
-            return MaterialPageRoute(builder: (_) => const BasicInfoScreen(), settings: settings);
-          case DetailSurveyScreen.route:
-            return MaterialPageRoute(builder: (_) => const DetailSurveyScreen(), settings: settings);
-          case DamageModelScreen.route:
-            return MaterialPageRoute(builder: (_) => const DamageModelScreen(), settings: settings);
-          case DamageMapPreviewScreen.route:
-            return MaterialPageRoute(builder: (_) => const DamageMapPreviewScreen(), settings: settings);
-        }
-        return null;
-      },
-
-      // ✅ 안전망: 잘못된 라우트 처리
+      // ✅ 잘못된 라우트 진입 시 처리
       onUnknownRoute: (settings) {
         return MaterialPageRoute(
           builder: (_) => Scaffold(

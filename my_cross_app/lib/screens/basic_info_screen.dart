@@ -9,6 +9,8 @@ import '../data/heritage_api.dart';
 import '../env.dart';
 import '../services/firebase_service.dart';
 import '../services/image_acquire.dart';
+import '../services/pick_and_upload.dart';
+
 
 /// ④ 기본개요 화면
 class BasicInfoScreen extends StatefulWidget {
