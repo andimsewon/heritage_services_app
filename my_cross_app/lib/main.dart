@@ -14,6 +14,22 @@ import 'screens/detail_survey_screen.dart';
 import 'screens/damage_model_screen.dart';
 import 'screens/damage_map_preview_screen.dart';
 
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.post("/ai/damage/infer")
+async def ai_damage_infer(image: UploadFile = File(...)):
+    # TODO: 추후 실제 모델 서버로 포워딩(예: httpx로 외부 API 호출)
+    # 지금은 더미 박스 1개 반환
+    return {
+      "detections": [
+          {"label":"갈라짐","score":0.88,"x":0.35,"y":0.25,"w":0.20,"h":0.15}
+      ]
+    }
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // ✅ Firebase 초기화
