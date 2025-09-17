@@ -1,10 +1,10 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../data/heritage_api.dart';
 import '../env.dart';
 import '../services/firebase_service.dart';
+import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 
 /// ④ 기본개요 화면
@@ -23,6 +23,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   late String heritageId;
   late final HeritageApi _api = HeritageApi(Env.proxyBase);
   final _fb = FirebaseService();
+  final _ai = AiDetectionService(
+    baseUrl: Env.proxyBase.replaceFirst(':8080', ':8081'),
+  );
 
   @override
   void didChangeDependencies() {
@@ -79,6 +82,15 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     ['item', 'ccbaMnm1'],
   ]);
 
+  String _formatBytes(num? b) {
+    final bytes = (b ?? 0).toDouble();
+    if (bytes < 1024) return '${bytes.toInt()}B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)}KB';
+    final mb = kb / 1024;
+    return '${mb.toStringAsFixed(2)}MB';
+  }
+
   // ───────────────────────── 문화유산 현황 사진 업로드
   Future<void> _addPhoto() async {
     final pair = await ImageAcquire.pick(context);
@@ -90,6 +102,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
     await _fb.addPhoto(
       heritageId: heritageId,
+      heritageName: _name,
       title: title,
       imageBytes: bytes,
       sizeGetter: sizeGetter,
@@ -129,6 +142,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     // 원본 사진 업로드
     await _fb.addPhoto(
       heritageId: heritageId,
+      heritageName: _name,
       title: '손상부 조사 원본',
       imageBytes: bytes,
       sizeGetter: sizeGetter,
@@ -145,14 +159,44 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         .get();
     final imageUrl = (latest.docs.first.data())['url'] as String;
 
-    // AI 분석 (더미, 나중에 FastAPI 교체)
-    final detections = await _callDamageAI(bytes);
+    // AI 분석 호출 (HTTP → 실패 시 더미)
+    final detections = await _ai.detect(bytes);
+
+    // 1차 확인 다이얼로그: 감지 결과 미리보기 + 확인/취소
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('손상 감지 결과 확인'),
+        content: const Text('감지 결과를 저장하시겠습니까? (세부는 다음 단계에서 입력)'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('계속'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+
+    // 2차 세부 입력: 위치/현상/의견/등급
+    final detail = await _askDamageDetail(context);
 
     // Firestore에 손상부 조사 문서 저장
     await _fb.addDamageSurvey(
       heritageId: heritageId,
+      heritageName: _name,
       imageUrl: imageUrl,
       detections: detections,
+      location: detail['location'] as String?,
+      phenomenon: detail['phenomenon'] as String?,
+      inspectorOpinion: detail['opinion'] as String?,
+      severityGrade: detail['grade'] as String?,
+      detailInputs: detail['inputs'] as Map<String, dynamic>?,
     );
 
     if (mounted) {
@@ -162,19 +206,79 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _callDamageAI(Uint8List bytes) async {
-    // ⚠️ 더미 응답 (향후 FastAPI로 교체)
-    return [
-      {
-        'label': '갈라짐',
-        'score': 0.88,
-        'x': 0.35,
-        'y': 0.25,
-        'w': 0.20,
-        'h': 0.15,
-      },
-    ];
+  Future<Map<String, Object?>> _askDamageDetail(BuildContext context) async {
+    final location = TextEditingController();
+    final phenomenon = TextEditingController();
+    final opinion = TextEditingController();
+    final grade = ValueNotifier<String>('A');
+
+    final result = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('손상 세부 입력'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: location,
+                decoration: const InputDecoration(labelText: '손상 위치'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: phenomenon,
+                decoration: const InputDecoration(labelText: '손상 현상'),
+              ),
+              const SizedBox(height: 8),
+              ValueListenableBuilder(
+                valueListenable: grade,
+                builder: (_, value, __) => DropdownButtonFormField<String>(
+                  value: value,
+                  decoration: const InputDecoration(labelText: '부재 손상 등급'),
+                  items: const [
+                    DropdownMenuItem(value: 'A', child: Text('A')),
+                    DropdownMenuItem(value: 'B', child: Text('B')),
+                    DropdownMenuItem(value: 'C', child: Text('C')),
+                    DropdownMenuItem(value: 'D', child: Text('D')),
+                    DropdownMenuItem(value: 'E', child: Text('E')),
+                    DropdownMenuItem(value: 'F', child: Text('F')),
+                  ],
+                  onChanged: (v) => grade.value = v ?? 'A',
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: opinion,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: '조사자 의견'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, {
+              'location': location.text.trim(),
+              'phenomenon': phenomenon.text.trim(),
+              'opinion': opinion.text.trim(),
+              'grade': grade.value,
+              'inputs': <String, dynamic>{},
+            }),
+            child: const Text('등록'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? <String, Object?>{};
   }
+
+  // 더 이상 사용하지 않음: _ai.detect 사용
 
   @override
   Widget build(BuildContext context) {
@@ -267,7 +371,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     return _PhotoCard(
                       title: (d['title'] as String?) ?? '',
                       url: (d['url'] as String?) ?? '',
-                      meta: '${d['width'] ?? '?'}x${d['height'] ?? '?'}',
+                      meta:
+                          '${d['width'] ?? '?'}x${d['height'] ?? '?'} • ${_formatBytes(d['bytes'] as num?)}',
                     );
                   },
                 );
@@ -296,7 +401,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             ),
           ),
           SizedBox(
-            height: 220,
+            height: 240,
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _fb.damageStream(heritageId),
               builder: (context, snap) {
@@ -307,11 +412,28 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 if (docs.isEmpty) {
                   return const Center(child: Text('등록된 손상부 조사가 없습니다'));
                 }
-                final d = docs.first.data();
-                final url = d['imageUrl'] as String? ?? '';
-                final dets = (d['detections'] as List? ?? [])
-                    .cast<Map<String, dynamic>>();
-                return _DamagePreview(url: url, detections: dets);
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (_, i) {
+                    final d = docs[i].data();
+                    final url = d['imageUrl'] as String? ?? '';
+                    final dets = (d['detections'] as List? ?? [])
+                        .cast<Map<String, dynamic>>();
+                    final grade = d['severityGrade'] as String?;
+                    final loc = d['location'] as String?;
+                    final phe = d['phenomenon'] as String?;
+                    return _DamageCard(
+                      url: url,
+                      detections: dets,
+                      severityGrade: grade,
+                      location: loc,
+                      phenomenon: phe,
+                    );
+                  },
+                );
               },
             ),
           ),
@@ -425,7 +547,7 @@ class _DamagePreview extends StatelessWidget {
                 alignment: Alignment(-1 + x * 2 + w, -1 + y * 2 + h),
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(width: 2, color: Colors.red),
+                    border: Border.all(width: 2.5, color: Colors.redAccent),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Align(
@@ -436,11 +558,17 @@ class _DamagePreview extends StatelessWidget {
                         horizontal: 4,
                         vertical: 2,
                       ),
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surface.withOpacity(0.8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                       child: Text(
                         '${m['label']} ${(m['score'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -450,6 +578,95 @@ class _DamagePreview extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _DamageCard extends StatelessWidget {
+  final String url;
+  final List<Map<String, dynamic>> detections;
+  final String? severityGrade;
+  final String? location;
+  final String? phenomenon;
+  const _DamageCard({
+    required this.url,
+    required this.detections,
+    this.severityGrade,
+    this.location,
+    this.phenomenon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 300,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+              child: _DamagePreview(url: url, detections: detections),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    if (severityGrade != null && severityGrade!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.orange.shade400),
+                        ),
+                        child: Text(
+                          '등급 ${severityGrade!}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    const Spacer(),
+                    Text(
+                      '${detections.length}개 감지',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                if ((location ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '위치: $location',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                if ((phenomenon ?? '').isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '현상: $phenomenon',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
