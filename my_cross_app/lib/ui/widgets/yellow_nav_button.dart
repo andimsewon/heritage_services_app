@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
-
 class YellowNavButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
-  const YellowNavButton({super.key, required this.label, required this.onTap});
 
+  const YellowNavButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +25,15 @@ class YellowNavButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis, // 길면 … 처리
+                maxLines: 1, // 한 줄 제한
+                softWrap: false,
+              ),
+            ),
             const SizedBox(width: 8),
             const Icon(Icons.arrow_forward, size: 20),
           ],
