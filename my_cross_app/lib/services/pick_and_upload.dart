@@ -12,6 +12,7 @@ class PickAndUpload {
   /// 사진 선택/촬영 → Storage 업로드 → Firestore 기록
   static Future<void> pickAndUploadImage({
     required String heritageId,
+    required String heritageName,
     required String folder, // 'photos' or 'damage_surveys'
     required BuildContext context,
     String? fixedTitle,
@@ -52,6 +53,7 @@ class PickAndUpload {
     try {
       await _fb.addPhoto(
         heritageId: heritageId,
+        heritageName: heritageName,
         title: title.isEmpty
             ? (folder == 'photos' ? '문화유산 현황 사진' : '손상부 조사 원본')
             : title,
