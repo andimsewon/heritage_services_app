@@ -103,4 +103,45 @@ class FirebaseService {
         .orderBy('timestamp', descending: true)
         .snapshots();
   }
+
+  /// 현황 사진 삭제 (문서 + 스토리지)
+  Future<void> deletePhoto({
+    required String heritageId,
+    required String docId,
+    required String url,
+    String folder = 'photos',
+  }) async {
+    try {
+      await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection(folder)
+          .doc(docId)
+          .delete();
+    } finally {
+      try {
+        await _st.refFromURL(url).delete();
+      } catch (_) {}
+    }
+  }
+
+  /// 손상부 조사 삭제 (문서 + 스토리지 이미지)
+  Future<void> deleteDamageSurvey({
+    required String heritageId,
+    required String docId,
+    required String imageUrl,
+  }) async {
+    try {
+      await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('damage_surveys')
+          .doc(docId)
+          .delete();
+    } finally {
+      try {
+        await _st.refFromURL(imageUrl).delete();
+      } catch (_) {}
+    }
+  }
 }
