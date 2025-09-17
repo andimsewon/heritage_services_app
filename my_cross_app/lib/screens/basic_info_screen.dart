@@ -139,25 +139,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
 
-    // 원본 사진 업로드
-    await _fb.addPhoto(
+    // 원본 사진 업로드(문서 생성 없이 Storage에만 업로드)
+    final imageUrl = await _fb.uploadImage(
       heritageId: heritageId,
-      heritageName: _name,
-      title: '손상부 조사 원본',
-      imageBytes: bytes,
-      sizeGetter: sizeGetter,
       folder: 'damage_surveys',
+      bytes: bytes,
     );
-
-    // 최신 업로드 URL 가져오기
-    final latest = await FirebaseFirestore.instance
-        .collection('heritages')
-        .doc(heritageId)
-        .collection('damage_surveys')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
-    final imageUrl = (latest.docs.first.data())['url'] as String;
 
     // AI 분석 호출 (HTTP → 실패 시 더미)
     final detections = await _ai.detect(bytes);
@@ -278,6 +265,26 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     return result ?? <String, Object?>{};
   }
 
+  Future<bool?> _confirmDelete(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('삭제 확인'),
+        content: const Text('해당 항목을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // 더 이상 사용하지 않음: _ai.detect 사용
 
   @override
@@ -373,6 +380,16 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                       url: (d['url'] as String?) ?? '',
                       meta:
                           '${d['width'] ?? '?'}x${d['height'] ?? '?'} • ${_formatBytes(d['bytes'] as num?)}',
+                      onDelete: () async {
+                        final ok = await _confirmDelete(context);
+                        if (ok != true) return;
+                        await _fb.deletePhoto(
+                          heritageId: heritageId,
+                          docId: docs[i].id,
+                          url: (d['url'] as String?) ?? '',
+                          folder: 'photos',
+                        );
+                      },
                     );
                   },
                 );
@@ -415,10 +432,23 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 return ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   scrollDirection: Axis.horizontal,
-                  itemCount: docs.length,
+                  itemCount: docs
+                      .where(
+                        (e) =>
+                            ((e.data())['imageUrl'] as String?)?.isNotEmpty ==
+                            true,
+                      )
+                      .length,
                   separatorBuilder: (_, __) => const SizedBox(width: 12),
                   itemBuilder: (_, i) {
-                    final d = docs[i].data();
+                    final filtered = docs
+                        .where(
+                          (e) =>
+                              ((e.data())['imageUrl'] as String?)?.isNotEmpty ==
+                              true,
+                        )
+                        .toList();
+                    final d = filtered[i].data();
                     final url = d['imageUrl'] as String? ?? '';
                     final dets = (d['detections'] as List? ?? [])
                         .cast<Map<String, dynamic>>();
@@ -478,10 +508,12 @@ class _InfoRow extends StatelessWidget {
 
 class _PhotoCard extends StatelessWidget {
   final String title, url, meta;
+  final Future<void> Function()? onDelete;
   const _PhotoCard({
     required this.title,
     required this.url,
     required this.meta,
+    this.onDelete,
   });
 
   @override
@@ -510,11 +542,23 @@ class _PhotoCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              if (onDelete != null)
+                IconButton(
+                  tooltip: '삭제',
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  onPressed: onDelete,
+                ),
+            ],
           ),
           Text(meta, style: Theme.of(context).textTheme.bodySmall),
         ],
@@ -594,7 +638,9 @@ class _DamageCard extends StatelessWidget {
     this.severityGrade,
     this.location,
     this.phenomenon,
+    this.onDelete,
   });
+  final Future<void> Function()? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -628,9 +674,9 @@ class _DamageCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade100,
+                          color: Colors.lightBlue.shade100,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.orange.shade400),
+                          border: Border.all(color: Colors.lightBlue.shade400),
                         ),
                         child: Text(
                           '등급 ${severityGrade!}',
@@ -642,6 +688,12 @@ class _DamageCard extends StatelessWidget {
                       '${detections.length}개 감지',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (onDelete != null)
+                      IconButton(
+                        tooltip: '삭제',
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        onPressed: onDelete,
+                      ),
                   ],
                 ),
                 if ((location ?? '').isNotEmpty)

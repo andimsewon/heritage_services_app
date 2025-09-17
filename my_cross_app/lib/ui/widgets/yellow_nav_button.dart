@@ -4,11 +4,7 @@ class YellowNavButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const YellowNavButton({
-    super.key,
-    required this.label,
-    required this.onTap,
-  });
+  const YellowNavButton({super.key, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -18,9 +14,9 @@ class YellowNavButton extends StatelessWidget {
       child: Ink(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         decoration: BoxDecoration(
-          color: Colors.yellow.shade600,
+          color: Colors.lightBlue.shade400,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.amber.shade800, width: 2),
+          border: Border.all(color: Colors.lightBlue.shade700, width: 2),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -35,7 +31,7 @@ class YellowNavButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward, size: 20),
+            const Icon(Icons.arrow_forward, size: 20, color: Colors.white),
           ],
         ),
       ),
