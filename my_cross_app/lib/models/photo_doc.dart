@@ -21,10 +21,10 @@ class PhotoDoc {
 
   Map<String, dynamic> toMap() => {
     'title': title,
+    'bytes': bytes,
     'url': url,
     'width': width,
     'height': height,
-    'bytes': bytes,
     'createdAt': Timestamp.fromDate(createdAt),
   };
 
