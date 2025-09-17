@@ -2,7 +2,6 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
 import 'image_acquire.dart';
 import 'firebase_service.dart';
@@ -32,16 +31,17 @@ class PickAndUpload {
           title: const Text('사진 제목 입력'),
           content: TextField(
             controller: c,
-            decoration:
-            const InputDecoration(hintText: '예: 남측면 전경'),
+            decoration: const InputDecoration(hintText: '예: 남측면 전경'),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('취소')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('취소'),
+            ),
             FilledButton(
-                onPressed: () => Navigator.pop(ctx, c.text.trim()),
-                child: const Text('등록')),
+              onPressed: () => Navigator.pop(ctx, c.text.trim()),
+              child: const Text('등록'),
+            ),
           ],
         ),
       );
@@ -61,15 +61,15 @@ class PickAndUpload {
       );
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('사진 업로드 성공!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('사진 업로드 성공!')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('업로드 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
       }
     }
   }

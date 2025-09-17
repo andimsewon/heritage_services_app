@@ -1,16 +1,11 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:uuid/uuid.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 import '../data/heritage_api.dart';
 import '../env.dart';
 import '../services/firebase_service.dart';
 import '../services/image_acquire.dart';
-import '../services/pick_and_upload.dart';
-
 
 /// ④ 기본개요 화면
 class BasicInfoScreen extends StatefulWidget {
@@ -33,9 +28,11 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_args == null) {
-      _args = (ModalRoute.of(context)?.settings.arguments ?? {}) as Map<String, dynamic>;
+      _args =
+          (ModalRoute.of(context)?.settings.arguments ?? {})
+              as Map<String, dynamic>;
       heritageId =
-      "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
+          "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
       _load();
     }
   }
@@ -51,8 +48,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       setState(() => _detail = d);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('상세 로드 실패: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('상세 로드 실패: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -105,13 +103,18 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('사진 제목 입력'),
         content: TextField(
-            controller: c,
-            decoration: const InputDecoration(hintText: '예: 남측면 전경')),
+          controller: c,
+          decoration: const InputDecoration(hintText: '예: 남측면 전경'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, c.text.trim()),
-              child: const Text('등록')),
+            onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            child: const Text('등록'),
+          ),
         ],
       ),
     );
@@ -153,8 +156,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('손상부 조사 등록 완료')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('손상부 조사 등록 완료')));
     }
   }
 
@@ -167,7 +171,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         'x': 0.35,
         'y': 0.25,
         'w': 0.20,
-        'h': 0.15
+        'h': 0.15,
       },
     ];
   }
@@ -178,12 +182,30 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final kind = _read([['result', 'item', 'ccmaName'], ['item', 'ccmaName']]);
-    final asdt = _read([['result', 'item', 'ccbaAsdt'], ['item', 'ccbaAsdt']]);
-    final owner = _read([['result', 'item', 'ccbaPoss'], ['item', 'ccbaPoss']]);
-    final admin = _read([['result', 'item', 'ccbaAdmin'], ['item', 'ccbaAdmin']]);
-    final lcto = _read([['result', 'item', 'ccbaLcto'], ['item', 'ccbaLcto']]);
-    final lcad = _read([['result', 'item', 'ccbaLcad'], ['item', 'ccbaLcad']]);
+    final kind = _read([
+      ['result', 'item', 'ccmaName'],
+      ['item', 'ccmaName'],
+    ]);
+    final asdt = _read([
+      ['result', 'item', 'ccbaAsdt'],
+      ['item', 'ccbaAsdt'],
+    ]);
+    final owner = _read([
+      ['result', 'item', 'ccbaPoss'],
+      ['item', 'ccbaPoss'],
+    ]);
+    final admin = _read([
+      ['result', 'item', 'ccbaAdmin'],
+      ['item', 'ccbaAdmin'],
+    ]);
+    final lcto = _read([
+      ['result', 'item', 'ccbaLcto'],
+      ['item', 'ccbaLcto'],
+    ]);
+    final lcad = _read([
+      ['result', 'item', 'ccbaLcad'],
+      ['item', 'ccbaLcad'],
+    ]);
 
     return Scaffold(
       appBar: AppBar(centerTitle: true, title: const Text('기본개요')),
@@ -210,15 +232,16 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
               children: [
-                const Text('문화유산 현황',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  '문화유산 현황',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const Spacer(),
                 FilledButton.icon(
                   onPressed: _addPhoto,
                   icon: const Icon(Icons.add_a_photo),
                   label: const Text('사진 등록'),
-                )
+                ),
               ],
             ),
           ),
@@ -244,8 +267,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     return _PhotoCard(
                       title: (d['title'] as String?) ?? '',
                       url: (d['url'] as String?) ?? '',
-                      meta:
-                      '${d['width'] ?? '?'}x${d['height'] ?? '?'}',
+                      meta: '${d['width'] ?? '?'}x${d['height'] ?? '?'}',
                     );
                   },
                 );
@@ -260,9 +282,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
             child: Row(
               children: [
-                const Text('손상부 조사',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  '손상부 조사',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const Spacer(),
                 FilledButton.icon(
                   onPressed: _startDamageSurvey,
@@ -282,13 +305,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 }
                 final docs = snap.data!.docs;
                 if (docs.isEmpty) {
-                  return const Center(
-                      child: Text('등록된 손상부 조사가 없습니다'));
+                  return const Center(child: Text('등록된 손상부 조사가 없습니다'));
                 }
                 final d = docs.first.data();
                 final url = d['imageUrl'] as String? ?? '';
-                final dets =
-                (d['detections'] as List? ?? []).cast<Map<String, dynamic>>();
+                final dets = (d['detections'] as List? ?? [])
+                    .cast<Map<String, dynamic>>();
                 return _DamagePreview(url: url, detections: dets);
               },
             ),
@@ -302,8 +324,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  const _InfoRow(this.label, String? value, {super.key})
-      : value = value ?? '';
+  const _InfoRow(this.label, String? value) : value = value ?? '';
 
   @override
   Widget build(BuildContext context) {
@@ -314,8 +335,10 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 110,
-            child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -333,8 +356,11 @@ class _InfoRow extends StatelessWidget {
 
 class _PhotoCard extends StatelessWidget {
   final String title, url, meta;
-  const _PhotoCard(
-      {required this.title, required this.url, required this.meta});
+  const _PhotoCard({
+    required this.title,
+    required this.url,
+    required this.meta,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -343,27 +369,31 @@ class _PhotoCard extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withOpacity(0.3),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(url,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                    const Center(child: Icon(Icons.broken_image))),
-              )),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Center(child: Icon(Icons.broken_image)),
+              ),
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           Text(meta, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
@@ -378,44 +408,48 @@ class _DamagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.network(url, fit: BoxFit.contain),
-          ...detections.map((m) {
-            final x = (m['x'] as num).toDouble();
-            final y = (m['y'] as num).toDouble();
-            final w = (m['w'] as num).toDouble();
-            final h = (m['h'] as num).toDouble();
-            return FractionallySizedBox(
-              widthFactor: w,
-              heightFactor: h,
-              alignment: Alignment(-1 + x * 2 + w, -1 + y * 2 + h),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(width: 2, color: Colors.red),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    margin: const EdgeInsets.all(2),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 2),
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surface
-                        .withOpacity(0.8),
-                    child: Text(
-                        '${m['label']} ${(m['score'] as num).toStringAsFixed(2)}'),
+    return LayoutBuilder(
+      builder: (context, box) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(url, fit: BoxFit.contain),
+            ...detections.map((m) {
+              final x = (m['x'] as num).toDouble();
+              final y = (m['y'] as num).toDouble();
+              final w = (m['w'] as num).toDouble();
+              final h = (m['h'] as num).toDouble();
+              return FractionallySizedBox(
+                widthFactor: w,
+                heightFactor: h,
+                alignment: Alignment(-1 + x * 2 + w, -1 + y * 2 + h),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(width: 2, color: Colors.red),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Container(
+                      margin: const EdgeInsets.all(2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withOpacity(0.8),
+                      child: Text(
+                        '${m['label']} ${(m['score'] as num).toStringAsFixed(2)}',
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            );
-          })
-        ],
-      );
-    });
+              );
+            }),
+          ],
+        );
+      },
+    );
   }
 }

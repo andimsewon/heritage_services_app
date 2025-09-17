@@ -16,10 +16,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ✅ Firebase 초기화 (중복 방지)
-  if (Firebase.apps.isEmpty) {
+  try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+  } catch (e) {
+    // Firebase가 이미 초기화된 경우 무시
+    if (e.toString().contains('duplicate-app')) {
+      print('Firebase already initialized, continuing...');
+    } else {
+      rethrow;
+    }
   }
 
   // 🔎 Firestore 연결 테스트 (원할 때만 주석 해제)
@@ -74,9 +81,7 @@ class HeritageApp extends StatelessWidget {
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('라우트 오류')),
-            body: Center(
-              child: Text('등록되지 않은 라우트입니다: ${settings.name}'),
-            ),
+            body: Center(child: Text('등록되지 않은 라우트입니다: ${settings.name}')),
           ),
         );
       },
