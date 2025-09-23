@@ -34,8 +34,14 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       _args =
           (ModalRoute.of(context)?.settings.arguments ?? {})
               as Map<String, dynamic>;
-      heritageId =
-          "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
+      final isCustom = _args?['isCustom'] == true;
+      if (isCustom) {
+        // 커스텀은 고유 키 조합이 없으므로 customId 사용
+        heritageId = 'CUSTOM_${_args?['customId'] ?? 'UNKNOWN'}';
+      } else {
+        heritageId =
+            "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
+      }
       _load();
     }
   }
@@ -43,12 +49,24 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final d = await _api.fetchDetail(
-        ccbaKdcd: _args?['ccbaKdcd'] ?? '',
-        ccbaAsno: _args?['ccbaAsno'] ?? '',
-        ccbaCtcd: _args?['ccbaCtcd'] ?? '',
-      );
-      setState(() => _detail = d);
+      if (_args?['isCustom'] == true) {
+        // 리스트에서 전달된 값들을 기본개요 포맷에 맞춰 구성
+        setState(
+          () => _detail = {
+            'item': {
+              'ccbaMnm1': _args?['name'] ?? '',
+              // 아래 필드들은 입력 다이얼로그에서 저장된 값을 읽도록 설계 가능
+            },
+          },
+        );
+      } else {
+        final d = await _api.fetchDetail(
+          ccbaKdcd: _args?['ccbaKdcd'] ?? '',
+          ccbaAsno: _args?['ccbaAsno'] ?? '',
+          ccbaCtcd: _args?['ccbaCtcd'] ?? '',
+        );
+        setState(() => _detail = d);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -448,7 +466,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                               true,
                         )
                         .toList();
-                    final d = filtered[i].data();
+                    final doc = filtered[i];
+                    final d = doc.data();
                     final url = d['imageUrl'] as String? ?? '';
                     final dets = (d['detections'] as List? ?? [])
                         .cast<Map<String, dynamic>>();
@@ -461,6 +480,15 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                       severityGrade: grade,
                       location: loc,
                       phenomenon: phe,
+                      onDelete: () async {
+                        final ok = await _confirmDelete(context);
+                        if (ok != true) return;
+                        await _fb.deleteDamageSurvey(
+                          heritageId: heritageId,
+                          docId: doc.id,
+                          imageUrl: url,
+                        );
+                      },
                     );
                   },
                 );
