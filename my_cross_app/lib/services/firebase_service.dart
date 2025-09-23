@@ -144,4 +144,52 @@ class FirebaseService {
       } catch (_) {}
     }
   }
+
+  /// 사용자 추가 국가유산 생성
+  Future<String> addCustomHeritage({
+    required String kindCode,
+    required String kindName,
+    required String name,
+    required String sojaeji,
+    required String addr,
+    // 기본 개요(선택)
+    String? asdt,
+    String? owner,
+    String? admin,
+    String? lcto,
+    String? lcad,
+  }) async {
+    final id = const Uuid().v4();
+    final doc = _fs.collection('custom_heritages').doc(id);
+    await doc.set({
+      'id': 'custom_$id',
+      'kindCode': kindCode,
+      'kindName': kindName,
+      'name': name,
+      'sojaeji': sojaeji,
+      'addr': addr,
+      // 기본 개요 호환 키
+      'ccmaName': kindName,
+      'ccbaAsdt': asdt,
+      'ccbaPoss': owner,
+      'ccbaAdmin': admin,
+      'ccbaLcto': lcto,
+      'ccbaLcad': lcad,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    return id;
+  }
+
+  /// 사용자 추가 국가유산 스트림
+  Stream<QuerySnapshot<Map<String, dynamic>>> customHeritagesStream() {
+    return _fs
+        .collection('custom_heritages')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  /// 사용자 추가 국가유산 삭제
+  Future<void> deleteCustomHeritage(String id) async {
+    await _fs.collection('custom_heritages').doc(id).delete();
+  }
 }
