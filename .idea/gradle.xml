@@ -26,8 +26,8 @@
             <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/firebase_storage-13.0.1/android" />
             <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_plugin_android_lifecycle-2.0.30/android" />
             <option value="$USER_HOME$/.pub-cache/hosted/pub.dev/image_picker_android-0.8.13+2/android" />
-            <option value="$PROJECT_DIR$/../무제 폴더/my_cross_app/android" />
-            <option value="$PROJECT_DIR$/../무제 폴더/my_cross_app/android/app" />
+            <option value="$PROJECT_DIR$/my_cross_app/android" />
+            <option value="$PROJECT_DIR$/my_cross_app/android/app" />
             <option value="$USER_HOME$/flutter/packages/flutter_tools/gradle" />
           </set>
         </option>
