@@ -50,15 +50,35 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     setState(() => _loading = true);
     try {
       if (_args?['isCustom'] == true) {
-        // 리스트에서 전달된 값들을 기본개요 포맷에 맞춰 구성
-        setState(
-          () => _detail = {
-            'item': {
-              'ccbaMnm1': _args?['name'] ?? '',
-              // 아래 필드들은 입력 다이얼로그에서 저장된 값을 읽도록 설계 가능
+        // Firestore에 저장된 커스텀 유산 문서를 불러와 기본개요를 구성
+        final customId = _args?['customId'] as String?;
+        if (customId != null && customId.isNotEmpty) {
+          final snap = await FirebaseFirestore.instance
+              .collection('custom_heritages')
+              .doc(customId)
+              .get();
+          final m = snap.data() ?? <String, dynamic>{};
+          setState(
+            () => _detail = {
+              'item': {
+                'ccbaMnm1': (m['name'] as String?) ?? (_args?['name'] ?? ''),
+                'ccmaName': m['ccmaName'] ?? m['kindName'],
+                'ccbaAsdt': m['ccbaAsdt'] ?? m['asdt'],
+                'ccbaPoss': m['ccbaPoss'] ?? m['owner'],
+                'ccbaAdmin': m['ccbaAdmin'] ?? m['admin'],
+                'ccbaLcto': m['ccbaLcto'] ?? m['lcto'],
+                'ccbaLcad': m['ccbaLcad'] ?? m['lcad'],
+              },
             },
-          },
-        );
+          );
+        } else {
+          // 폴백: 전달된 인자만으로 구성
+          setState(
+            () => _detail = {
+              'item': {'ccbaMnm1': _args?['name'] ?? ''},
+            },
+          );
+        }
       } else {
         final d = await _api.fetchDetail(
           ccbaKdcd: _args?['ccbaKdcd'] ?? '',

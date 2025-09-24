@@ -29,7 +29,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV "/Users/kimsewon/AndroidStudioProjects/무제 폴더/server/.venv"
+set -gx VIRTUAL_ENV "/Users/kimsewon/AndroidStudioProjects/heritage_services_app/server/.venv"
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/bin" $PATH

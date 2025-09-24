@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/kimsewon/AndroidStudioProjects/무제 폴더/server/.venv/bin/python3" "$0" "$@"
-' '''
+#!/Users/kimsewon/AndroidStudioProjects/heritage_services_app/server/.venv/bin/python3
 import sys
 from watchfiles.cli import cli
 if __name__ == '__main__':
