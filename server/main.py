@@ -1,8 +1,12 @@
 # server/main.py
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import httpx, xmltodict, os
-from typing import Optional   # ✅ 추가
+import httpx, xmltodict, io, os
+from typing import Optional
+from PIL import Image
+import torch
+from torchvision import transforms
+from pathlib import Path
 
 KHS_BASE = "http://www.khs.go.kr/cha"
 
@@ -12,6 +16,9 @@ app.add_middleware(
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
+# -----------------------------
+# 유틸 함수
+# -----------------------------
 def _pick(d, k, default=""):
     return d.get(k, default) if isinstance(d, dict) else default
 
@@ -22,15 +29,6 @@ def _first_non_empty(*vals):
     return ""
 
 def _extract_items(xml_dict):
-    """
-    다양한 루트 구조를 모두 시도해서 item 리스트를 뽑는다.
-    가능한 구조:
-      result -> items -> item
-      items -> item
-      list  -> item
-      result -> list -> item
-      item (단일/리스트)
-    """
     if not isinstance(xml_dict, dict):
         return []
 
@@ -58,15 +56,21 @@ def _extract_items(xml_dict):
                 return [cur]
     return []
 
+# -----------------------------
+# Health check
+# -----------------------------
 @app.get("/health")
 async def health():
     return {"ok": True}
 
+# -----------------------------
+# Heritage list API
+# -----------------------------
 @app.get("/heritage/list")
 async def heritage_list(
-        keyword: Optional[str] = None,  # ✅ 수정
-        kind:    Optional[str] = None,  # ✅ 수정
-        region:  Optional[str] = None,  # ✅ 수정
+        keyword: Optional[str] = None,
+        kind:    Optional[str] = None,
+        region:  Optional[str] = None,
         page: int = 1,
         size: int = 20,
 ):
@@ -142,6 +146,9 @@ async def heritage_list(
         raise last_error
     return {"items": [], "totalCount": 0}
 
+# -----------------------------
+# Heritage detail API
+# -----------------------------
 @app.get("/heritage/detail")
 async def heritage_detail(ccbaKdcd: str, ccbaAsno: str, ccbaCtcd: str):
     url = f"{KHS_BASE}/SearchKindOpenapiDt.do"
@@ -154,14 +161,115 @@ async def heritage_detail(ccbaKdcd: str, ccbaAsno: str, ccbaCtcd: str):
     data = xmltodict.parse(r.text)
     return data
 
+# -----------------------------
+# AI 모델 로드 (앱 시작 시 1회)
+# -----------------------------
+# 모델 파일은 서버 디렉토리 기준으로 로드
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_FILENAME = "hanok_damage_model_ml_backend.pt"
+MODEL_PATH = str((BASE_DIR / MODEL_FILENAME).resolve())
+
+# 클래스 이름 테이블 (학습할 때 정의한 순서와 동일해야 함)
+CLASS_LABELS = ["갈라짐", "박락", "변색", "균열", "기타"]
+
+# 디바이스 선택: 우선순위 MPS(macOS) > CUDA > CPU
+if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    DEVICE = torch.device("mps")
+elif torch.cuda.is_available():
+    DEVICE = torch.device("cuda")
+else:
+    DEVICE = torch.device("cpu")
+
+model = None
+model_type = "unknown"
+
+try:
+    # TorchScript 우선 로드 (배포 친화적)
+    try:
+        model = torch.jit.load(MODEL_PATH, map_location=DEVICE)
+        model_type = "torchscript"
+    except Exception:
+        # 일반 PyTorch nn.Module 체크포인트 로드
+        model = torch.load(MODEL_PATH, map_location=DEVICE)
+        model_type = "eager"
+
+    model.eval()
+    if hasattr(model, "to"):
+        model.to(DEVICE)
+
+    preprocess = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
+
+    # 가벼운 워밍업 (선택적): 작은 텐서로 1회 호출
+    try:
+        with torch.no_grad():
+            _ = model(torch.zeros(1, 3, 224, 224, device=DEVICE))
+    except Exception:
+        pass
+
+    print(f"[AI] 모델 로드 완료: {MODEL_PATH}  device={DEVICE}  type={model_type}")
+except Exception as e:
+    print(f"[AI] 모델 로드 실패: {e}")
+    model = None
+
+# -----------------------------
+# AI 손상 탐지 API
+# -----------------------------
 @app.post("/ai/damage/infer")
 async def ai_damage_infer(image: UploadFile = File(...)):
     """
-    업로드된 이미지에서 손상 부위를 탐지하는 AI API (현재는 더미 응답).
-    추후 실제 모델 서버 호출(httpx)로 교체 가능.
+    업로드된 이미지에서 손상 부위를 탐지하는 AI API.
+    hanok_damage_model_ml_backend.pt 모델을 사용해 실제 추론 수행.
     """
-    return {
-        "detections": [
-            {"label": "갈라짐", "score": 0.88, "x": 0.35, "y": 0.25, "w": 0.20, "h": 0.15}
+    if model is None:
+        raise HTTPException(status_code=500, detail="모델이 로드되지 않았습니다.")
+
+    try:
+        contents = await image.read()
+        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        tensor = preprocess(img).unsqueeze(0).to(DEVICE)
+
+        with torch.no_grad():
+            outputs = model(tensor)
+            if isinstance(outputs, (list, tuple)):
+                outputs = outputs[0]
+            probs = torch.softmax(outputs, dim=1)[0]
+            score, pred = torch.max(probs, 0)
+
+        # 클래스 라벨 매핑
+        class_id = pred.item()
+        label = CLASS_LABELS[class_id] if class_id < len(CLASS_LABELS) else f"unknown_{class_id}"
+
+        # 전체 클래스 확률 테이블
+        all_scores = [
+            {
+                "class_id": idx,
+                "label": CLASS_LABELS[idx] if idx < len(CLASS_LABELS) else f"unknown_{idx}",
+                "score": float(probs[idx].item()),
+            }
+            for idx in range(probs.shape[0])
         ]
-    }
+
+        return {
+            "detections": [
+                {
+                    "label": label,
+                    "score": float(score),
+                    "class_id": class_id
+                }
+            ],
+            "scores": all_scores,
+            "meta": {
+                "model_path": MODEL_PATH,
+                "device": str(DEVICE),
+                "model_type": model_type,
+                "input_size": [224, 224],
+                "filename": image.filename,
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"추론 오류: {e}")
