@@ -1,16 +1,17 @@
 # server/main.py
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import httpx, xmltodict, io, os
+import httpx, xmltodict, io
 from typing import Optional
 from PIL import Image
 import torch
+import torch.nn as nn
 from torchvision import transforms
-from pathlib import Path
+from transformers import DetaImageProcessor, DetaForObjectDetection
 
 KHS_BASE = "http://www.khs.go.kr/cha"
 
-app = FastAPI(title="Heritage Proxy (debug-friendly)")
+app = FastAPI(title="Heritage Proxy (with AI)")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
@@ -162,114 +163,79 @@ async def heritage_detail(ccbaKdcd: str, ccbaAsno: str, ccbaCtcd: str):
     return data
 
 # -----------------------------
-# AI 모델 로드 (앱 시작 시 1회)
+# AI 모델 정의 (CustomDeta)
 # -----------------------------
-# 모델 파일은 서버 디렉토리 기준으로 로드
-BASE_DIR = Path(__file__).resolve().parent
-MODEL_FILENAME = "hanok_damage_model_ml_backend.pt"
-MODEL_PATH = str((BASE_DIR / MODEL_FILENAME).resolve())
+class CustomDeta(nn.Module):
+    def __init__(self, num_labels):
+        super(CustomDeta, self).__init__()
+        self.model = DetaForObjectDetection.from_pretrained(
+            "jozhang97/deta-resnet-50",
+            num_labels=num_labels,
+            auxiliary_loss=True,
+            ignore_mismatched_sizes=True
+        )
 
-# 클래스 이름 테이블 (학습할 때 정의한 순서와 동일해야 함)
-CLASS_LABELS = ["갈라짐", "박락", "변색", "균열", "기타"]
+    def forward(self, pixel_values, pixel_mask=None, labels=None):
+        return self.model(pixel_values=pixel_values, pixel_mask=pixel_mask, labels=labels)
 
-# 디바이스 선택: 우선순위 MPS(macOS) > CUDA > CPU
-if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-    DEVICE = torch.device("mps")
-elif torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-else:
-    DEVICE = torch.device("cpu")
+    def predict(self, pixel_values, pixel_mask=None):
+        return self.model(pixel_values=pixel_values, pixel_mask=pixel_mask)
 
-model = None
-model_type = "unknown"
+# -----------------------------
+# AI 모델 로드
+# -----------------------------
+MODEL_PATH = "hanok_damage_model_ml_backend.pt"
 
 try:
-    # TorchScript 우선 로드 (배포 친화적)
-    try:
-        model = torch.jit.load(MODEL_PATH, map_location=DEVICE)
-        model_type = "torchscript"
-    except Exception:
-        # 일반 PyTorch nn.Module 체크포인트 로드
-        model = torch.load(MODEL_PATH, map_location=DEVICE)
-        model_type = "eager"
+    checkpoint = torch.load(MODEL_PATH, map_location="cpu")
 
+    num_classes = checkpoint.get("num_classes", 5)
+    id2label = checkpoint.get("id2label", {i: str(i) for i in range(num_classes)})
+
+    model = CustomDeta(num_labels=num_classes)
+    model.model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
-    if hasattr(model, "to"):
-        model.to(DEVICE)
 
-    preprocess = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225])
-    ])
+    processor = DetaImageProcessor.from_pretrained("jozhang97/deta-resnet-50")
 
-    # 가벼운 워밍업 (선택적): 작은 텐서로 1회 호출
-    try:
-        with torch.no_grad():
-            _ = model(torch.zeros(1, 3, 224, 224, device=DEVICE))
-    except Exception:
-        pass
+    print(f"[AI] 모델 로드 성공 (classes={num_classes})")
 
-    print(f"[AI] 모델 로드 완료: {MODEL_PATH}  device={DEVICE}  type={model_type}")
 except Exception as e:
     print(f"[AI] 모델 로드 실패: {e}")
-    model = None
+    model, processor, id2label = None, None, None
 
 # -----------------------------
 # AI 손상 탐지 API
 # -----------------------------
 @app.post("/ai/damage/infer")
 async def ai_damage_infer(image: UploadFile = File(...)):
-    """
-    업로드된 이미지에서 손상 부위를 탐지하는 AI API.
-    hanok_damage_model_ml_backend.pt 모델을 사용해 실제 추론 수행.
-    """
-    if model is None:
+    if model is None or processor is None:
         raise HTTPException(status_code=500, detail="모델이 로드되지 않았습니다.")
 
     try:
         contents = await image.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
-        tensor = preprocess(img).unsqueeze(0).to(DEVICE)
+
+        encoding = processor(images=img, return_tensors="pt")
+        pixel_values = encoding["pixel_values"]
 
         with torch.no_grad():
-            outputs = model(tensor)
-            if isinstance(outputs, (list, tuple)):
-                outputs = outputs[0]
-            probs = torch.softmax(outputs, dim=1)[0]
-            score, pred = torch.max(probs, 0)
+            outputs = model.predict(pixel_values=pixel_values)
+            results = processor.post_process_object_detection(
+                outputs=outputs, target_sizes=[img.size[::-1]], threshold=0.3
+            )
 
-        # 클래스 라벨 매핑
-        class_id = pred.item()
-        label = CLASS_LABELS[class_id] if class_id < len(CLASS_LABELS) else f"unknown_{class_id}"
+        result = results[0]
+        detections = []
+        for box, score, label in zip(result["boxes"], result["scores"], result["labels"]):
+            x1, y1, x2, y2 = box.tolist()
+            detections.append({
+                "label": id2label.get(int(label), str(label.item())),
+                "score": float(score),
+                "bbox": [x1, y1, x2, y2]
+            })
 
-        # 전체 클래스 확률 테이블
-        all_scores = [
-            {
-                "class_id": idx,
-                "label": CLASS_LABELS[idx] if idx < len(CLASS_LABELS) else f"unknown_{idx}",
-                "score": float(probs[idx].item()),
-            }
-            for idx in range(probs.shape[0])
-        ]
+        return {"detections": detections}
 
-        return {
-            "detections": [
-                {
-                    "label": label,
-                    "score": float(score),
-                    "class_id": class_id
-                }
-            ],
-            "scores": all_scores,
-            "meta": {
-                "model_path": MODEL_PATH,
-                "device": str(DEVICE),
-                "model_type": model_type,
-                "input_size": [224, 224],
-                "filename": image.filename,
-            }
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"추론 오류: {e}")
