@@ -3,3 +3,9 @@ fastapi>=0.95.0,<1.0        # 웹 프레임워크
 uvicorn[standard]>=0.22.0   # ASGI 서버 (Hot reload 등 표준 옵션 포함)
 httpx>=0.24.0               # 비동기 HTTP 클라이언트
 xmltodict>=0.13.0           # XML → dict 변환
+Pillow>=10.0.0              # 이미지 로딩 및 전처리
+# 아래 두 항목은 환경에 따라 설치 방법이 다를 수 있습니다.
+# - macOS(M1/M2): pip로 CPU 전용 설치가 기본이며, mps 가속은 PyTorch가 자동 감지
+# - Linux GPU(CUDA): 프로젝트 환경에 맞는 휠을 사용하세요.
+torch                       # 딥러닝 프레임워크 (TorchScript/nn.Module 로드)
+torchvision                 # 이미지 전처리 및 모델 유틸
