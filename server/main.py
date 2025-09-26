@@ -1,12 +1,10 @@
-# server/main.py
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import httpx, xmltodict, io
+import httpx, xmltodict, io, os
 from typing import Optional
 from PIL import Image
 import torch
 import torch.nn as nn
-from torchvision import transforms
 from transformers import DetaImageProcessor, DetaForObjectDetection
 
 KHS_BASE = "http://www.khs.go.kr/cha"
@@ -32,7 +30,6 @@ def _first_non_empty(*vals):
 def _extract_items(xml_dict):
     if not isinstance(xml_dict, dict):
         return []
-
     roots_to_try = [
         ["result", "items", "item"],
         ["result", "list", "item"],
@@ -100,8 +97,6 @@ async def heritage_list(
 
             data = xmltodict.parse(r.text)
             items_node = _extract_items(data)
-            print(f"[LIST] root keys: {list(data.keys())}  items: {len(items_node)}")
-
             if not items_node:
                 continue
 
@@ -110,12 +105,10 @@ async def heritage_list(
                 ccbaKdcd = _pick(e, "ccbaKdcd")
                 ccbaAsno = _pick(e, "ccbaAsno")
                 ccbaCtcd = _pick(e, "ccbaCtcd")
-
                 kind_name = _first_non_empty(_pick(e, "ccmaName"), _pick(e, "gcodeName"))
                 name = _pick(e, "ccbaMnm1", "미상")
                 sojaeji = _first_non_empty(_pick(e, "ccbaLcto"), _pick(e, "ccbaLcad"), _pick(e, "loc"))
                 addr = _first_non_empty(_pick(e, "ccbaCtcdNm"), _pick(e, "ccsiName"))
-
                 items.append({
                     "id": f"{ccbaKdcd}-{ccbaAsno}-{ccbaCtcd}",
                     "kindCode": ccbaKdcd,
@@ -140,7 +133,6 @@ async def heritage_list(
             return {"items": items, "totalCount": total}
 
         except Exception as e:
-            print(f"[LIST] variant error: {e}")
             last_error = HTTPException(502, f"proxy error: {e}")
 
     if last_error:
@@ -156,7 +148,6 @@ async def heritage_detail(ccbaKdcd: str, ccbaAsno: str, ccbaCtcd: str):
     params = {"ccbaKdcd": ccbaKdcd, "ccbaAsno": ccbaAsno, "ccbaCtcd": ccbaCtcd}
     async with httpx.AsyncClient(timeout=12.0, headers={"User-Agent": "heritage-proxy/1.0"}) as client:
         r = await client.get(url, params=params)
-    print(f"[DETAIL] GET {r.request.url} -> {r.status_code}")
     if r.status_code != 200:
         raise HTTPException(502, f"KHS error {r.status_code}")
     data = xmltodict.parse(r.text)
@@ -189,11 +180,16 @@ MODEL_PATH = "hanok_damage_model_ml_backend.pt"
 try:
     checkpoint = torch.load(MODEL_PATH, map_location="cpu")
 
-    num_classes = checkpoint.get("num_classes", 5)
+    # num_classes 추론
+    if checkpoint.get("id2label"):
+        num_classes = len(checkpoint["id2label"])
+    else:
+        num_classes = checkpoint.get("num_classes", 5)
+
     id2label = checkpoint.get("id2label", {i: str(i) for i in range(num_classes)})
 
     model = CustomDeta(num_labels=num_classes)
-    model.model.load_state_dict(checkpoint["model_state_dict"])
+    model.model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
 
     processor = DetaImageProcessor.from_pretrained("jozhang97/deta-resnet-50")
