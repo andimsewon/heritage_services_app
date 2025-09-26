@@ -176,11 +176,9 @@ class CustomDeta(nn.Module):
 # AI 모델 로드
 # -----------------------------
 MODEL_PATH = "hanok_damage_model_ml_backend.pt"
-
 try:
     checkpoint = torch.load(MODEL_PATH, map_location="cpu")
 
-    # num_classes 추론
     if checkpoint.get("id2label"):
         num_classes = len(checkpoint["id2label"])
     else:
@@ -189,16 +187,23 @@ try:
     id2label = checkpoint.get("id2label", {i: str(i) for i in range(num_classes)})
 
     model = CustomDeta(num_labels=num_classes)
-    model.model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+
+    # dtype 강제 변환
+    state_dict = checkpoint["model_state_dict"]
+    for k, v in state_dict.items():
+        if isinstance(v, torch.Tensor):
+            state_dict[k] = v.to(torch.float32)
+
+    model.model.load_state_dict(state_dict, strict=False)
     model.eval()
 
     processor = DetaImageProcessor.from_pretrained("jozhang97/deta-resnet-50")
-
     print(f"[AI] 모델 로드 성공 (classes={num_classes})")
 
 except Exception as e:
     print(f"[AI] 모델 로드 실패: {e}")
     model, processor, id2label = None, None, None
+
 
 # -----------------------------
 # AI 손상 탐지 API
