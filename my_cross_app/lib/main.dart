@@ -23,7 +23,7 @@ Future<void> main() async {
   } catch (e) {
     // Firebase가 이미 초기화된 경우 무시
     if (e.toString().contains('duplicate-app')) {
-      print('Firebase already initialized, continuing...');
+      debugPrint('Firebase already initialized, continuing...');
     } else {
       rethrow;
     }

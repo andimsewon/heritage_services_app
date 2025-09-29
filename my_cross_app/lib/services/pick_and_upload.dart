@@ -26,6 +26,7 @@ class PickAndUpload {
     if (fixedTitle == null && folder == 'photos') {
       // 제목 입력 다이얼로그 (현황 사진일 때만)
       final c = TextEditingController();
+      if (!context.mounted) return null;
       final t = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(

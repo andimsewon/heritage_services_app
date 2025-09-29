@@ -24,9 +24,9 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
   // 기록개요 필드 (간단 텍스트 입력 위젯들)
   // ─────────────────────────────────────────────────────────────
   final _section = TextEditingController(); // 구/부/세부명
-  final _period  = TextEditingController(); // 시정/지정일(예시)
-  final _writer  = TextEditingController(); // 작성인
-  final _note    = TextEditingController(); // 메모/비고
+  final _period = TextEditingController(); // 시정/지정일(예시)
+  final _writer = TextEditingController(); // 작성인
+  final _note = TextEditingController(); // 메모/비고
 
   // 보존이력 (간단 테이블 목업 데이터)
   final List<Map<String, String>> _history = [
@@ -68,7 +68,9 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                       ),
                       TextField(
                         controller: _period,
-                        decoration: const InputDecoration(labelText: '시정/지정일(예시)'),
+                        decoration: const InputDecoration(
+                          labelText: '시정/지정일(예시)',
+                        ),
                       ),
                       TextField(
                         controller: _writer,
@@ -102,12 +104,14 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                       DataColumn(label: Text('내용')),
                     ],
                     rows: _history
-                        .map((h) => DataRow(
-                      cells: [
-                        DataCell(Text(h['date']!)),
-                        DataCell(Text(h['desc']!)),
-                      ],
-                    ))
+                        .map(
+                          (h) => DataRow(
+                            cells: [
+                              DataCell(Text(h['date']!)),
+                              DataCell(Text(h['desc']!)),
+                            ],
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
@@ -175,12 +179,14 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                     Expanded(
                       child: YellowNavButton(
                         label: '다음(손상 예측/모델)',
-                        onTap: () =>
-                            Navigator.pushNamed(context, DamageModelScreen.route),
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          DamageModelScreen.route,
+                        ),
                       ),
                     ),
                   ],
-                )
+                ),
               ],
             ),
           ),
@@ -192,7 +198,9 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
   // ─────────────────────────────────────────────────────────────
   // 보존이력 추가 다이얼로그
   // ─────────────────────────────────────────────────────────────
-  Future<Map<String, String>?> _showAddHistoryDialog(BuildContext context) async {
+  Future<Map<String, String>?> _showAddHistoryDialog(
+    BuildContext context,
+  ) async {
     final date = TextEditingController();
     final desc = TextEditingController();
 
@@ -205,8 +213,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           children: [
             TextField(
               controller: date,
-              decoration:
-              const InputDecoration(labelText: '일자 (YYYY-MM-DD)'),
+              decoration: const InputDecoration(labelText: '일자 (YYYY-MM-DD)'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -234,7 +241,9 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
   // 손상요소 신규 등록 다이얼로그(간이 버전)
   //  ※ 향후: 위저드 화면으로 승격 예정 (유형/세부/심각도/위치/원인/권고/증빙 등)
   // ─────────────────────────────────────────────────────────────
-  Future<Map<String, String>?> _showAddDamageDialog(BuildContext context) async {
+  Future<Map<String, String>?> _showAddDamageDialog(
+    BuildContext context,
+  ) async {
     final type = TextEditingController();
     final severity = ValueNotifier<String>('중');
     final memo = TextEditingController();
@@ -248,9 +257,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           children: [
             TextField(
               controller: type,
-              decoration: const InputDecoration(
-                labelText: '손상유형(예: 균열/박락/오염)',
-              ),
+              decoration: const InputDecoration(labelText: '손상유형(예: 균열/박락/오염)'),
             ),
             const SizedBox(height: 8),
             ValueListenableBuilder(

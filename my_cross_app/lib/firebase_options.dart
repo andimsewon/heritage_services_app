@@ -48,5 +48,4 @@ class DefaultFirebaseOptions {
     projectId: "heritageservices-23a6c",
     storageBucket: "heritageservices-23a6c.firebasestorage.app",
   );
-
 }
