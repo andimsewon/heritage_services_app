@@ -256,7 +256,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
             ValueListenableBuilder(
               valueListenable: severity,
               builder: (context, value, _) => DropdownButtonFormField<String>(
-                value: value,
+                initialValue: value,
                 decoration: const InputDecoration(labelText: '심각도'),
                 items: const [
                   DropdownMenuItem(value: '경', child: Text('경')),

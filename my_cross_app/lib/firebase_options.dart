@@ -16,8 +16,6 @@ class DefaultFirebaseOptions {
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
-      case TargetPlatform.iOS:
-        return ios;
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -30,13 +28,13 @@ class DefaultFirebaseOptions {
   // Firebase Console → Web 앱 → SDK 설정에 있는 값으로 교체
   // ─────────────────────────────
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: "AIzaSyA94BcM41qeRgQfV9pTxbiewSew4SiP18",
+    apiKey: "AIzaSyAg4BcMA1qeRgQfV9pTxbeiwSeo4vSiP18",
     authDomain: "heritageservices-23a6c.firebaseapp.com",
     projectId: "heritageservices-23a6c",
-    storageBucket: "heritageservices-23a6c.appspot.com",
+    storageBucket: "heritageservices-23a6c.firebasestorage.app",
     messagingSenderId: "661570902154",
-    appId: "1:661570902154:web:75a9559ae8bb68bada3573",
-    measurementId: "G-0TTN855NBQ",
+    appId: "1:661570902154:web:17d16562436aa476da3573",
+    measurementId: "G-4RG8QBWDPG",
   );
 
   // ─────────────────────────────
@@ -44,23 +42,11 @@ class DefaultFirebaseOptions {
   // Firebase Console → Android 앱 → google-services.json 내부 값
   // ─────────────────────────────
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: "AIzaSyA94BcM41qeRgQfV9pTxbiewSew4SiP18",
-    appId: "1:661570902154:android:bd3530926a8b42ada3573",
+    apiKey: "AIzaSyBlsoEpINCZOkkvNtrnXayflX74smBN--8",
+    appId: "1:661570902154:android:c8ebfca9b4b6c1deda3573",
     messagingSenderId: "661570902154",
     projectId: "heritageservices-23a6c",
-    storageBucket: "heritageservices-23a6c.appspot.com",
+    storageBucket: "heritageservices-23a6c.firebasestorage.app",
   );
 
-  // ─────────────────────────────
-  // iOS
-  // Firebase Console → iOS 앱 → GoogleService-Info.plist 내부 값
-  // ─────────────────────────────
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: "AIzaSyA94BcM41qeRgQfV9pTxbiewSew4SiP18",
-    appId: "1:661570902154:ios:e1360ab0906e5f3eda3573",
-    messagingSenderId: "661570902154",
-    projectId: "heritageservices-23a6c",
-    storageBucket: "heritageservices-23a6c.appspot.com",
-    iosBundleId: "com.yourname.myCrossApp",
-  );
 }

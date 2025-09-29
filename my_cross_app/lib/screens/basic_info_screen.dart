@@ -131,10 +131,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
   // ───────────────────────── 문화유산 현황 사진 업로드
   Future<void> _addPhoto() async {
+    if (!mounted) return;
     final pair = await ImageAcquire.pick(context);
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
 
+    if (!mounted) return;
     final title = await _askTitle(context);
     if (title == null) return;
 
@@ -188,6 +190,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     final detections = await _ai.detect(bytes);
 
     // 1차 확인 다이얼로그: 감지 결과 미리보기 + 확인/취소
+    if (!mounted) return;
     final proceed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -209,6 +212,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     if (proceed != true) return;
 
     // 2차 세부 입력: 위치/현상/의견/등급
+    if (!mounted) return;
     final detail = await _askDamageDetail(context);
 
     // Firestore에 손상부 조사 문서 저장
@@ -258,7 +262,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
               ValueListenableBuilder(
                 valueListenable: grade,
                 builder: (_, value, __) => DropdownButtonFormField<String>(
-                  value: value,
+                  initialValue: value,
                   decoration: const InputDecoration(labelText: '부재 손상 등급'),
                   items: const [
                     DropdownMenuItem(value: 'A', child: Text('A')),
@@ -573,7 +577,7 @@ class _PhotoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         color: Theme.of(
           context,
-        ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,7 +655,7 @@ class _DamagePreview extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
+                        color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(

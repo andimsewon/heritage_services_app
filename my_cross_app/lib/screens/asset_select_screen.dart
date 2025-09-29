@@ -191,7 +191,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           Container(
             color: Theme.of(
               context,
-            ).colorScheme.surfaceVariant.withOpacity(0.4),
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: const Row(
               children: [
@@ -391,7 +391,7 @@ class _CustomRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            _Cell((data['kindName'] as String? ?? '') + ' (내 추가)', flex: 2),
+            _Cell('${data['kindName'] as String? ?? ''} (내 추가)', flex: 2),
             _Cell(data['name'] as String? ?? '', flex: 4),
             _Cell(data['sojaeji'] as String? ?? '', flex: 3),
             Expanded(
