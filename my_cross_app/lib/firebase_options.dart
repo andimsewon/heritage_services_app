@@ -31,7 +31,7 @@ class DefaultFirebaseOptions {
     apiKey: "AIzaSyAg4BcMA1qeRgQfV9pTxbeiwSeo4vSiP18",
     authDomain: "heritageservices-23a6c.firebaseapp.com",
     projectId: "heritageservices-23a6c",
-    storageBucket: "heritageservices-23a6c.firebasestorage.app",
+    storageBucket: "heritageservices-23a6c.appspot.com", // ✅ 수정됨
     messagingSenderId: "661570902154",
     appId: "1:661570902154:web:17d16562436aa476da3573",
     measurementId: "G-4RG8QBWDPG",
@@ -46,6 +46,6 @@ class DefaultFirebaseOptions {
     appId: "1:661570902154:android:c8ebfca9b4b6c1deda3573",
     messagingSenderId: "661570902154",
     projectId: "heritageservices-23a6c",
-    storageBucket: "heritageservices-23a6c.firebasestorage.app",
+    storageBucket: "heritageservices-23a6c.appspot.com", // ✅ 수정됨
   );
 }

@@ -53,25 +53,34 @@ class FirebaseService {
   }
 
   /// 손상부 조사 문서 생성 (AI 결과 포함)
+  /// 손상부 조사 문서 생성 (AI 결과 포함)
   Future<void> addDamageSurvey({
     required String heritageId,
     required String heritageName,
-    required String imageUrl,
+    required Uint8List imageBytes,   // ✅ bytes 직접 받도록 수정
     required List<Map<String, dynamic>> detections,
     String? desc,
-    String? location, // 손상 위치
-    String? phenomenon, // 손상 현상
+    String? location,         // 손상 위치
+    String? phenomenon,       // 손상 현상
     String? inspectorOpinion, // 조사자 의견
-    String? severityGrade, // A~F
+    String? severityGrade,    // A~F
     Map<String, dynamic>? detailInputs, // 심화조사 입력값
   }) async {
+    // ✅ Firebase Storage 업로드 + 다운로드 URL 확보
+    final imageUrl = await uploadImage(
+      heritageId: heritageId,
+      folder: 'damage_surveys',
+      bytes: imageBytes,
+    );
+
     final col = _fs
         .collection('heritages')
         .doc(heritageId)
         .collection('damage_surveys');
     final id = const Uuid().v4();
+
     await col.doc(id).set({
-      'imageUrl': imageUrl,
+      'imageUrl': imageUrl,    // ✅ getDownloadURL() 반환값 저장
       'detections': detections,
       'heritageName': heritageName,
       'desc': desc ?? '손상부 조사',

@@ -1,14 +1,12 @@
 // lib/screens/detail_survey_screen.dart (⑤ 상세조사 화면)
-// - 기록개요 섹션
-// - 보존이력 테이블 (+추가 다이얼로그)
-// - 첨부(사진/메타/음성) 목업 타일
-// - 손상요소 목록 (+신규 등록 다이얼로그)
-// - 다음 단계로: 손상 예측/모델 화면으로 이동
 
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../ui/widgets/section.dart';
 import '../ui/widgets/attach_tile.dart';
 import '../ui/widgets/yellow_nav_button.dart';
+import '../services/firebase_service.dart';
 import 'damage_model_screen.dart';
 
 class DetailSurveyScreen extends StatefulWidget {
@@ -20,23 +18,53 @@ class DetailSurveyScreen extends StatefulWidget {
 }
 
 class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
-  // ─────────────────────────────────────────────────────────────
-  // 기록개요 필드 (간단 텍스트 입력 위젯들)
-  // ─────────────────────────────────────────────────────────────
-  final _section = TextEditingController(); // 구/부/세부명
-  final _period = TextEditingController(); // 시정/지정일(예시)
-  final _writer = TextEditingController(); // 작성인
-  final _note = TextEditingController(); // 메모/비고
+  final _firebaseService = FirebaseService();
+  final _picker = ImagePicker();
+
+  // 기록개요 필드
+  final _section = TextEditingController();
+  final _period = TextEditingController();
+  final _writer = TextEditingController();
+  final _note = TextEditingController();
 
   // 보존이력 (간단 테이블 목업 데이터)
   final List<Map<String, String>> _history = [
     {'date': '2021-05-01', 'desc': '부분 보수(지붕 기와)'},
   ];
 
-  // 손상요소 (목업 리스트 데이터)
-  final List<Map<String, dynamic>> _damages = [
-    {'type': '균열', 'severity': '중', 'memo': '북측 벽체 수평균열'},
-  ];
+  // 손상요소
+  final List<Map<String, dynamic>> _damages = [];
+
+  // ─────────────────────────────────────────────
+  // 손상요소 신규 등록 (카메라/갤러리 → Firestore 저장)
+  // ─────────────────────────────────────────────
+  Future<void> _pickAndUploadDamage(ImageSource source) async {
+    // 1) 카메라 또는 갤러리에서 이미지 가져오기
+    final pickedFile = await _picker.pickImage(source: source);
+    if (pickedFile == null) return;
+
+    // 2) 바이트 변환
+    final Uint8List bytes = await pickedFile.readAsBytes();
+
+    // 3) 손상 정보 입력 다이얼로그
+    final item = await _showAddDamageDialog(context);
+    if (item == null) return;
+
+    // 4) Firestore에 저장
+    await _firebaseService.addDamageSurvey(
+      heritageId: "HERITAGE_ID",     // TODO: 실제 heritageId 전달
+      heritageName: "HERITAGE_NAME", // TODO: 실제 heritageName 전달
+      imageBytes: bytes,
+      detections: [],
+      location: "천장",
+      phenomenon: item['type'],
+      severityGrade: item['severity'],
+      inspectorOpinion: item['memo'],
+    );
+
+    // 5) UI 반영
+    setState(() => _damages.add(item));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +77,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
             padding: const EdgeInsets.all(12),
             child: ListView(
               children: [
-                // ─────────────────────────────────────────────────────────
-                // (1) 기록개요 섹션: 간단한 텍스트 필드들을 2열 Grid로 배치
-                // ─────────────────────────────────────────────────────────
+                // (1) 기록개요
                 Section(
                   title: '기록개요',
                   child: GridView.count(
@@ -68,9 +94,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                       ),
                       TextField(
                         controller: _period,
-                        decoration: const InputDecoration(
-                          labelText: '시정/지정일(예시)',
-                        ),
+                        decoration: const InputDecoration(labelText: '시정/지정일(예시)'),
                       ),
                       TextField(
                         controller: _writer,
@@ -85,9 +109,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ─────────────────────────────────────────────────────────
-                // (2) 보존이력: 간단 DataTable + "추가" 다이얼로그
-                // ─────────────────────────────────────────────────────────
+                // (2) 보존이력
                 Section(
                   title: '보존이력',
                   action: OutlinedButton.icon(
@@ -106,20 +128,18 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                     rows: _history
                         .map(
                           (h) => DataRow(
-                            cells: [
-                              DataCell(Text(h['date']!)),
-                              DataCell(Text(h['desc']!)),
-                            ],
-                          ),
-                        )
+                        cells: [
+                          DataCell(Text(h['date']!)),
+                          DataCell(Text(h['desc']!)),
+                        ],
+                      ),
+                    )
                         .toList(),
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // ─────────────────────────────────────────────────────────
-                // (3) 첨부: 사진/메타/음성 (현재는 목업 타일)
-                // ─────────────────────────────────────────────────────────
+                // (3) 첨부 (목업 상태 그대로)
                 Section(
                   title: '첨부',
                   child: Wrap(
@@ -135,18 +155,23 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ─────────────────────────────────────────────────────────
-                // (4) 손상요소: 카드 목록 + 신규 등록(간이 다이얼로그)
-                // ─────────────────────────────────────────────────────────
+                // (4) 손상요소
                 Section(
                   title: '손상요소',
-                  action: FilledButton.icon(
-                    onPressed: () async {
-                      final item = await _showAddDamageDialog(context);
-                      if (item != null) setState(() => _damages.add(item));
-                    },
-                    icon: const Icon(Icons.add_alert),
-                    label: const Text('신규 등록'),
+                  action: Row(
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () => _pickAndUploadDamage(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera),
+                        label: const Text('촬영 등록'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () => _pickAndUploadDamage(ImageSource.gallery),
+                        icon: const Icon(Icons.image_outlined),
+                        label: const Text('갤러리 등록'),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
@@ -163,9 +188,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ─────────────────────────────────────────────────────────
                 // 이전/다음 네비게이션
-                // ─────────────────────────────────────────────────────────
                 Row(
                   children: [
                     Expanded(
@@ -195,12 +218,8 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
   // 보존이력 추가 다이얼로그
-  // ─────────────────────────────────────────────────────────────
-  Future<Map<String, String>?> _showAddHistoryDialog(
-    BuildContext context,
-  ) async {
+  Future<Map<String, String>?> _showAddHistoryDialog(BuildContext context) async {
     final date = TextEditingController();
     final desc = TextEditingController();
 
@@ -223,13 +242,9 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, {'date': date.text, 'desc': desc.text}),
+            onPressed: () => Navigator.pop(context, {'date': date.text, 'desc': desc.text}),
             child: const Text('추가'),
           ),
         ],
@@ -237,13 +252,8 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 손상요소 신규 등록 다이얼로그(간이 버전)
-  //  ※ 향후: 위저드 화면으로 승격 예정 (유형/세부/심각도/위치/원인/권고/증빙 등)
-  // ─────────────────────────────────────────────────────────────
-  Future<Map<String, String>?> _showAddDamageDialog(
-    BuildContext context,
-  ) async {
+  // 손상요소 신규 등록 다이얼로그
+  Future<Map<String, String>?> _showAddDamageDialog(BuildContext context) async {
     final type = TextEditingController();
     final severity = ValueNotifier<String>('중');
     final memo = TextEditingController();
@@ -281,10 +291,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(
             onPressed: () => Navigator.pop(context, {
               'type': type.text,

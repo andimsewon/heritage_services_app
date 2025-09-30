@@ -179,17 +179,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
 
-    // 원본 사진 업로드(문서 생성 없이 Storage에만 업로드)
-    final imageUrl = await _fb.uploadImage(
-      heritageId: heritageId,
-      folder: 'damage_surveys',
-      bytes: bytes,
-    );
-
     // AI 분석 호출 (HTTP → 실패 시 더미)
     final detections = await _ai.detect(bytes);
 
-    // 1차 확인 다이얼로그: 감지 결과 미리보기 + 확인/취소
+    // 1차 확인 다이얼로그
     if (!mounted) return;
     final proceed = await showDialog<bool>(
       context: context,
@@ -211,15 +204,15 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     );
     if (proceed != true) return;
 
-    // 2차 세부 입력: 위치/현상/의견/등급
+    // 2차 세부 입력
     if (!mounted) return;
     final detail = await _askDamageDetail(context);
 
-    // Firestore에 손상부 조사 문서 저장
+    // Firestore에 손상부 조사 문서 저장 (✅ imageBytes 사용)
     await _fb.addDamageSurvey(
       heritageId: heritageId,
       heritageName: _name,
-      imageUrl: imageUrl,
+      imageBytes: bytes,
       detections: detections,
       location: detail['location'] as String?,
       phenomenon: detail['phenomenon'] as String?,
@@ -234,6 +227,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ).showSnackBar(const SnackBar(content: Text('손상부 조사 등록 완료')));
     }
   }
+
 
   Future<Map<String, Object?>> _askDamageDetail(BuildContext context) async {
     final location = TextEditingController();
