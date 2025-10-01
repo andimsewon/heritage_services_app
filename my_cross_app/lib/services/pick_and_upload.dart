@@ -52,6 +52,16 @@ class PickAndUpload {
     }
 
     try {
+      // 업로드 시작 알림
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('사진을 업로드하는 중...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
       await _fb.addPhoto(
         heritageId: heritageId,
         heritageName: heritageName,
@@ -64,15 +74,33 @@ class PickAndUpload {
       );
 
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('사진 업로드 성공!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('사진 업로드 성공!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
+        String errorMessage = '업로드 실패: ';
+        if (e.toString().contains('permission')) {
+          errorMessage += '권한이 없습니다. Firebase 설정을 확인해주세요.';
+        } else if (e.toString().contains('network')) {
+          errorMessage += '네트워크 연결을 확인해주세요.';
+        } else if (e.toString().contains('size')) {
+          errorMessage += '파일 크기가 너무 큽니다.';
+        } else {
+          errorMessage += e.toString();
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     }
   }

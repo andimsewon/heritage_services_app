@@ -2,6 +2,8 @@
 // 앱 전체 진입점: Firebase 초기화 + 라우팅 정의
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'firebase_options.dart';
 
 import 'screens/login_screen.dart';
@@ -29,18 +31,25 @@ Future<void> main() async {
     }
   }
 
-  // 🔎 Firestore 연결 테스트 (원할 때만 주석 해제)
-  /*
-  try {
-    final fs = FirebaseFirestore.instance;
-    final docRef = fs.collection('test').doc('hello');
-    await docRef.set({'msg': 'Firebase 연결 성공!', 'ts': DateTime.now()});
-    final snap = await docRef.get();
-    print("🔥 Firestore 테스트 결과: ${snap.data()}");
-  } catch (e) {
-    print("❌ Firestore 테스트 실패: $e");
+  // 🔎 Firebase Storage 연결 테스트 (웹 환경에서 권한 확인)
+  if (kIsWeb) {
+    try {
+      final storage = FirebaseStorage.instance;
+      final ref = storage.ref().child('test/connection-test.txt');
+      
+      // 작은 테스트 파일 업로드 시도
+      const testData = 'Firebase Storage connection test';
+      await ref.putString(testData);
+      
+      // 업로드된 파일 삭제
+      await ref.delete();
+      
+      debugPrint("✅ Firebase Storage 연결 성공!");
+    } catch (e) {
+      debugPrint("❌ Firebase Storage 연결 실패: $e");
+      debugPrint("💡 웹에서 Firebase Storage 권한을 확인해주세요.");
+    }
   }
-  */
 
   runApp(const HeritageApp());
 }

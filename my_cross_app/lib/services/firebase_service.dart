@@ -16,11 +16,26 @@ class FirebaseService {
     required String folder,
     required Uint8List bytes,
   }) async {
-    final id = const Uuid().v4();
-    final ref = _st.ref().child('heritages/$heritageId/$folder/$id.jpg');
+    try {
+      final id = const Uuid().v4();
+      final ref = _st.ref().child('heritages/$heritageId/$folder/$id.jpg');
 
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-    return await ref.getDownloadURL();
+      // 웹 환경에서의 메타데이터 설정 개선
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        cacheControl: 'max-age=31536000', // 1년 캐시
+      );
+
+      final uploadTask = await ref.putData(bytes, metadata);
+      
+      if (uploadTask.state == TaskState.success) {
+        return await ref.getDownloadURL();
+      } else {
+        throw Exception('Upload failed with state: ${uploadTask.state}');
+      }
+    } catch (e) {
+      throw Exception('Firebase Storage upload failed: $e');
+    }
   }
 
   /// 현황 사진 문서 생성
