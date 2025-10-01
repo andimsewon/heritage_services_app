@@ -22,7 +22,20 @@
   
   <!-- 웹에서 파일 업로드를 위한 추가 메타 태그 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://firebaseapp.com https://firebasestorage.app https://*.googleapis.com; img-src 'self' data: https:; media-src 'self' data: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://firebaseapp.com https://firebasestorage.app https://*.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com;">
+  
+  <!-- 시스템 폰트 사용으로 폰트 로딩 오류 방지 -->
+  <style>
+    /* 폰트 로딩 오류 방지를 위해 시스템 폰트만 사용 */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    /* Flutter 웹에서 폰트 로딩 오류 방지 */
+    * {
+      font-family: inherit;
+    }
+  </style>
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">

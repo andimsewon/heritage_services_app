@@ -36,14 +36,14 @@ Future<void> main() async {
     try {
       final storage = FirebaseStorage.instance;
       final ref = storage.ref().child('test/connection-test.txt');
-      
+
       // 작은 테스트 파일 업로드 시도
       const testData = 'Firebase Storage connection test';
       await ref.putString(testData);
-      
+
       // 업로드된 파일 삭제
       await ref.delete();
-      
+
       debugPrint("✅ Firebase Storage 연결 성공!");
     } catch (e) {
       debugPrint("❌ Firebase Storage 연결 실패: $e");
@@ -69,6 +69,8 @@ class HeritageApp extends StatelessWidget {
           border: OutlineInputBorder(),
           isDense: true,
         ),
+        // 웹 환경에서 시스템 폰트 사용
+        fontFamily: kIsWeb ? 'system-ui' : null,
       ),
 
       // ✅ 초기 라우트
