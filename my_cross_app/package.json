@@ -1,0 +1,21 @@
+{
+  "name": "heritage-services-web-proxy",
+  "version": "1.0.0",
+  "description": "CORS proxy server for Flutter web development",
+  "main": "cors_proxy.js",
+  "scripts": {
+    "start": "node cors_proxy.js",
+    "dev": "nodemon cors_proxy.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["flutter", "web", "cors", "proxy"],
+  "author": "Heritage Services Team",
+  "license": "MIT"
+}

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 class HeritageApi {
   HeritageApi(this.baseUrl);
@@ -7,19 +8,32 @@ class HeritageApi {
 
   Future<HeritageList> fetchList({
     String? keyword,
-    String? kind,   // ccbaKdcd
+    String? kind, // ccbaKdcd
     String? region, // ccbaCtcd
     int page = 1,
     int size = 20,
   }) async {
-    final uri = Uri.parse('$baseUrl/heritage/list').replace(queryParameters: {
-      if (keyword != null && keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
-      if (kind != null && kind.isNotEmpty) 'kind': kind,
-      if (region != null && region.isNotEmpty) 'region': region,
-      'page': '$page',
-      'size': '$size',
-    });
-    final res = await http.get(uri);
+    final uri = Uri.parse('$baseUrl/heritage/list').replace(
+      queryParameters: {
+        if (keyword != null && keyword.trim().isNotEmpty)
+          'keyword': keyword.trim(),
+        if (kind != null && kind.isNotEmpty) 'kind': kind,
+        if (region != null && region.isNotEmpty) 'region': region,
+        'page': '$page',
+        'size': '$size',
+      },
+    );
+
+    // 웹 환경에서 CORS 문제 해결을 위한 설정
+    final headers = <String, String>{'Content-Type': 'application/json'};
+
+    // 웹에서 CORS 문제를 우회하기 위한 추가 헤더
+    if (kIsWeb) {
+      headers['Accept'] = 'application/json';
+      headers['User-Agent'] = 'Flutter Web App';
+    }
+
+    final res = await http.get(uri, headers: headers);
     if (res.statusCode != 200) {
       throw Exception('API ${res.statusCode}: ${res.body}');
     }
@@ -27,7 +41,10 @@ class HeritageApi {
     final items = (data['items'] as List)
         .map((e) => HeritageRow.fromJson(e as Map<String, dynamic>))
         .toList();
-    return HeritageList(items: items, totalCount: data['totalCount'] as int? ?? items.length);
+    return HeritageList(
+      items: items,
+      totalCount: data['totalCount'] as int? ?? items.length,
+    );
   }
 
   Future<Map<String, dynamic>> fetchDetail({
@@ -35,12 +52,24 @@ class HeritageApi {
     required String ccbaAsno,
     required String ccbaCtcd,
   }) async {
-    final uri = Uri.parse('$baseUrl/heritage/detail').replace(queryParameters: {
-      'ccbaKdcd': ccbaKdcd,
-      'ccbaAsno': ccbaAsno,
-      'ccbaCtcd': ccbaCtcd,
-    });
-    final res = await http.get(uri);
+    final uri = Uri.parse('$baseUrl/heritage/detail').replace(
+      queryParameters: {
+        'ccbaKdcd': ccbaKdcd,
+        'ccbaAsno': ccbaAsno,
+        'ccbaCtcd': ccbaCtcd,
+      },
+    );
+
+    // 웹 환경에서 CORS 문제 해결을 위한 설정
+    final headers = <String, String>{'Content-Type': 'application/json'};
+
+    // 웹에서 CORS 문제를 우회하기 위한 추가 헤더
+    if (kIsWeb) {
+      headers['Accept'] = 'application/json';
+      headers['User-Agent'] = 'Flutter Web App';
+    }
+
+    final res = await http.get(uri, headers: headers);
     if (res.statusCode != 200) {
       throw Exception('API ${res.statusCode}: ${res.body}');
     }
@@ -58,9 +87,9 @@ class HeritageRow {
   final String id;
   final String kindCode;
   final String kindName; // 종목
-  final String name;     // 유산명
-  final String sojaeji;  // 소재지
-  final String addr;     // 주소(시도)
+  final String name; // 유산명
+  final String sojaeji; // 소재지
+  final String addr; // 주소(시도)
   final String ccbaKdcd, ccbaAsno, ccbaCtcd;
 
   HeritageRow({

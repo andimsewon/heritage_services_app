@@ -2,24 +2,29 @@ import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 /// Build-time override:
-/// flutter run -d chrome --dart-define=API_BASE=http://localhost:8080
+/// flutter run -d chrome --dart-define=API_BASE=http://210.117.181.115:8080
 const String _apiBaseOverride = String.fromEnvironment('API_BASE');
 
 class Env {
   static String get proxyBase {
     if (_apiBaseOverride.isNotEmpty) return _apiBaseOverride;
-    // 웹은 항상 호스트 기준 localhost 사용
+
+    // ✅ 웹은 CORS 프록시 서버 사용
     if (kIsWeb) {
-      final host = Uri.base.host.isEmpty ? 'localhost' : Uri.base.host;
-      return 'http://$host:8080';
+      return 'http://localhost:3000/api'; // 로컬 프록시 서버
     }
 
-    // 안드로이드 에뮬레이터는 10.0.2.2 로컬호스트 브릿지
+    // ✅ 안드로이드 에뮬레이터 → 원격 서버 직접 접근
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8080';
+      return 'http://210.117.181.115:8080';
     }
 
-    // iOS/데스크톱은 일반 localhost
-    return 'http://127.0.0.1:8080';
+    // ✅ iOS/데스크톱 → 원격 서버 직접 접근
+    return 'http://210.117.181.115:8080';
+  }
+
+  /// 웹 환경에서 실제 서버 URL (프록시 설정용)
+  static String get actualServerUrl {
+    return 'http://210.117.181.115:8080';
   }
 }
