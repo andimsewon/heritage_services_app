@@ -355,24 +355,113 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     ]);
 
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: const Text('기본개요')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(_name.isEmpty ? '기본개요' : _name),
+        actions: [
+          ElevatedButton.icon(
+            onPressed: () {
+              showDialog(
+                context: context,
+                barrierColor: Colors.black.withValues(alpha: 0.5),
+                builder: (_) => HeritageHistoryDialog(heritageName: _name),
+              );
+            },
+            icon: const Icon(Icons.history, size: 22),
+            label: const Text('기존이력 확인'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepOrangeAccent,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            '국가유산명: ${_name.isEmpty ? '미상' : _name}',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          // ① 기본개요 섹션
+          const Text(
+            '기본개요',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Table(
+            border: TableBorder.all(color: Colors.grey.shade300),
+            columnWidths: const {
+              0: FlexColumnWidth(1.2),
+              1: FlexColumnWidth(2.5),
+              2: FlexColumnWidth(1.2),
+              3: FlexColumnWidth(2.5),
+            },
+            children: [
+              TableRow(children: [
+                _TableHeaderCell('국가유산명'),
+                _TableCell(_name.isEmpty ? '미상' : _name),
+                _TableHeaderCell('종목'),
+                _TableCell(kind),
+              ]),
+              TableRow(children: [
+                _TableHeaderCell('지정(등록)일'),
+                _TableCell(asdt),
+                _TableHeaderCell('소유자'),
+                _TableCell(owner),
+              ]),
+              TableRow(children: [
+                _TableHeaderCell('관리자'),
+                _TableCell(admin),
+                _TableHeaderCell('소재지'),
+                _TableCell(lcto),
+              ]),
+              if (lcad.isNotEmpty)
+                TableRow(children: [
+                  _TableHeaderCell('소재지 상세'),
+                  _TableCell(lcad, colspan: 3),
+                  const SizedBox.shrink(),
+                  const SizedBox.shrink(),
+                ]),
+            ],
+          ),
 
-          _InfoRow('종목', kind),
-          _InfoRow('지정(등록)일', asdt),
-          _InfoRow('소유자', owner),
-          _InfoRow('관리자', admin),
-          _InfoRow('소재지', lcto),
-          if (lcad.isNotEmpty) _InfoRow('소재지 상세', lcad),
+          const SizedBox(height: 32),
 
-          const Divider(height: 32),
+          // ② 보존관리 이력 섹션
+          const Text(
+            '보존관리 이력',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '* 과거 최초 기록부터 현재까지 정비·보수·수리 내용',
+              style: TextStyle(color: Colors.red, fontSize: 13),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              '보존관리 이력 데이터가 없습니다.\n향후 업데이트 예정입니다.',
+              style: TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ),
+
+          const Divider(height: 48),
 
           // ───── 문화유산 현황(사진)
           Padding(
@@ -764,6 +853,316 @@ class _DamageCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Table Cell Widgets for the new table-based UI
+// ═══════════════════════════════════════════════════════════════
+
+class _TableHeaderCell extends StatelessWidget {
+  final String text;
+  const _TableHeaderCell(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.grey.shade200,
+      padding: const EdgeInsets.all(10),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+}
+
+class _TableCell extends StatelessWidget {
+  final String text;
+  final int colspan;
+  const _TableCell(this.text, {this.colspan = 1});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      child: Text(
+        text.isEmpty ? '-' : text,
+        style: const TextStyle(fontSize: 14),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Heritage History Dialog - 기존이력확인 팝업
+// ═══════════════════════════════════════════════════════════════
+
+class HeritageHistoryDialog extends StatefulWidget {
+  final String heritageName;
+  const HeritageHistoryDialog({super.key, required this.heritageName});
+
+  @override
+  State<HeritageHistoryDialog> createState() => _HeritageHistoryDialogState();
+}
+
+class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
+  String _selectedYear = '2024년 조사';
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.all(20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 제목 + 드롭다운
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '기존 이력',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  DropdownButton<String>(
+                    value: _selectedYear,
+                    items: const [
+                      DropdownMenuItem(value: '2024년 조사', child: Text('2024년 조사')),
+                      DropdownMenuItem(value: '2022년 조사', child: Text('2022년 조사')),
+                      DropdownMenuItem(value: '2020년 조사', child: Text('2020년 조사')),
+                    ],
+                    onChanged: (v) => setState(() => _selectedYear = v!),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+
+              // 스크롤 가능한 컨텐츠
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1.1 조사결과
+                      const _HistorySectionTitle('1.1 조사결과'),
+                      const SizedBox(height: 8),
+                      _buildSurveyTable(),
+                      const SizedBox(height: 24),
+
+                      // 1.2 보존사항
+                      const _HistorySectionTitle('1.2 보존사항'),
+                      const SizedBox(height: 8),
+                      _buildConservationTable(),
+                      const SizedBox(height: 24),
+
+                      // 1.3 관리사항
+                      const _HistorySectionTitle('1.3 관리사항'),
+                      const SizedBox(height: 8),
+                      _buildManagementTable(),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // 버튼
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('이력 데이터를 불러왔습니다')),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(120, 44),
+                    ),
+                    child: const Text('불러오기'),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(120, 44),
+                    ),
+                    child: const Text('취소'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSurveyTable() {
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade300),
+      columnWidths: const {
+        0: FlexColumnWidth(1),
+        1: FlexColumnWidth(3),
+      },
+      children: const [
+        TableRow(
+          decoration: BoxDecoration(color: Color(0xFFF5F5F5)),
+          children: [
+            _HistoryTableCell('구분', isHeader: true),
+            _HistoryTableCell('내용', isHeader: true),
+          ],
+        ),
+        TableRow(children: [
+          _HistoryTableCell('구조부'),
+          _HistoryTableCell('이하 내용 1.1 총괄사항 참고'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('축석(벽체부)'),
+          _HistoryTableCell('—'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('지붕부'),
+          _HistoryTableCell('* 이하 내용 1.1 총괄사항 참고', isRed: true),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildConservationTable() {
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade300),
+      columnWidths: const {
+        0: FlexColumnWidth(1),
+        1: FlexColumnWidth(1),
+        2: FlexColumnWidth(2.5),
+        3: FlexColumnWidth(1),
+      },
+      children: const [
+        TableRow(
+          decoration: BoxDecoration(color: Color(0xFFF5F5F5)),
+          children: [
+            _HistoryTableCell('구분', isHeader: true),
+            _HistoryTableCell('부재', isHeader: true),
+            _HistoryTableCell('조사내용(현상)', isHeader: true),
+            _HistoryTableCell('사진/위치', isHeader: true),
+          ],
+        ),
+        TableRow(children: [
+          _HistoryTableCell('구조부'),
+          _HistoryTableCell('기단'),
+          _HistoryTableCell('이하 내용 1.2 보존사항 참고'),
+          _HistoryTableCell('7,710'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('지붕부'),
+          _HistoryTableCell('—'),
+          _HistoryTableCell('* 필요시 사진 보이기', isRed: true),
+          _HistoryTableCell(''),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildManagementTable() {
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade300),
+      columnWidths: const {
+        0: FlexColumnWidth(1.5),
+        1: FlexColumnWidth(1.2),
+        2: FlexColumnWidth(2.5),
+        3: FlexColumnWidth(0.6),
+        4: FlexColumnWidth(0.6),
+      },
+      children: const [
+        TableRow(
+          decoration: BoxDecoration(color: Color(0xFFF5F5F5)),
+          children: [
+            _HistoryTableCell('구분', isHeader: true),
+            _HistoryTableCell('부재', isHeader: true),
+            _HistoryTableCell('조사내용(현상)', isHeader: true),
+            _HistoryTableCell('있음', isHeader: true),
+            _HistoryTableCell('없음', isHeader: true),
+          ],
+        ),
+        TableRow(children: [
+          _HistoryTableCell('소방 및 안전관리'),
+          _HistoryTableCell('방재/피뢰설비'),
+          _HistoryTableCell('* 이하 내용 1.3 관리사항 참고', isRed: true),
+          _HistoryTableCell('■'),
+          _HistoryTableCell('□'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('전기시설'),
+          _HistoryTableCell('전선/조명 등'),
+          _HistoryTableCell('* 이하 내용 1.3 관리사항 참고', isRed: true),
+          _HistoryTableCell('□'),
+          _HistoryTableCell('■'),
+        ]),
+      ],
+    );
+  }
+}
+
+// 섹션 타이틀 (검은 배경)
+class _HistorySectionTitle extends StatelessWidget {
+  final String text;
+  const _HistorySectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 15,
+        ),
+      ),
+    );
+  }
+}
+
+// 테이블 셀
+class _HistoryTableCell extends StatelessWidget {
+  final String text;
+  final bool isHeader;
+  final bool isRed;
+
+  const _HistoryTableCell(
+    this.text, {
+    this.isHeader = false,
+    this.isRed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+          color: isRed ? Colors.red : Colors.black87,
+        ),
       ),
     );
   }

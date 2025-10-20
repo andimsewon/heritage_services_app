@@ -131,7 +131,11 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: const Text('국가 유산 검색')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('국가 유산 검색'),
+        actions: const [],
+      ),
       body: Column(
         children: [
           // ── 필터 바: 종목/지역/조건
@@ -232,20 +236,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                     final m = _customRows[i];
                     return _CustomRow(
                       data: m,
-                      onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          BasicInfoScreen.route,
-                          arguments: {
-                            'isCustom': true,
-                            'customId': m['__docId'],
-                            'name': m['name'],
-                            'ccbaKdcd': m['kindCode'] ?? '',
-                            'ccbaAsno': 'CUSTOM',
-                            'ccbaCtcd': 'CUSTOM',
-                          },
-                        );
-                      },
+                      onTap: () => _openCustomHeritageDialog(m),
                       onDelete: () async {
                         final ok = await showDialog<bool>(
                           context: context,
@@ -276,21 +267,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
 
                   final r = _rows[i - _customRows.length];
                   return InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        BasicInfoScreen.route,
-                        arguments: {
-                          'id': r.id,
-                          'name': r.name,
-                          'region': r.addr,
-                          'code': r.kindCode,
-                          'ccbaKdcd': r.ccbaKdcd,
-                          'ccbaAsno': r.ccbaAsno,
-                          'ccbaCtcd': r.ccbaCtcd,
-                        },
-                      );
-                    },
+                    onTap: () => _openApiHeritageDialog(r),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -456,94 +433,185 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('국가 유산 직접 추가'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _kindName,
-                decoration: const InputDecoration(labelText: '종목명 (예: 국보)'),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? '필수 입력' : null,
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Spacer(),
+                      IconButton(
+                        tooltip: '창 닫기',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          '국가유산 신규등록',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          '필수 항목을 먼저 입력하고 필요 시 기본 개요 정보를 추가하세요.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '* 필수입력사항',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTextField(
+                    label: '종목명 (예: 국보)',
+                    controller: _kindName,
+                    requiredField: true,
+                  ),
+                  _buildTextField(
+                    label: '종목코드 (예: 11)',
+                    controller: _kindCode,
+                  ),
+                  _buildTextField(
+                    label: '유산명',
+                    controller: _name,
+                    requiredField: true,
+                  ),
+                  _buildTextField(
+                    label: '소재지',
+                    controller: _sojaeji,
+                    requiredField: true,
+                  ),
+                  _buildTextField(
+                    label: '주소',
+                    controller: _addr,
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '기본 개요 (선택 입력)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTextField(
+                    label: '지정(등록)일',
+                    controller: _asdt,
+                  ),
+                  _buildTextField(
+                    label: '소유자',
+                    controller: _owner,
+                  ),
+                  _buildTextField(
+                    label: '관리자',
+                    controller: _admin,
+                  ),
+                  _buildTextField(
+                    label: '소재지',
+                    controller: _lcto,
+                  ),
+                  _buildTextField(
+                    label: '소재지 상세',
+                    controller: _lcad,
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!_formKey.currentState!.validate()) return;
+                          Navigator.pop<Map<String, String>>(context, {
+                            'kindName': _kindName.text.trim(),
+                            'kindCode': _kindCode.text.trim(),
+                            'name': _name.text.trim(),
+                            'sojaeji': _sojaeji.text.trim(),
+                            'addr': _addr.text.trim(),
+                            'asdt': _asdt.text.trim(),
+                            'owner': _owner.text.trim(),
+                            'admin': _admin.text.trim(),
+                            'lcto': _lcto.text.trim(),
+                            'lcad': _lcad.text.trim(),
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 48,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('등록'),
+                      ),
+                      const SizedBox(width: 20),
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 48,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('취소'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              TextFormField(
-                controller: _kindCode,
-                decoration: const InputDecoration(labelText: '종목코드 (예: 11)'),
-              ),
-              TextFormField(
-                controller: _name,
-                decoration: const InputDecoration(labelText: '유산명'),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? '필수 입력' : null,
-              ),
-              TextFormField(
-                controller: _sojaeji,
-                decoration: const InputDecoration(labelText: '소재지'),
-              ),
-              TextFormField(
-                controller: _addr,
-                decoration: const InputDecoration(labelText: '주소'),
-              ),
-              const SizedBox(height: 12),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '기본 개요 (선택 입력)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              TextFormField(
-                controller: _asdt,
-                decoration: const InputDecoration(labelText: '지정(등록)일'),
-              ),
-              TextFormField(
-                controller: _owner,
-                decoration: const InputDecoration(labelText: '소유자'),
-              ),
-              TextFormField(
-                controller: _admin,
-                decoration: const InputDecoration(labelText: '관리자'),
-              ),
-              TextFormField(
-                controller: _lcto,
-                decoration: const InputDecoration(labelText: '소재지'),
-              ),
-              TextFormField(
-                controller: _lcad,
-                decoration: const InputDecoration(labelText: '소재지 상세'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('취소'),
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required TextEditingController controller,
+    bool requiredField = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
         ),
-        FilledButton(
-          onPressed: () {
-            if (!_formKey.currentState!.validate()) return;
-            Navigator.pop<Map<String, String>>(context, {
-              'kindName': _kindName.text.trim(),
-              'kindCode': _kindCode.text.trim(),
-              'name': _name.text.trim(),
-              'sojaeji': _sojaeji.text.trim(),
-              'addr': _addr.text.trim(),
-              'asdt': _asdt.text.trim(),
-              'owner': _owner.text.trim(),
-              'admin': _admin.text.trim(),
-              'lcto': _lcto.text.trim(),
-              'lcad': _lcad.text.trim(),
-            });
-          },
-          child: const Text('추가'),
-        ),
-      ],
+        validator: (value) {
+          if (!requiredField) return null;
+          if (value == null || value.trim().isEmpty) {
+            return '필수 입력 항목입니다';
+          }
+          return null;
+        },
+      ),
     );
   }
 }

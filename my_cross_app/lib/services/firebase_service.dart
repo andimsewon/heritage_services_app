@@ -182,6 +182,7 @@ class FirebaseService {
     String? admin,
     String? lcto,
     String? lcad,
+    String? sourceRowId,
   }) async {
     final id = const Uuid().v4();
     final doc = _fs.collection('custom_heritages').doc(id);
@@ -199,9 +200,50 @@ class FirebaseService {
       'ccbaAdmin': admin,
       'ccbaLcto': lcto,
       'ccbaLcad': lcad,
+      if (sourceRowId != null) 'sourceRowId': sourceRowId,
       'timestamp': DateTime.now().toIso8601String(),
     });
     return id;
+  }
+
+  /// 사용자 추가 국가유산 수정
+  Future<void> updateCustomHeritage({
+    required String docId,
+    required String kindCode,
+    required String kindName,
+    required String name,
+    required String sojaeji,
+    required String addr,
+    String? asdt,
+    String? owner,
+    String? admin,
+    String? lcto,
+    String? lcad,
+    String? sourceRowId,
+  }) async {
+    String? normalize(String? v) {
+      if (v == null) return null;
+      final trimmed = v.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+
+    final payload = {
+      'kindCode': kindCode,
+      'kindName': kindName,
+      'name': name,
+      'sojaeji': sojaeji,
+      'addr': addr,
+      'ccmaName': kindName,
+      'ccbaAsdt': normalize(asdt),
+      'ccbaPoss': normalize(owner),
+      'ccbaAdmin': normalize(admin),
+      'ccbaLcto': normalize(lcto),
+      'ccbaLcad': normalize(lcad),
+      if (sourceRowId != null) 'sourceRowId': sourceRowId,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    await _fs.collection('custom_heritages').doc(docId).update(payload);
   }
 
   /// 사용자 추가 국가유산 스트림
