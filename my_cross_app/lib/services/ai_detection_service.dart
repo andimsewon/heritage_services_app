@@ -8,7 +8,7 @@ class AiDetectionService {
   AiDetectionService({required this.baseUrl});
   final String baseUrl; // 예: http://127.0.0.1:8080
 
-  Future<List<Map<String, dynamic>>> detect(Uint8List imageBytes) async {
+  Future<AiDetectionResult> detect(Uint8List imageBytes) async {
     final uri = Uri.parse('$baseUrl/ai/damage/infer');
 
     try {
@@ -25,19 +25,27 @@ class AiDetectionService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final detections = (data['detections'] as List? ?? [])
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-        return detections;
-      } else {
+      if (response.statusCode != 200) {
         throw Exception(
-            'AI 서버 오류: ${response.statusCode} - ${response.reasonPhrase}');
+          'AI 서버 오류: ${response.statusCode} - ${response.reasonPhrase}',
+        );
       }
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      final detections = (data['detections'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      final grade = data['grade'] as String?;
+      final explanation = data['explanation'] as String?;
+
+      return AiDetectionResult(
+        detections: detections,
+        grade: grade,
+        explanation: explanation,
+      );
     } catch (e) {
       // 실패 시 더미 결과 반환 (개발 단계용)
-      return [
+      final fallbackDetections = [
         {
           'label': '갈라짐',
           'score': 0.91,
@@ -55,6 +63,24 @@ class AiDetectionService {
           'h': 0.14,
         },
       ];
+
+      return AiDetectionResult(
+        detections: fallbackDetections,
+        grade: 'B',
+        explanation: '네트워크 오류로 더미 예측을 반환했습니다. 결과를 확인 후 수정하세요.',
+      );
     }
   }
+}
+
+class AiDetectionResult {
+  AiDetectionResult({
+    required this.detections,
+    this.grade,
+    this.explanation,
+  });
+
+  final List<Map<String, dynamic>> detections;
+  final String? grade;
+  final String? explanation;
 }

@@ -9,6 +9,34 @@ from fastapi import HTTPException
 from .loader import get_model, get_processor, get_id2label, is_model_loaded
 
 
+def _calculate_grade(detections: list[dict]) -> tuple[str, str]:
+    """
+    탐지 결과를 기반으로 손상 등급과 설명 메시지를 산출합니다.
+    단순 휴리스틱: 최고 신뢰도를 기준으로 A~D 등급을 부여합니다.
+    """
+    if not detections:
+        return "A", "관찰된 손상 징후가 없습니다."
+
+    top = max(detections, key=lambda d: d.get("score", 0))
+    score = float(top.get("score", 0))
+    label = top.get("label") or "손상"
+
+    if score >= 0.85:
+        grade = "D"
+        message = f"{label} 손상이 심각하여 즉시 보수가 필요합니다."
+    elif score >= 0.7:
+        grade = "C"
+        message = f"{label} 손상이 명확히 관찰됩니다. 정밀 조사와 조치가 필요합니다."
+    elif score >= 0.5:
+        grade = "B"
+        message = f"{label} 손상이 의심됩니다. 지속적인 관찰과 예방 조치를 권장합니다."
+    else:
+        grade = "A"
+        message = f"{label} 관련 이상 징후가 거의 없습니다."
+
+    return grade, message
+
+
 async def detect_damage(image_bytes: bytes) -> dict:
     """
     이미지에서 손상 영역 탐지
@@ -54,4 +82,11 @@ async def detect_damage(image_bytes: bytes) -> dict:
             "bbox": [round(x, 2) for x in box.tolist()]
         })
 
-    return {"detections": detections, "count": len(detections)}
+    grade, explanation = _calculate_grade(detections)
+
+    return {
+        "detections": detections,
+        "count": len(detections),
+        "grade": grade,
+        "explanation": explanation,
+    }

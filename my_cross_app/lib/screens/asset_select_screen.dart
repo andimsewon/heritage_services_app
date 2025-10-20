@@ -59,6 +59,42 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     super.dispose();
   }
 
+  // 커스텀 문화재 클릭 시 상세 화면으로 이동
+  void _openCustomHeritageDialog(Map<String, dynamic> m) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BasicInfoScreen(),
+        settings: RouteSettings(
+          arguments: {
+            'isCustom': true,
+            'customId': m['__docId'],
+            'name': m['name'],
+          },
+        ),
+      ),
+    );
+  }
+
+  // API 문화재 클릭 시 상세 화면으로 이동
+  void _openApiHeritageDialog(HeritageRow r) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BasicInfoScreen(),
+        settings: RouteSettings(
+          arguments: {
+            'isCustom': false,
+            'ccbaKdcd': r.ccbaKdcd,
+            'ccbaAsno': r.ccbaAsno,
+            'ccbaCtcd': r.ccbaCtcd,
+            'name': r.name,
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _fetch({bool reset = false}) async {
     if (_loading) return;
     setState(() => _loading = true);
