@@ -60,81 +60,146 @@ Flutter(Web/Android/iOS)  ──(HTTP, PROXY_BASE)──▶  FastAPI(127.0.0.1:8
 
 ---
 
-## 🧰 설치 & 실행
 
-### 0) 리포 가져오기
+## 🚀 서버 실행 방법
 
-```bash
-git clone https://github.com/andimsewon/heritage_services_app.git
-cd heritage_services_app
-```
+### 1. 사전 요구사항
 
-### 1) 서버(FastAPI) 실행
+- Python 3.9 이상
+- pip (Python 패키지 관리자)
 
-**이유**: 국가유산청 Open API는 XML만 제공 + 클라이언트 직접호출/브라우저 CORS 제약 →
-**프록시 서버**에서 XML→JSON 변환 후 앱이 호출.
-
-#### 필수 패키지 설치
+### 2. 의존성 설치
 
 ```bash
+# server 디렉토리로 이동
 cd server
-python3 -m venv .venv        # 선택(권장)
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install "uvicorn[standard]" fastapi httpx xmltodict
+
+# 필요한 패키지 설치
+python3 -m pip install -r requirements.txt
 ```
 
-#### 서버 실행
+### 3. 서버 실행
 
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8080
-# 헬스체크: http://127.0.0.1:8080/health
+# FastAPI 서버 실행 (개발 모드)
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
-#### 문서상 API 엔드포인트
+### 4. 서버 상태 확인
 
-* 목록: `GET /heritage/list`
-
-  * query: `keyword`, `kind`, `region`, `page`, `size`
-* 상세: `GET /heritage/detail`
-
-  * query: `ccbaKdcd`, `ccbaAsno`, `ccbaCtcd`
-
----
-
-### 2) 클라이언트(Flutter) 실행
+서버가 정상적으로 실행되었는지 확인:
 
 ```bash
-cd ../my_cross_app
-flutter pub get
+# Health check API 호출
+curl http://localhost:8080/health
 ```
 
-#### (A) 웹(Chrome)
+정상 응답:
+```json
+{"ok": true}
+```
 
+## 📡 API 엔드포인트
+
+### 기본 정보
+- **서버 주소**: `http://localhost:8080`
+- **API 문서**: `http://localhost:8080/docs` (Swagger UI)
+- **ReDoc 문서**: `http://localhost:8080/redoc`
+
+### 주요 API
+
+#### 1. Health Check
 ```bash
-flutter run -d chrome --dart-define=PROXY_BASE=http://127.0.0.1:8080
+GET /health
 ```
 
-#### (B) Android 에뮬레이터
-
+#### 2. 문화재 목록 조회
 ```bash
-flutter run -d emulator-5554 --dart-define=PROXY_BASE=http://10.0.2.2:8080
+GET /heritage/list?keyword=불국사&page=1&size=20
 ```
 
-#### (C) iOS 시뮬레이터
-
+#### 3. 문화재 상세 정보
 ```bash
-flutter run -d ios --dart-define=PROXY_BASE=http://127.0.0.1:8080
+GET /heritage/detail?ccbaKdcd=11&ccbaAsno=1&ccbaCtcd=11
 ```
 
-`lib/env.dart` (예시)
+#### 4. AI 모델 상태 확인
+```bash
+GET /ai/model/status
+```
 
-```dart
-class Env {
-  static const proxyBase = String.fromEnvironment(
-    'PROXY_BASE',
-    defaultValue: 'http://127.0.0.1:8080',
-  );
-}
+#### 5. AI 손상 탐지
+```bash
+POST /ai/damage/infer
+Content-Type: multipart/form-data
+```
+
+## 🔧 설정
+
+### CORS 설정
+서버는 모든 Origin에서의 요청을 허용하도록 설정되어 있습니다:
+- `allow_origins=["*"]`
+- `allow_methods=["*"]`
+- `allow_headers=["*"]`
+
+### AI 모델
+- 모델 파일: `hanok_damage_model.pt`
+- 모델이 없어도 서버는 정상 실행되며, AI 기능만 비활성화됩니다.
+
+## 🐛 문제 해결
+
+### 1. 포트 충돌
+```bash
+# 8080 포트가 사용 중인 경우 다른 포트 사용
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8081 --reload
+```
+
+### 2. 의존성 설치 오류
+```bash
+# pip 업그레이드
+python3 -m pip install --upgrade pip
+
+# 가상환경 사용 권장
+python3 -m venv venv
+source venv/bin/activate  # macOS/Linux
+# 또는
+venv\Scripts\activate     # Windows
+pip install -r requirements.txt
+```
+
+### 3. 권한 오류
+```bash
+# 사용자 설치 디렉토리 사용
+python3 -m pip install --user -r requirements.txt
+```
+
+## 📱 Flutter 앱 연결
+
+Flutter 앱에서 이 서버를 사용하려면:
+
+1. **로컬 개발**: `http://localhost:8080`
+2. **Android 에뮬레이터**: `http://10.0.2.2:8080`
+3. **웹**: `http://localhost:8080` (CORS 설정됨)
+
+## 🔄 개발 모드
+
+`--reload` 옵션으로 코드 변경 시 자동 재시작:
+```bash
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+```
+
+## 📦 배포
+
+### 프로덕션 모드
+```bash
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8080 --workers 4
+```
+
+### Docker 사용
+```bash
+# Dockerfile이 있는 경우
+docker build -t heritage-api .
+docker run -p 8080:8080 heritage-api
 ```
 
 ---
