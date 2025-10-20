@@ -41,3 +41,28 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Python virtual environments and cache
+server/.venv/
+server/venv/
+server/__pycache__/
+server/*.pyc
+
+# Heavy AI model files
+server/*.pt
+
+# --- server ignores ---
+server/.venv/
+server/venv/
+server/__pycache__/
+server/*.pyc
+server/*.pt
+server/*.zip
+
+# --- server ignores (recursive) ---
+server/**/*.pt
+server/**/*.zip
+server/**/.venv/
+server/**/venv/
+server/**/__pycache__/
+server/**/*.pyc

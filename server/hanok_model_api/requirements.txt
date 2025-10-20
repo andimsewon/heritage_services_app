@@ -1,0 +1,10 @@
+# requirements.txt
+fastapi
+uvicorn
+httpx
+xmltodict
+pillow
+torch
+torchvision
+transformers
+python-multipart   # ★ 추가
