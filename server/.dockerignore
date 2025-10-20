@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+
+# Test files
+test/
+tests/
+*.test.py
+
+# Documentation (이미 이미지에 포함하고 싶으면 제거)
+# README.md
+
+# Data files (학습 데이터는 제외 - Docker 이미지 크기 절약)
+data/train.json
+data/val.json
+data/test.json
+data/result.json
+data/remapped_result.json
+data/resized_result.json
+data/images/
+
+# Backup files
+main.py.backup
+*.backup
+
+# Old/Unused files
+app.py
+run_server.py
+
+# Development only
+README.md

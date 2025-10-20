@@ -24,6 +24,11 @@ class HeritageApi {
       },
     );
 
+    // 🔍 디버그 로그: API 요청 정보 출력
+    print('🔍 [HeritageApi] baseUrl: $baseUrl');
+    print('🔍 [HeritageApi] 요청 URI: $uri');
+    print('🔍 [HeritageApi] kIsWeb: $kIsWeb');
+
     // 웹 환경에서 CORS 문제 해결을 위한 설정
     final headers = <String, String>{'Content-Type': 'application/json'};
 

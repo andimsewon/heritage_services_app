@@ -41,7 +41,7 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 CORS Proxy Server running on http://localhost:${PORT}`);
-  console.log(`📡 Proxying API requests to http://210.117.181.115:8080`);
-  console.log(`🌐 Flutter Web app available at http://localhost:${PORT}`);
+  console.log(` CORS Proxy Server running on http://localhost:${PORT}`);
+  console.log(` Proxying API requests to http://210.117.181.115:8080`);
+  console.log(` Flutter Web app available at http://localhost:${PORT}`);
 });
