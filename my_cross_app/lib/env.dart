@@ -30,17 +30,18 @@ class Env {
       return _apiBaseOverride;
     }
 
-    // ✅ 웹 → Nginx 프록시를 사용하여 동일 출처(/api)로 호출
+    // ✅ 웹 → 현재 오리진의 Nginx 프록시(/api) 사용
     if (kIsWeb) {
-      print('🔍 [Env] ✅ 웹 환경: /api');
-      return '/api';
+      final apiUrl = '${Uri.base.origin}/api';
+      print('🔍 [Env] ✅ 웹 환경: $apiUrl');
+      return apiUrl;
     }
 
     // ✅ 안드로이드 에뮬레이터 → Nginx 프록시 (3001 포트)
     // 10.0.2.2는 안드로이드 에뮬레이터에서 호스트 머신을 가리킴
     if (defaultTargetPlatform == TargetPlatform.android) {
       print('🔍 [Env] ✅ Android: http://10.0.2.2:3001/api');
-      return 'http://10.0.2.2:3001/api'; // Nginx 프록시 경유
+      return 'http://10.0.2.2:3001/api';
     }
 
     // ✅ iOS 시뮬레이터/데스크톱 → Nginx 프록시 (3001 포트)

@@ -30,16 +30,28 @@ class HeritageApi {
     print('🔍 [HeritageApi] kIsWeb: $kIsWeb');
 
     // 웹 환경에서 CORS 문제 해결을 위한 설정
-    final headers = <String, String>{'Content-Type': 'application/json'};
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
 
     // 웹에서 CORS 문제를 우회하기 위한 추가 헤더
     if (kIsWeb) {
-      headers['Accept'] = 'application/json';
       headers['User-Agent'] = 'Flutter Web App';
     }
 
+    print('🔍 [HeritageApi] 요청 헤더: $headers');
+
     final res = await http.get(uri, headers: headers);
+
+    // 🔍 응답 상태 및 내용 로그
+    print('🔍 [HeritageApi] 응답 상태 코드: ${res.statusCode}');
+    print('🔍 [HeritageApi] 응답 헤더: ${res.headers}');
+    print('🔍 [HeritageApi] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
+
     if (res.statusCode != 200) {
+      print('❌ [HeritageApi] API 오류: ${res.statusCode}');
+      print('❌ [HeritageApi] 응답 전체: ${res.body}');
       throw Exception('API ${res.statusCode}: ${res.body}');
     }
     final data = json.decode(res.body) as Map<String, dynamic>;
@@ -65,17 +77,28 @@ class HeritageApi {
       },
     );
 
+    // 🔍 디버그 로그
+    print('🔍 [HeritageApi.detail] 요청 URI: $uri');
+
     // 웹 환경에서 CORS 문제 해결을 위한 설정
-    final headers = <String, String>{'Content-Type': 'application/json'};
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
 
     // 웹에서 CORS 문제를 우회하기 위한 추가 헤더
     if (kIsWeb) {
-      headers['Accept'] = 'application/json';
       headers['User-Agent'] = 'Flutter Web App';
     }
 
     final res = await http.get(uri, headers: headers);
+
+    print('🔍 [HeritageApi.detail] 응답 상태: ${res.statusCode}');
+    print('🔍 [HeritageApi.detail] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
+
     if (res.statusCode != 200) {
+      print('❌ [HeritageApi.detail] API 오류: ${res.statusCode}');
+      print('❌ [HeritageApi.detail] 응답 전체: ${res.body}');
       throw Exception('API ${res.statusCode}: ${res.body}');
     }
     return json.decode(res.body) as Map<String, dynamic>;

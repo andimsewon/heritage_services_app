@@ -16,15 +16,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
 
-// API 프록시 설정
+// API 프록시 설정 - Docker Compose Nginx 프록시(3001)로 전달
 app.use('/api', createProxyMiddleware({
-  target: 'http://210.117.181.115:8080',
+  target: 'http://localhost:3001',
   changeOrigin: true,
-  pathRewrite: {
-    '^/api': '', // /api를 제거하고 원본 경로로 전달
-  },
   onProxyReq: (proxyReq, req, res) => {
-    console.log(`Proxying: ${req.method} ${req.url} -> http://210.117.181.115:8080${req.url.replace('/api', '')}`);
+    console.log(`Proxying: ${req.method} ${req.url} -> http://localhost:3001${req.url}`);
   },
   onError: (err, req, res) => {
     console.error('Proxy error:', err);
@@ -42,6 +39,6 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(` CORS Proxy Server running on http://localhost:${PORT}`);
-  console.log(` Proxying API requests to http://210.117.181.115:8080`);
+  console.log(` Proxying API requests to http://localhost:3001`);
   console.log(` Flutter Web app available at http://localhost:${PORT}`);
 });
