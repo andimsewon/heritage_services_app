@@ -849,34 +849,6 @@ class _TableCell extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-class _SurveyRowConfig {
-  const _SurveyRowConfig({
-    required this.key,
-    required this.label,
-    this.hint,
-  });
-
-  final String key;
-  final String label;
-  final String? hint;
-}
-
-class _ConservationRowConfig {
-  const _ConservationRowConfig({
-    required this.key,
-    required this.section,
-    required this.part,
-    this.noteHint,
-    this.locationHint,
-  });
-
-  final String key;
-  final String section;
-  final String part;
-  final String? noteHint;
-  final String? locationHint;
-}
-
 // Heritage History Dialog - 기존이력확인 팝업
 // ═══════════════════════════════════════════════════════════════
 
@@ -895,42 +867,30 @@ class HeritageHistoryDialog extends StatefulWidget {
 
 class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   static const List<_SurveyRowConfig> _surveyRowConfigs = [
-    _SurveyRowConfig(key: 'structure', label: '구조부', hint: '예: 이하 내용 1.1 총괄사항 참고'),
-    _SurveyRowConfig(key: 'wall', label: '축석(벽체부)', hint: '예: 균열, 박락 등 조사 결과'),
-    _SurveyRowConfig(key: 'roof', label: '지붕부', hint: '예: 이하 내용 1.1 총괄사항 참고'),
+    _SurveyRowConfig(key: 'structure', label: '구조부'),
+    _SurveyRowConfig(key: 'wall', label: '축석(벽체부)'),
+    _SurveyRowConfig(key: 'roof', label: '지붕부'),
   ];
   static const List<_ConservationRowConfig> _conservationRowConfigs = [
     _ConservationRowConfig(
       key: 'structure',
       section: '구조부',
       part: '기단',
-      noteHint: '예: 균열, 침하 등 현상 기록',
-      locationHint: '예: 7,710 / 좌표',
     ),
     _ConservationRowConfig(
       key: 'roof',
       section: '지붕부',
       part: '—',
-      noteHint: '예: 필요 시 사진 보이기',
-      locationHint: '예: 첨탑 상부',
     ),
   ];
-  late final Map<String, TextEditingController> _surveyControllers;
-  late final Map<String, TextEditingController> _conservationPartControllers;
-  late final Map<String, TextEditingController> _conservationNoteControllers;
-  late final Map<String, TextEditingController> _conservationLocationControllers;
-  static const double _tableHeaderFontSize = 15;
-  static const double _tableBodyFontSize = 14;
-  bool _hasUnsavedChanges = false;
   String _selectedYear = '2024년 조사';
   final List<_HistoryImage> _locationImages = [];
   final List<_HistoryImage> _currentPhotos = [];
   final List<_HistoryImage> _damagePhotos = [];
-  final TextEditingController _fireSafetyPartController =
-      TextEditingController();
+  late final Map<String, TextEditingController> _surveyControllers;
+  late final Map<String, TextEditingController> _conservationNoteControllers;
+  late final Map<String, TextEditingController> _conservationLocationControllers;
   final TextEditingController _fireSafetyNoteController =
-      TextEditingController();
-  final TextEditingController _electricalPartController =
       TextEditingController();
   final TextEditingController _electricalNoteController =
       TextEditingController();
@@ -939,10 +899,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   bool _isSaving = false;
   Presence? _mgmtFireSafety;
   Presence? _mgmtElectrical;
-  Timer? _saveDebounce;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _managementSub;
 
   Future<void> _addPhoto(List<_HistoryImage> target) async {
+    if (!_isEditable) return;
     final picked = await ImageAcquire.pick(context);
     if (picked == null) return;
     final (bytes, _) = picked;
@@ -956,26 +916,22 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _surveyControllers = {
       for (final row in _surveyRowConfigs) row.key: TextEditingController(),
     };
-    _conservationPartControllers = {
-      for (final row in _conservationRowConfigs) row.key: TextEditingController(),
-    };
     _conservationNoteControllers = {
-      for (final row in _conservationRowConfigs) row.key: TextEditingController(),
+      for (final row in _conservationRowConfigs)
+        row.key: TextEditingController(),
     };
     _conservationLocationControllers = {
-      for (final row in _conservationRowConfigs) row.key: TextEditingController(),
+      for (final row in _conservationRowConfigs)
+        row.key: TextEditingController(),
     };
     _surveyControllers['structure']?.text = '이하 내용 1.1 총괄사항 참고';
     _surveyControllers['wall']?.text = '—';
     _surveyControllers['roof']?.text = '이하 내용 1.1 총괄사항 참고';
-    _conservationPartControllers['structure']?.text = '기단';
-    _conservationPartControllers['roof']?.text = '—';
     _conservationNoteControllers['structure']?.text = '이하 내용 1.2 보존사항 참고';
     _conservationNoteControllers['roof']?.text = '* 필요시 사진 보이기';
     _conservationLocationControllers['structure']?.text = '7,710';
     _conservationLocationControllers['roof']?.text = '';
-    _fireSafetyPartController.text = '방재/피뢰설비';
-    _electricalPartController.text = '전선/조명 등';
+
     _managementSub = FirebaseFirestore.instance
         .collection('heritage_management')
         .doc(widget.heritageId)
@@ -999,41 +955,37 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       final yearData = _mapFrom(years[_currentYearKey]);
       final fireSection = _mapFrom(yearData['fireSafety']);
       final electricalSection = _mapFrom(yearData['electrical']);
-      final surveyData = _mapFrom(yearData['survey']);
-      final conservationData = _mapFrom(yearData['conservation']);
       final firePresence = _presenceFromSection(fireSection);
       final electricalPresence = _presenceFromSection(electricalSection);
       final fireNote = _noteFromSection(fireSection);
       final electricalNote = _noteFromSection(electricalSection);
 
-      if (!_isEditable) {
+      final shouldHydrate = !_isEditable;
+      if (shouldHydrate) {
         _fireSafetyNoteController.text = fireNote;
         _electricalNoteController.text = electricalNote;
-        for (final row in _surveyRowConfigs) {
-          final value = surveyData[row.key];
-          if (value is String) {
-            _surveyControllers[row.key]?.text = value;
-          }
-        }
-        for (final row in _conservationRowConfigs) {
-          final rowData = _mapFrom(conservationData[row.key]);
-          final note = rowData['note'];
-          final location = rowData['photoLocation'] ?? rowData['location'];
-          if (note is String) {
-            _conservationNoteControllers[row.key]?.text = note;
-          }
-          if (location is String) {
-            _conservationLocationControllers[row.key]?.text = location;
-          }
-        }
+        _populateSurveyFields(yearData);
+        _populateConservationFields(yearData);
       }
+
+      final locationImages = _decodePhotoList(yearData['locationPhotos']);
+      final currentImages = _decodePhotoList(yearData['currentPhotos']);
+      final damageImages = _decodePhotoList(yearData['damagePhotos']);
 
       setState(() {
         _managementYears = years;
         _mgmtFireSafety = firePresence;
         _mgmtElectrical = electricalPresence;
-        if (!_isEditable) {
-          _hasUnsavedChanges = false;
+        if (shouldHydrate) {
+          _locationImages
+            ..clear()
+            ..addAll(locationImages);
+          _currentPhotos
+            ..clear()
+            ..addAll(currentImages);
+          _damagePhotos
+            ..clear()
+            ..addAll(damageImages);
         }
       });
     });
@@ -1092,141 +1044,111 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     return '';
   }
 
+  void _populateSurveyFields(
+    Map<String, dynamic> yearData, {
+    bool force = false,
+  }) {
+    if (!force && _isEditable) return;
+    final surveyData = _mapFrom(yearData['survey']);
+    for (final row in _surveyRowConfigs) {
+      final controller = _surveyControllers[row.key];
+      if (controller != null) {
+        final value = surveyData[row.key];
+        if (value is String) {
+          controller.text = value;
+        }
+      }
+    }
+  }
+
+  void _populateConservationFields(
+    Map<String, dynamic> yearData, {
+    bool force = false,
+  }) {
+    if (!force && _isEditable) return;
+    final conservationData = _mapFrom(yearData['conservation']);
+    for (final row in _conservationRowConfigs) {
+      final rowData = _mapFrom(conservationData[row.key]);
+      final note = rowData['note'];
+      final location = rowData['photoLocation'] ?? rowData['location'];
+      final noteController = _conservationNoteControllers[row.key];
+      final locationController = _conservationLocationControllers[row.key];
+      if (noteController != null && note is String) {
+        noteController.text = note;
+      }
+      if (locationController != null && location is String) {
+        locationController.text = location;
+      }
+    }
+  }
+
+  List<_HistoryImage> _decodePhotoList(dynamic raw) {
+    if (raw is List) {
+      final result = <_HistoryImage>[];
+      for (final item in raw) {
+        if (item is String && item.isNotEmpty) {
+          result.add(_HistoryImage.network(item));
+        } else if (item is Map) {
+          final mapItem = _mapFrom(item);
+          final url = mapItem['url'];
+          final bytesBase64 = mapItem['bytes'];
+          if (url is String && url.isNotEmpty) {
+            result.add(_HistoryImage.network(url));
+          } else if (bytesBase64 is String && bytesBase64.isNotEmpty) {
+            try {
+              final bytes = base64Decode(bytesBase64);
+              result.add(_HistoryImage.memory(bytes));
+            } catch (e) {
+              debugPrint('Failed to decode base64 image: $e');
+            }
+          }
+        }
+      }
+      return result;
+    }
+    return [];
+  }
+
   void _refreshManagementFields({bool overrideNotes = false}) {
     final yearData = _yearData(_currentYearKey);
     final fireSection = _sectionData(yearData, 'fireSafety');
     final electricalSection = _sectionData(yearData, 'electrical');
-    final surveyData = _mapFrom(yearData['survey']);
-    final conservationData = _mapFrom(yearData['conservation']);
     final firePresence = _presenceFromSection(fireSection);
     final electricalPresence = _presenceFromSection(electricalSection);
     final fireNote = _noteFromSection(fireSection);
     final electricalNote = _noteFromSection(electricalSection);
+    final shouldHydrate = overrideNotes || !_isEditable;
 
-    if (overrideNotes || !_isEditable) {
+    if (shouldHydrate) {
       _fireSafetyNoteController.text = fireNote;
       _electricalNoteController.text = electricalNote;
-      for (final row in _surveyRowConfigs) {
-        final value = surveyData[row.key];
-        if (value is String) {
-          _surveyControllers[row.key]?.text = value;
-        }
-      }
-      for (final row in _conservationRowConfigs) {
-        final rowData = _mapFrom(conservationData[row.key]);
-        final note = rowData['note'];
-        final location = rowData['photoLocation'] ?? rowData['location'];
-        if (note is String) {
-          _conservationNoteControllers[row.key]?.text = note;
-        }
-        if (location is String) {
-          _conservationLocationControllers[row.key]?.text = location;
-        }
-      }
-      _hasUnsavedChanges = false;
+      _populateSurveyFields(yearData, force: true);
+      _populateConservationFields(yearData, force: true);
     }
+
+    final locationImages = _decodePhotoList(yearData['locationPhotos']);
+    final currentImages = _decodePhotoList(yearData['currentPhotos']);
+    final damageImages = _decodePhotoList(yearData['damagePhotos']);
 
     setState(() {
       _mgmtFireSafety = firePresence;
       _mgmtElectrical = electricalPresence;
-    });
-  }
-
-  void _scheduleSave() {
-    if (!_isEditable) return;
-    _hasUnsavedChanges = true;
-    _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 500), () async {
-      try {
-        await _saveNow();
-      } catch (e, st) {
-        debugPrint('Failed to auto-save management data: $e');
-        if (kDebugMode) {
-          debugPrint(st.toString());
-        }
+      if (shouldHydrate) {
+        _locationImages
+          ..clear()
+          ..addAll(locationImages);
+        _currentPhotos
+          ..clear()
+          ..addAll(currentImages);
+        _damagePhotos
+          ..clear()
+          ..addAll(damageImages);
       }
     });
   }
 
-  Future<void> _saveNow() async {
-    _saveDebounce?.cancel();
-    final yearKey = _currentYearKey;
-    if (yearKey.isEmpty) return;
-
-    String trimText(TextEditingController controller) => controller.text.trim();
-
-    final surveyData = <String, dynamic>{
-      for (final row in _surveyRowConfigs)
-        row.key: trimText(_surveyControllers[row.key]!),
-    };
-
-    final conservationData = <String, dynamic>{
-      for (final row in _conservationRowConfigs)
-        row.key: {
-          'section': row.section,
-          'part': row.part,
-          'note': trimText(_conservationNoteControllers[row.key]!),
-          'photoLocation': trimText(_conservationLocationControllers[row.key]!),
-        },
-    };
-
-    Map<String, dynamic> presencePayload(Presence? presence, TextEditingController controller, {required String section, required String part}) {
-      final value = <String, dynamic>{
-        'section': section,
-        'part': part,
-        'note': trimText(controller),
-        'presence': presence == null
-            ? null
-            : (presence == Presence.yes ? 'yes' : 'no'),
-        'exists': presence == null
-            ? null
-            : (presence == Presence.yes ? 'yes' : 'no'),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-      return value;
-    }
-
-    final fireSafetyData = presencePayload(
-      _mgmtFireSafety,
-      _fireSafetyNoteController,
-      section: '소방 및 안전관리',
-      part: '방재/피뢰설비',
-    );
-    final electricalData = presencePayload(
-      _mgmtElectrical,
-      _electricalNoteController,
-      section: '전기시설',
-      part: '전선/조명 등',
-    );
-
-    final timestamp = FieldValue.serverTimestamp();
-    final docRef = FirebaseFirestore.instance
-        .collection('heritage_management')
-        .doc(widget.heritageId);
-
-    await docRef.set(
-      {
-        'years.$yearKey.survey': surveyData,
-        'years.$yearKey.conservation': conservationData,
-        'years.$yearKey.fireSafety': fireSafetyData,
-        'years.$yearKey.electrical': electricalData,
-        'years.$yearKey.updatedAt': timestamp,
-        'heritageName': widget.heritageName,
-        'updatedAt': timestamp,
-      },
-      SetOptions(merge: true),
-    );
-
-    if (mounted) {
-      setState(() {
-        _hasUnsavedChanges = false;
-      });
-    }
-  }
-
   @override
   void dispose() {
-    _saveDebounce?.cancel();
     _managementSub?.cancel();
     for (final controller in _surveyControllers.values) {
       controller.dispose();
@@ -1312,6 +1234,67 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           const _HistorySectionTitle('1.3 관리사항'),
                           const SizedBox(height: 8),
                           _buildManagementTable(),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                ElevatedButton(
+                                  onPressed: _isEditable && !_isSaving
+                                      ? () async {
+                                          FocusScope.of(context).unfocus();
+                                          setState(() => _isSaving = true);
+                                          try {
+                                            await _saveNow();
+                                            if (!mounted) return;
+                                            setState(() {
+                                              _isEditable = false;
+                                              _isSaving = false;
+                                            });
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('변경사항이 저장되었습니다'),
+                                              ),
+                                            );
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            setState(() => _isSaving = false);
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('저장에 실패했습니다: $e'),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(120, 44),
+                                  ),
+                                  child: _isSaving
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Text('저장'),
+                                ),
+                                const SizedBox(width: 16),
+                                OutlinedButton(
+                                  onPressed: _isEditable
+                                      ? null
+                                      : () {
+                                          setState(() => _isEditable = true);
+                                        },
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(120, 44),
+                                  ),
+                                  child: const Text('수정'),
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 24),
 
                           // 1.4 위치현황
@@ -1357,14 +1340,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                     children: [
                       ElevatedButton(
                         onPressed: () {
-                          _saveDebounce?.cancel();
-                          setState(() {
-                            _isEditable = false;
-                            _hasUnsavedChanges = false;
-                          });
-                          _refreshManagementFields(overrideNotes: true);
+                          Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('최신 데이터를 불러왔습니다')),
+                            const SnackBar(content: Text('이력 데이터를 불러왔습니다')),
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -1375,57 +1353,12 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                         child: const Text('불러오기'),
                       ),
                       const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: _isEditable && !_isSaving && _hasUnsavedChanges
-                            ? () async {
-                                FocusScope.of(context).unfocus();
-                                setState(() => _isSaving = true);
-                                try {
-                                  await _saveNow();
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _isEditable = false;
-                                    _isSaving = false;
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('저장되었습니다')),
-                                  );
-                                } catch (e) {
-                                  if (!mounted) return;
-                                  setState(() => _isSaving = false);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('저장 실패: $e')),
-                                  );
-                                }
-                              }
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(120, 44),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('저장'),
-                      ),
-                      const SizedBox(width: 16),
                       OutlinedButton(
-                        onPressed: _isEditable
-                            ? null
-                            : () {
-                                setState(() {
-                                  _isEditable = true;
-                                  _hasUnsavedChanges = false;
-                                });
-                              },
+                        onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(120, 44),
                         ),
-                        child: const Text('수정'),
+                        child: const Text('취소'),
                       ),
                     ],
                   ),
@@ -1438,55 +1371,6 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _tableHeaderCell(String text) => Container(
-        color: Colors.grey.shade200,
-        padding: const EdgeInsets.all(10),
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: _tableHeaderFontSize,
-          ),
-        ),
-      );
-
-  Widget _readOnlyCell(String text) => Padding(
-        padding: const EdgeInsets.all(10),
-        child: Text(
-          text.isEmpty ? '—' : text,
-          style: TextStyle(fontSize: _tableBodyFontSize),
-        ),
-      );
-
-  Widget _editableCell(
-    TextEditingController controller, {
-    String? hint,
-    int maxLines = 1,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.all(6),
-        child: TextFormField(
-          controller: controller,
-          enabled: _isEditable,
-          minLines: 1,
-          maxLines: maxLines,
-          style: TextStyle(fontSize: _tableBodyFontSize),
-          onChanged: (_) => _scheduleSave(),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hint ?? '입력하세요',
-            border: const OutlineInputBorder(),
-            disabledBorder: const OutlineInputBorder(),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
-            filled: true,
-            fillColor: _isEditable ? Colors.white : Colors.grey.shade100,
-          ),
-        ),
-      );
-
   Widget _buildSurveyTable() {
     return Table(
       border: TableBorder.all(color: Colors.grey.shade300),
@@ -1494,23 +1378,26 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         0: FlexColumnWidth(1),
         1: FlexColumnWidth(3),
       },
-      children: [
+      children: const [
         TableRow(
-          decoration: const BoxDecoration(color: Color(0xFFF5F5F5)),
+          decoration: BoxDecoration(color: Color(0xFFF5F5F5)),
           children: [
-            _tableHeaderCell('구분'),
-            _tableHeaderCell('내용'),
+            _HistoryTableCell('구분', isHeader: true),
+            _HistoryTableCell('내용', isHeader: true),
           ],
         ),
-        for (final row in _surveyRowConfigs)
-          TableRow(children: [
-            _readOnlyCell(row.label),
-            _editableCell(
-              _surveyControllers[row.key]!,
-              hint: row.hint,
-              maxLines: 2,
-            ),
-          ]),
+        TableRow(children: [
+          _HistoryTableCell('구조부'),
+          _HistoryTableCell('이하 내용 1.1 총괄사항 참고'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('축석(벽체부)'),
+          _HistoryTableCell('—'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('지붕부'),
+          _HistoryTableCell('* 이하 내용 1.1 총괄사항 참고', isRed: true),
+        ]),
       ],
     );
   }
@@ -1524,33 +1411,28 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         2: FlexColumnWidth(2.5),
         3: FlexColumnWidth(1),
       },
-      children: [
+      children: const [
         TableRow(
-          decoration: const BoxDecoration(color: Color(0xFFF5F5F5)),
+          decoration: BoxDecoration(color: Color(0xFFF5F5F5)),
           children: [
-            _tableHeaderCell('구분'),
-            _tableHeaderCell('부재'),
-            _tableHeaderCell('조사내용(현상)'),
-            _tableHeaderCell('사진/위치'),
+            _HistoryTableCell('구분', isHeader: true),
+            _HistoryTableCell('부재', isHeader: true),
+            _HistoryTableCell('조사내용(현상)', isHeader: true),
+            _HistoryTableCell('사진/위치', isHeader: true),
           ],
         ),
-        for (final row in _conservationRowConfigs)
-          TableRow(children: [
-            _readOnlyCell(row.section),
-            _editableCell(
-              _conservationPartControllers[row.key]!,
-              hint: '예: ${row.part}',
-            ),
-            _editableCell(
-              _conservationNoteControllers[row.key]!,
-              hint: row.noteHint,
-              maxLines: 3,
-            ),
-            _editableCell(
-              _conservationLocationControllers[row.key]!,
-              hint: row.locationHint,
-            ),
-          ]),
+        TableRow(children: [
+          _HistoryTableCell('구조부'),
+          _HistoryTableCell('기단'),
+          _HistoryTableCell('이하 내용 1.2 보존사항 참고'),
+          _HistoryTableCell('7,710'),
+        ]),
+        TableRow(children: [
+          _HistoryTableCell('지붕부'),
+          _HistoryTableCell('—'),
+          _HistoryTableCell('* 필요시 사진 보이기', isRed: true),
+          _HistoryTableCell(''),
+        ]),
       ],
     );
   }
@@ -1578,14 +1460,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         ),
         TableRow(children: [
           const _HistoryTableCell('소방 및 안전관리'),
-          _MgmtNoteCell(
-            controller: _fireSafetyPartController,
-            enabled: _isEditable,
-            onChanged: (value) {
-              if (!_isEditable) return;
-              _scheduleSave();
-            },
-          ),
+          const _HistoryTableCell('방재/피뢰설비'),
           _MgmtNoteCell(
             controller: _fireSafetyNoteController,
             enabled: _isEditable,
@@ -1617,14 +1492,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         ]),
         TableRow(children: [
           const _HistoryTableCell('전기시설'),
-          _MgmtNoteCell(
-            controller: _electricalPartController,
-            enabled: _isEditable,
-            onChanged: (value) {
-              if (!_isEditable) return;
-              _scheduleSave();
-            },
-          ),
+          const _HistoryTableCell('전선/조명 등'),
           _MgmtNoteCell(
             controller: _electricalNoteController,
             enabled: _isEditable,
