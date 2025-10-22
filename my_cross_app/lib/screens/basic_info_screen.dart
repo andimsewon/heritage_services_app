@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/heritage_api.dart';
 import '../env.dart';
@@ -869,6 +870,13 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   final List<_HistoryImage> _locationImages = [];
   final List<_HistoryImage> _currentPhotos = [];
   final List<_HistoryImage> _damagePhotos = [];
+  final TextEditingController _fireSafetyNoteController =
+      TextEditingController();
+  final TextEditingController _electricalNoteController =
+      TextEditingController();
+  Map<String, dynamic> _managementYears = {};
+  bool _isEditable = false;
+  bool _isSaving = false;
   Presence? _mgmtFireSafety;
   Presence? _mgmtElectrical;
   Timer? _saveDebounce;
@@ -890,44 +898,177 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         .doc(widget.heritageId)
         .snapshots()
         .listen((doc) {
-      final data = doc.data() ?? {};
       if (!mounted) return;
+      final data = doc.data() ?? {};
+      var years = _mapFrom(data['years']);
+      if (years.isEmpty) {
+        final legacyFire = data['fireSafety'];
+        final legacyElectrical = data['electrical'];
+        if (legacyFire != null || legacyElectrical != null) {
+          years[_currentYearKey] = {
+            if (legacyFire != null) 'fireSafety': {'exists': legacyFire},
+            if (legacyElectrical != null)
+              'electrical': {'exists': legacyElectrical},
+          };
+        }
+      }
+
+      final yearData = _mapFrom(years[_currentYearKey]);
+      final fireSection = _mapFrom(yearData['fireSafety']);
+      final electricalSection = _mapFrom(yearData['electrical']);
+      final firePresence = _presenceFromSection(fireSection);
+      final electricalPresence = _presenceFromSection(electricalSection);
+      final fireNote = _noteFromSection(fireSection);
+      final electricalNote = _noteFromSection(electricalSection);
+
+      if (!_isEditable) {
+        _fireSafetyNoteController.text = fireNote;
+        _electricalNoteController.text = electricalNote;
+      }
+
       setState(() {
-        _mgmtFireSafety = _parsePresence(data['fireSafety']);
-        _mgmtElectrical = _parsePresence(data['electrical']);
+        _managementYears = years;
+        _mgmtFireSafety = firePresence;
+        _mgmtElectrical = electricalPresence;
       });
     });
   }
 
   Presence? _parsePresence(dynamic v) {
-    if (v == true || v == 'yes') return Presence.yes;
-    if (v == false || v == 'no') return Presence.no;
+    if (v == null) return null;
+    if (v is Presence) return v;
+    if (v is bool) return v ? Presence.yes : Presence.no;
+    if (v is String) {
+      final normalized = v.trim().toLowerCase();
+      if (normalized == 'yes' || normalized == 'y' || normalized == 'true') {
+        return Presence.yes;
+      }
+      if (normalized == 'no' || normalized == 'n' || normalized == 'false') {
+        return Presence.no;
+      }
+    }
     return null;
   }
 
+  String get _currentYearKey {
+    final match = RegExp(r'\d{4}').firstMatch(_selectedYear);
+    return match?.group(0) ?? _selectedYear;
+  }
+
+  Map<String, dynamic> _mapFrom(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(value);
+    }
+    if (value is Map) {
+      return value.map(
+        (key, dynamic val) => MapEntry(key.toString(), val),
+      );
+    }
+    return {};
+  }
+
+  Map<String, dynamic> _yearData(String yearKey) => _mapFrom(_managementYears[yearKey]);
+
+  Map<String, dynamic> _sectionData(
+    Map<String, dynamic> yearData,
+    String key,
+  ) =>
+      _mapFrom(yearData[key]);
+
+  Presence? _presenceFromSection(Map<String, dynamic> section) {
+    final source =
+        section['exists'] ?? section['presence'] ?? section['value'];
+    return _parsePresence(source);
+  }
+
+  String _noteFromSection(Map<String, dynamic> section) {
+    final note = section['note'];
+    if (note is String) return note;
+    return '';
+  }
+
+  void _refreshManagementFields({bool overrideNotes = false}) {
+    final yearData = _yearData(_currentYearKey);
+    final fireSection = _sectionData(yearData, 'fireSafety');
+    final electricalSection = _sectionData(yearData, 'electrical');
+    final firePresence = _presenceFromSection(fireSection);
+    final electricalPresence = _presenceFromSection(electricalSection);
+    final fireNote = _noteFromSection(fireSection);
+    final electricalNote = _noteFromSection(electricalSection);
+
+    if (overrideNotes || !_isEditable) {
+      _fireSafetyNoteController.text = fireNote;
+      _electricalNoteController.text = electricalNote;
+    }
+
+    setState(() {
+      _mgmtFireSafety = firePresence;
+      _mgmtElectrical = electricalPresence;
+    });
+  }
+
   void _scheduleSave() {
+    if (!_isEditable) return;
     _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 500), _saveNow);
+    _saveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        await _saveNow();
+      } catch (e, st) {
+        debugPrint('Failed to auto-save management data: $e');
+        if (kDebugMode) {
+          debugPrint(st.toString());
+        }
+      }
+    });
   }
 
   Future<void> _saveNow() async {
-    final data = <String, dynamic>{
-      if (_mgmtFireSafety != null)
-        'fireSafety': _mgmtFireSafety == Presence.yes ? 'yes' : 'no',
-      if (_mgmtElectrical != null)
-        'electrical': _mgmtElectrical == Presence.yes ? 'yes' : 'no',
+    _saveDebounce?.cancel();
+    final yearKey = _currentYearKey;
+    if (yearKey.isEmpty) return;
+
+    final fireSafetyData = <String, dynamic>{
+      'note': _fireSafetyNoteController.text,
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    if (_mgmtFireSafety != null) {
+      fireSafetyData['exists'] =
+          _mgmtFireSafety == Presence.yes ? 'yes' : 'no';
+    }
+
+    final electricalData = <String, dynamic>{
+      'note': _electricalNoteController.text,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (_mgmtElectrical != null) {
+      electricalData['exists'] =
+          _mgmtElectrical == Presence.yes ? 'yes' : 'no';
+    }
+
+    final payload = <String, dynamic>{
+      'fireSafety': fireSafetyData,
+      'electrical': electricalData,
+    };
+
     await FirebaseFirestore.instance
         .collection('heritage_management')
         .doc(widget.heritageId)
-        .set(data, SetOptions(merge: true));
+        .set(
+      {
+        'years': {
+          yearKey: payload,
+        },
+      },
+      SetOptions(merge: true),
+    );
   }
 
   @override
   void dispose() {
     _saveDebounce?.cancel();
     _managementSub?.cancel();
+    _fireSafetyNoteController.dispose();
+    _electricalNoteController.dispose();
     super.dispose();
   }
 
@@ -966,7 +1107,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           DropdownMenuItem(value: '2022년 조사', child: Text('2022년 조사')),
                           DropdownMenuItem(value: '2020년 조사', child: Text('2020년 조사')),
                         ],
-                        onChanged: (v) => setState(() => _selectedYear = v!),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() {
+                            _selectedYear = v;
+                            _isEditable = false;
+                          });
+                          _refreshManagementFields(overrideNotes: true);
+                        },
                       ),
                     ],
                   ),
@@ -994,6 +1142,67 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           const _HistorySectionTitle('1.3 관리사항'),
                           const SizedBox(height: 8),
                           _buildManagementTable(),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                ElevatedButton(
+                                  onPressed: _isEditable && !_isSaving
+                                      ? () async {
+                                          FocusScope.of(context).unfocus();
+                                          setState(() => _isSaving = true);
+                                          try {
+                                            await _saveNow();
+                                            if (!mounted) return;
+                                            setState(() {
+                                              _isEditable = false;
+                                              _isSaving = false;
+                                            });
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('변경사항이 저장되었습니다'),
+                                              ),
+                                            );
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            setState(() => _isSaving = false);
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('저장에 실패했습니다: $e'),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(120, 44),
+                                  ),
+                                  child: _isSaving
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Text('저장'),
+                                ),
+                                const SizedBox(width: 16),
+                                OutlinedButton(
+                                  onPressed: _isEditable
+                                      ? null
+                                      : () {
+                                          setState(() => _isEditable = true);
+                                        },
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(120, 44),
+                                  ),
+                                  child: const Text('수정'),
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 24),
 
                           // 1.4 위치현황
@@ -1160,19 +1369,30 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         TableRow(children: [
           const _HistoryTableCell('소방 및 안전관리'),
           const _HistoryTableCell('방재/피뢰설비'),
-          const _HistoryTableCell(''),
+          _MgmtNoteCell(
+            controller: _fireSafetyNoteController,
+            enabled: _isEditable,
+            onChanged: (value) {
+              if (!_isEditable) return;
+              _scheduleSave();
+            },
+          ),
           _MgmtRadioCell(
+            enabled: _isEditable,
             groupValue: _mgmtFireSafety,
             target: Presence.yes,
             onChanged: (value) {
+              if (!_isEditable) return;
               setState(() => _mgmtFireSafety = value);
               _scheduleSave();
             },
           ),
           _MgmtRadioCell(
+            enabled: _isEditable,
             groupValue: _mgmtFireSafety,
             target: Presence.no,
             onChanged: (value) {
+              if (!_isEditable) return;
               setState(() => _mgmtFireSafety = value);
               _scheduleSave();
             },
@@ -1181,19 +1401,30 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         TableRow(children: [
           const _HistoryTableCell('전기시설'),
           const _HistoryTableCell('전선/조명 등'),
-          const _HistoryTableCell(''),
+          _MgmtNoteCell(
+            controller: _electricalNoteController,
+            enabled: _isEditable,
+            onChanged: (value) {
+              if (!_isEditable) return;
+              _scheduleSave();
+            },
+          ),
           _MgmtRadioCell(
+            enabled: _isEditable,
             groupValue: _mgmtElectrical,
             target: Presence.yes,
             onChanged: (value) {
+              if (!_isEditable) return;
               setState(() => _mgmtElectrical = value);
               _scheduleSave();
             },
           ),
           _MgmtRadioCell(
+            enabled: _isEditable,
             groupValue: _mgmtElectrical,
             target: Presence.no,
             onChanged: (value) {
+              if (!_isEditable) return;
               setState(() => _mgmtElectrical = value);
               _scheduleSave();
             },
@@ -1332,32 +1563,86 @@ class _MgmtRadioCell extends StatelessWidget {
   final Presence? groupValue;
   final Presence target;
   final ValueChanged<Presence> onChanged;
+  final bool enabled;
 
   const _MgmtRadioCell({
     super.key,
     required this.groupValue,
     required this.target,
     required this.onChanged,
+    this.enabled = false, // ✅ 기본값을 false로 변경 (기본 잠금)
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(target),
-      child: Container(
-        height: 56,
-        alignment: Alignment.center,
-        child: Transform.scale(
-          scale: 1.3,
-          child: Radio<Presence>(
-            value: target,
-            groupValue: groupValue,
-            onChanged: (value) {
-              if (value != null) {
-                onChanged(value);
-              }
-            },
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return IgnorePointer(
+      ignoring: !enabled, // ✅ enabled가 false면 모든 터치 이벤트 무시
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.5, // ✅ 시각적으로 비활성화 표시
+        child: InkWell(
+          onTap: enabled ? () => onChanged(target) : null,
+          child: Container(
+            height: 56,
+            alignment: Alignment.center,
+            child: Transform.scale(
+              scale: 1.3,
+              child: Radio<Presence>(
+                value: target,
+                groupValue: groupValue,
+                onChanged: enabled
+                    ? (value) {
+                        if (value != null) {
+                          onChanged(value);
+                        }
+                      }
+                    : null,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MgmtNoteCell extends StatelessWidget {
+  final TextEditingController controller;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  const _MgmtNoteCell({
+    super.key,
+    required this.controller,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: IgnorePointer(
+        ignoring: !enabled, // ✅ enabled가 false면 모든 터치 이벤트 무시
+        child: Opacity(
+          opacity: enabled ? 1.0 : 0.6, // ✅ 시각적으로 비활성화 표시
+          child: TextFormField(
+            controller: controller,
+            enabled: enabled,
+            minLines: 1,
+            maxLines: 3,
+            onChanged: enabled ? onChanged : null,
+            style: TextStyle(
+              color: enabled ? Colors.black87 : Colors.grey.shade600,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: '조사내용을 입력하세요',
+              border: const OutlineInputBorder(),
+              disabledBorder: const OutlineInputBorder(),
+              fillColor: enabled ? Colors.white : Colors.grey.shade100,
+              filled: true,
+            ),
           ),
         ),
       ),
