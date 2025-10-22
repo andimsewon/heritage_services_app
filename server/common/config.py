@@ -21,7 +21,12 @@ class Settings:
     """
 
     # CORS 설정
-    CORS_ORIGINS: List[str] = ["*"]  # 프로덕션에서는 특정 도메인으로 제한
+    CORS_ORIGINS: List[str] = [
+        "http://210.117.181.115:3001",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "vscode-webview://*",  # VSCode 편집기 미리보기
+    ]
     CORS_CREDENTIALS: bool = True
     CORS_METHODS: List[str] = ["*"]
     CORS_HEADERS: List[str] = ["*"]

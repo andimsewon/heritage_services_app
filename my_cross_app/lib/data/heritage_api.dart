@@ -49,12 +49,10 @@ class HeritageApi {
     print('🔍 [HeritageApi] 응답 헤더: ${res.headers}');
     print('🔍 [HeritageApi] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
 
-    if (res.statusCode != 200) {
-      print('❌ [HeritageApi] API 오류: ${res.statusCode}');
-      print('❌ [HeritageApi] 응답 전체: ${res.body}');
-      throw Exception('API ${res.statusCode}: ${res.body}');
-    }
-    final data = json.decode(res.body) as Map<String, dynamic>;
+    _validateResponse(res,
+        context: 'HeritageApi.fetchList', expectedContent: 'JSON 목록');
+    final data = _safeDecodeJson(res.body,
+        context: 'HeritageApi.fetchList 응답') as Map<String, dynamic>;
     final items = (data['items'] as List)
         .map((e) => HeritageRow.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -96,12 +94,51 @@ class HeritageApi {
     print('🔍 [HeritageApi.detail] 응답 상태: ${res.statusCode}');
     print('🔍 [HeritageApi.detail] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
 
-    if (res.statusCode != 200) {
-      print('❌ [HeritageApi.detail] API 오류: ${res.statusCode}');
-      print('❌ [HeritageApi.detail] 응답 전체: ${res.body}');
-      throw Exception('API ${res.statusCode}: ${res.body}');
-    }
-    return json.decode(res.body) as Map<String, dynamic>;
+    _validateResponse(res,
+        context: 'HeritageApi.fetchDetail', expectedContent: 'JSON 상세');
+    return _safeDecodeJson(res.body,
+        context: 'HeritageApi.fetchDetail 응답') as Map<String, dynamic>;
+  }
+}
+
+void _validateResponse(
+  http.Response res, {
+  required String context,
+  required String expectedContent,
+}) {
+  if (res.statusCode != 200) {
+    final preview =
+        res.body.length > 120 ? '${res.body.substring(0, 120)}…' : res.body;
+    throw Exception(
+      '[$context] HTTP ${res.statusCode}. $expectedContent을 기대했지만 실패했습니다. 본문: $preview',
+    );
+  }
+
+  final contentType = res.headers['content-type'] ?? '';
+  final bodyStartsWithHtml = res.body.trimLeft().startsWith('<');
+  if (contentType.contains('text/html') || bodyStartsWithHtml) {
+    final preview =
+        res.body.length > 120 ? '${res.body.substring(0, 120)}…' : res.body;
+    throw FormatException(
+      '[$context] $expectedContent 대신 HTML 응답을 받았습니다. 본문: $preview',
+      res.body,
+    );
+  }
+}
+
+dynamic _safeDecodeJson(
+  String body, {
+  required String context,
+}) {
+  try {
+    return json.decode(body);
+  } on FormatException catch (e) {
+    final preview = body.length > 120 ? '${body.substring(0, 120)}…' : body;
+    throw FormatException(
+      '[$context] JSON 파싱에 실패했습니다. HTML 또는 잘못된 형식일 수 있습니다. 본문: $preview',
+      e.source,
+      e.offset,
+    );
   }
 }
 
