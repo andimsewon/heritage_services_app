@@ -1,4 +1,4 @@
-version: "3.8"
+version: "3.7"
 
 services:
   # Flutter 웹 앱 (Nginx)
@@ -35,5 +35,3 @@ services:
       - ./firebase_storage_cors.json:/firebase_storage_cors.json:ro
       - ./setup_firebase_cors.sh:/setup_firebase_cors.sh:ro
     command: ["sh", "-c", "echo 'Firebase CORS 설정은 수동으로 실행하세요: ./setup_firebase_cors.sh'"]
-    profiles:
-      - setup
