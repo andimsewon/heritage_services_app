@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -280,7 +281,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
               showDialog(
                 context: context,
                 barrierColor: Colors.black.withValues(alpha: 0.5),
-                builder: (_) => HeritageHistoryDialog(heritageName: _name),
+                builder: (_) => HeritageHistoryDialog(
+                  heritageId: heritageId,
+                  heritageName: _name,
+                ),
               );
             },
             icon: const Icon(Icons.history, size: 22),
@@ -360,7 +364,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Text(
               '* 과거 최초 기록부터 현재까지 정비·보수·수리 내용',
-              style: TextStyle(color: Colors.red, fontSize: 13),
+              style: TextStyle(fontSize: 13),
             ),
           ),
           Container(
@@ -848,8 +852,13 @@ class _TableCell extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 
 class HeritageHistoryDialog extends StatefulWidget {
+  final String heritageId;
   final String heritageName;
-  const HeritageHistoryDialog({super.key, required this.heritageName});
+  const HeritageHistoryDialog({
+    super.key,
+    required this.heritageId,
+    required this.heritageName,
+  });
 
   @override
   State<HeritageHistoryDialog> createState() => _HeritageHistoryDialogState();
@@ -860,6 +869,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   final List<_HistoryImage> _locationImages = [];
   final List<_HistoryImage> _currentPhotos = [];
   final List<_HistoryImage> _damagePhotos = [];
+  Presence? _mgmtFireSafety;
+  Presence? _mgmtElectrical;
+  Timer? _saveDebounce;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _managementSub;
 
   Future<void> _addPhoto(List<_HistoryImage> target) async {
     final picked = await ImageAcquire.pick(context);
@@ -870,141 +883,189 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _managementSub = FirebaseFirestore.instance
+        .collection('heritage_management')
+        .doc(widget.heritageId)
+        .snapshots()
+        .listen((doc) {
+      final data = doc.data() ?? {};
+      if (!mounted) return;
+      setState(() {
+        _mgmtFireSafety = _parsePresence(data['fireSafety']);
+        _mgmtElectrical = _parsePresence(data['electrical']);
+      });
+    });
+  }
+
+  Presence? _parsePresence(dynamic v) {
+    if (v == true || v == 'yes') return Presence.yes;
+    if (v == false || v == 'no') return Presence.no;
+    return null;
+  }
+
+  void _scheduleSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), _saveNow);
+  }
+
+  Future<void> _saveNow() async {
+    final data = <String, dynamic>{
+      if (_mgmtFireSafety != null)
+        'fireSafety': _mgmtFireSafety == Presence.yes ? 'yes' : 'no',
+      if (_mgmtElectrical != null)
+        'electrical': _mgmtElectrical == Presence.yes ? 'yes' : 'no',
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    await FirebaseFirestore.instance
+        .collection('heritage_management')
+        .doc(widget.heritageId)
+        .set(data, SetOptions(merge: true));
+  }
+
+  @override
+  void dispose() {
+    _saveDebounce?.cancel();
+    _managementSub?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Dialog(
-      insetPadding: const EdgeInsets.all(20),
+      insetPadding: const EdgeInsets.all(16), // 화면 주변 여백
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 제목 + 드롭다운
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '기존 이력',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  DropdownButton<String>(
-                    value: _selectedYear,
-                    items: const [
-                      DropdownMenuItem(value: '2024년 조사', child: Text('2024년 조사')),
-                      DropdownMenuItem(value: '2022년 조사', child: Text('2022년 조사')),
-                      DropdownMenuItem(value: '2020년 조사', child: Text('2020년 조사')),
-                    ],
-                    onChanged: (v) => setState(() => _selectedYear = v!),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dialogWidth = size.width * 0.9;
+          final dialogHeight = size.height * 0.9;
 
-              // 스크롤 가능한 컨텐츠
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          return SizedBox(
+            width: dialogWidth.clamp(600, 1300),  // 최소 600, 최대 1300
+            height: dialogHeight.clamp(500, 1000), // 최소 500, 최대 1000
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 제목 + 드롭다운
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // 1.1 조사결과
-                      const _HistorySectionTitle('1.1 조사결과'),
-                      const SizedBox(height: 8),
-                      _buildSurveyTable(),
-                      const SizedBox(height: 24),
-
-                      // 1.2 보존사항
-                      const _HistorySectionTitle('1.2 보존사항'),
-                      const SizedBox(height: 8),
-                      _buildConservationTable(),
-                      const SizedBox(height: 24),
-
-                      // 1.3 관리사항
-                      const _HistorySectionTitle('1.3 관리사항'),
-                      const SizedBox(height: 8),
-                      _buildManagementTable(),
-                      const SizedBox(height: 24),
-
-                      // 1.4 위치현황
-                      const _HistorySectionTitle('1.4 위치현황'),
-                      const SizedBox(height: 8),
-                      _buildHistoryPhotoSection(
-                        title: '위치 도면/위성자료 등록',
-                        description: '위치 및 도면 자료를 업로드하세요.',
-                        photos: _locationImages,
-                        onAdd: () => _addPhoto(_locationImages),
+                      const Text(
+                        '기존 이력',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 24),
-
-                      // 1.5 현황사진
-                      const _HistorySectionTitle('1.5 현황사진'),
-                      const SizedBox(height: 8),
-                      _buildHistoryPhotoSection(
-                        title: '현황 사진 등록',
-                        description: '최근 촬영한 현황 사진을 관리합니다.',
-                        photos: _currentPhotos,
-                        onAdd: () => _addPhoto(_currentPhotos),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // 1.6 손상부 조사
-                      const _HistorySectionTitle('1.6 손상부 조사'),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Text(
-                          '* 직전 조사 대비 손상부 변화를 비교하세요.',
-                          style: TextStyle(
-                            color: Colors.red.shade600,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      _buildHistoryPhotoSection(
-                        title: '손상부 사진 등록',
-                        description: '손상부 조사 결과를 사진과 함께 보관합니다.',
-                        photos: _damagePhotos,
-                        onAdd: () => _addPhoto(_damagePhotos),
+                      DropdownButton<String>(
+                        value: _selectedYear,
+                        items: const [
+                          DropdownMenuItem(value: '2024년 조사', child: Text('2024년 조사')),
+                          DropdownMenuItem(value: '2022년 조사', child: Text('2022년 조사')),
+                          DropdownMenuItem(value: '2020년 조사', child: Text('2020년 조사')),
+                        ],
+                        onChanged: (v) => setState(() => _selectedYear = v!),
                       ),
                     ],
                   ),
-                ),
-              ),
+                  const Divider(height: 24),
 
-              const SizedBox(height: 16),
+                  // 스크롤 가능한 컨텐츠
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1.1 조사결과
+                          const _HistorySectionTitle('1.1 조사결과'),
+                          const SizedBox(height: 8),
+                          _buildSurveyTable(),
+                          const SizedBox(height: 24),
 
-              // 버튼
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('이력 데이터를 불러왔습니다')),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(120, 44),
+                          // 1.2 보존사항
+                          const _HistorySectionTitle('1.2 보존사항'),
+                          const SizedBox(height: 8),
+                          _buildConservationTable(),
+                          const SizedBox(height: 24),
+
+                          // 1.3 관리사항
+                          const _HistorySectionTitle('1.3 관리사항'),
+                          const SizedBox(height: 8),
+                          _buildManagementTable(),
+                          const SizedBox(height: 24),
+
+                          // 1.4 위치현황
+                          const _HistorySectionTitle('1.4 위치현황'),
+                          const SizedBox(height: 8),
+                          _buildHistoryPhotoSection(
+                            title: '위치 도면/위성자료 등록',
+                            description: '위치 및 도면 자료를 업로드하세요.',
+                            photos: _locationImages,
+                            onAdd: () => _addPhoto(_locationImages),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // 1.5 현황사진
+                          const _HistorySectionTitle('1.5 현황사진'),
+                          const SizedBox(height: 8),
+                          _buildHistoryPhotoSection(
+                            title: '현황 사진 등록',
+                            description: '최근 촬영한 현황 사진을 관리합니다.',
+                            photos: _currentPhotos,
+                            onAdd: () => _addPhoto(_currentPhotos),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // 1.6 손상부 조사
+                          const _HistorySectionTitle('1.6 손상부 조사'),
+                          _buildHistoryPhotoSection(
+                            title: '손상부 사진 등록',
+                            description: '손상부 조사 결과를 사진과 함께 보관합니다. 직전 조사 대비 손상부 변화를 비교하세요.',
+                            photos: _damagePhotos,
+                            onAdd: () => _addPhoto(_damagePhotos),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: const Text('불러오기'),
                   ),
-                  const SizedBox(width: 16),
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(120, 44),
-                    ),
-                    child: const Text('취소'),
+
+                  const SizedBox(height: 16),
+
+                  // 버튼
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('이력 데이터를 불러왔습니다')),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(120, 44),
+                        ),
+                        child: const Text('불러오기'),
+                      ),
+                      const SizedBox(width: 16),
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(120, 44),
+                        ),
+                        child: const Text('취소'),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1085,8 +1146,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         3: FlexColumnWidth(0.6),
         4: FlexColumnWidth(0.6),
       },
-      children: const [
-        TableRow(
+      children: [
+        const TableRow(
           decoration: BoxDecoration(color: Color(0xFFF5F5F5)),
           children: [
             _HistoryTableCell('구분', isHeader: true),
@@ -1097,18 +1158,46 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           ],
         ),
         TableRow(children: [
-          _HistoryTableCell('소방 및 안전관리'),
-          _HistoryTableCell('방재/피뢰설비'),
-          _HistoryTableCell('* 이하 내용 1.3 관리사항 참고', isRed: true),
-          _HistoryTableCell('■'),
-          _HistoryTableCell('□'),
+          const _HistoryTableCell('소방 및 안전관리'),
+          const _HistoryTableCell('방재/피뢰설비'),
+          const _HistoryTableCell(''),
+          _MgmtRadioCell(
+            groupValue: _mgmtFireSafety,
+            target: Presence.yes,
+            onChanged: (value) {
+              setState(() => _mgmtFireSafety = value);
+              _scheduleSave();
+            },
+          ),
+          _MgmtRadioCell(
+            groupValue: _mgmtFireSafety,
+            target: Presence.no,
+            onChanged: (value) {
+              setState(() => _mgmtFireSafety = value);
+              _scheduleSave();
+            },
+          ),
         ]),
         TableRow(children: [
-          _HistoryTableCell('전기시설'),
-          _HistoryTableCell('전선/조명 등'),
-          _HistoryTableCell('* 이하 내용 1.3 관리사항 참고', isRed: true),
-          _HistoryTableCell('□'),
-          _HistoryTableCell('■'),
+          const _HistoryTableCell('전기시설'),
+          const _HistoryTableCell('전선/조명 등'),
+          const _HistoryTableCell(''),
+          _MgmtRadioCell(
+            groupValue: _mgmtElectrical,
+            target: Presence.yes,
+            onChanged: (value) {
+              setState(() => _mgmtElectrical = value);
+              _scheduleSave();
+            },
+          ),
+          _MgmtRadioCell(
+            groupValue: _mgmtElectrical,
+            target: Presence.no,
+            onChanged: (value) {
+              setState(() => _mgmtElectrical = value);
+              _scheduleSave();
+            },
+          ),
         ]),
       ],
     );
@@ -1205,6 +1294,8 @@ class _HistorySectionTitle extends StatelessWidget {
   }
 }
 
+enum Presence { yes, no }
+
 // 테이블 셀
 class _HistoryTableCell extends StatelessWidget {
   final String text;
@@ -1219,6 +1310,10 @@ class _HistoryTableCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isRed) {
+      return const SizedBox.shrink();
+    }
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Text(
@@ -1226,7 +1321,44 @@ class _HistoryTableCell extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-          color: isRed ? Colors.red : Colors.black87,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+}
+
+class _MgmtRadioCell extends StatelessWidget {
+  final Presence? groupValue;
+  final Presence target;
+  final ValueChanged<Presence> onChanged;
+
+  const _MgmtRadioCell({
+    super.key,
+    required this.groupValue,
+    required this.target,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(target),
+      child: Container(
+        height: 56,
+        alignment: Alignment.center,
+        child: Transform.scale(
+          scale: 1.3,
+          child: Radio<Presence>(
+            value: target,
+            groupValue: groupValue,
+            onChanged: (value) {
+              if (value != null) {
+                onChanged(value);
+              }
+            },
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
       ),
     );
