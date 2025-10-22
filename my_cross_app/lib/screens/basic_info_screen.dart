@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:convert' show base64Decode; // base64Decode 사용 대비
+import 'dart:async';                     // Timer(debounce) 대비
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -236,8 +238,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ),
     );
   }
-
-  // 더 이상 사용하지 않음: _ai.detect 사용
 
   @override
   Widget build(BuildContext context) {
@@ -1491,7 +1491,7 @@ Widget _buildPhotoSection({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// DamageDetectionDialog - AI 손상부 조사 다이얼로그
+— DamageDetectionDialog - AI 손상부 조사 다이얼로그
 // ═══════════════════════════════════════════════════════════════
 
 class DamageDetectionDialog extends StatefulWidget {
