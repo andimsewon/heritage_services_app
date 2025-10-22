@@ -25,9 +25,9 @@ class HeritageApi {
     );
 
     // 🔍 디버그 로그: API 요청 정보 출력
-    print('🔍 [HeritageApi] baseUrl: $baseUrl');
-    print('🔍 [HeritageApi] 요청 URI: $uri');
-    print('🔍 [HeritageApi] kIsWeb: $kIsWeb');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] baseUrl: $baseUrl');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] 요청 URI: $uri');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] kIsWeb: $kIsWeb');
 
     // 웹 환경에서 CORS 문제 해결을 위한 설정
     final headers = <String, String>{
@@ -40,14 +40,14 @@ class HeritageApi {
       headers['User-Agent'] = 'Flutter Web App';
     }
 
-    print('🔍 [HeritageApi] 요청 헤더: $headers');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] 요청 헤더: $headers');
 
     final res = await http.get(uri, headers: headers);
 
     // 🔍 응답 상태 및 내용 로그
-    print('🔍 [HeritageApi] 응답 상태 코드: ${res.statusCode}');
-    print('🔍 [HeritageApi] 응답 헤더: ${res.headers}');
-    print('🔍 [HeritageApi] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] 응답 상태 코드: ${res.statusCode}');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] 응답 헤더: ${res.headers}');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
 
     _validateResponse(res,
         context: 'HeritageApi.fetchList', expectedContent: 'JSON 목록');
@@ -76,7 +76,7 @@ class HeritageApi {
     );
 
     // 🔍 디버그 로그
-    print('🔍 [HeritageApi.detail] 요청 URI: $uri');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi.detail] 요청 URI: $uri');
 
     // 웹 환경에서 CORS 문제 해결을 위한 설정
     final headers = <String, String>{
@@ -91,8 +91,8 @@ class HeritageApi {
 
     final res = await http.get(uri, headers: headers);
 
-    print('🔍 [HeritageApi.detail] 응답 상태: ${res.statusCode}');
-    print('🔍 [HeritageApi.detail] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi.detail] 응답 상태: ${res.statusCode}');
+    if (kDebugMode) debugPrint('🔍 [HeritageApi.detail] 응답 본문 (처음 200자): ${res.body.substring(0, res.body.length > 200 ? 200 : res.body.length)}');
 
     _validateResponse(res,
         context: 'HeritageApi.fetchDetail', expectedContent: 'JSON 상세');
