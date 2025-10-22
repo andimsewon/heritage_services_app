@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -849,6 +850,34 @@ class _TableCell extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
+class _SurveyRowConfig {
+  const _SurveyRowConfig({
+    required this.key,
+    required this.label,
+    this.hint,
+  });
+
+  final String key;
+  final String label;
+  final String? hint;
+}
+
+class _ConservationRowConfig {
+  const _ConservationRowConfig({
+    required this.key,
+    required this.section,
+    required this.part,
+    this.noteHint,
+    this.locationHint,
+  });
+
+  final String key;
+  final String section;
+  final String part;
+  final String? noteHint;
+  final String? locationHint;
+}
+
 // Heritage History Dialog - 기존이력확인 팝업
 // ═══════════════════════════════════════════════════════════════
 
@@ -1147,8 +1176,104 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     });
   }
 
+  Timer? _saveDebounce;
+  bool _hasUnsavedChanges = false;
+
+  void _scheduleSave() {
+    if (!_isEditable) return;
+    _hasUnsavedChanges = true;
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        await _saveNow();
+      } catch (e, st) {
+        debugPrint('Failed to auto-save management data: $e');
+        if (kDebugMode) {
+          debugPrint(st.toString());
+        }
+      }
+    });
+  }
+
+  Future<void> _saveNow() async {
+    _saveDebounce?.cancel();
+    final yearKey = _currentYearKey;
+    if (yearKey.isEmpty) return;
+
+    String trimText(TextEditingController controller) => controller.text.trim();
+
+    final surveyData = <String, dynamic>{
+      for (final row in _surveyRowConfigs)
+        row.key: trimText(_surveyControllers[row.key]!),
+    };
+
+    final conservationData = <String, dynamic>{
+      for (final row in _conservationRowConfigs)
+        row.key: {
+          'section': row.section,
+          'part': row.part,
+          'note': trimText(_conservationNoteControllers[row.key]!),
+          'photoLocation': trimText(_conservationLocationControllers[row.key]!),
+        },
+    };
+
+    Map<String, dynamic> presencePayload(Presence? presence, TextEditingController controller, {required String section, required String part}) {
+      final value = <String, dynamic>{
+        'section': section,
+        'part': part,
+        'note': trimText(controller),
+        'presence': presence == null
+            ? null
+            : (presence == Presence.yes ? 'yes' : 'no'),
+        'exists': presence == null
+            ? null
+            : (presence == Presence.yes ? 'yes' : 'no'),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      return value;
+    }
+
+    final fireSafetyData = presencePayload(
+      _mgmtFireSafety,
+      _fireSafetyNoteController,
+      section: '소방 및 안전관리',
+      part: '방재/피뢰설비',
+    );
+    final electricalData = presencePayload(
+      _mgmtElectrical,
+      _electricalNoteController,
+      section: '전기시설',
+      part: '전선/조명 등',
+    );
+
+    final timestamp = FieldValue.serverTimestamp();
+    final docRef = FirebaseFirestore.instance
+        .collection('heritage_management')
+        .doc(widget.heritageId);
+
+    await docRef.set(
+      {
+        'years.$yearKey.survey': surveyData,
+        'years.$yearKey.conservation': conservationData,
+        'years.$yearKey.fireSafety': fireSafetyData,
+        'years.$yearKey.electrical': electricalData,
+        'years.$yearKey.updatedAt': timestamp,
+        'heritageName': widget.heritageName,
+        'updatedAt': timestamp,
+      },
+      SetOptions(merge: true),
+    );
+
+    if (mounted) {
+      setState(() {
+        _hasUnsavedChanges = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _saveDebounce?.cancel();
     _managementSub?.cancel();
     for (final controller in _surveyControllers.values) {
       controller.dispose();
