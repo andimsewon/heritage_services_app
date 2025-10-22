@@ -74,6 +74,20 @@
     const storage = getStorage(app);
     const analytics = getAnalytics(app);
   </script>
+  <!-- ✅ 기존 Flutter 서비스 워커가 이전 배포를 캐시하지 않도록 강제로 해제 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then((registrations) => {
+          registrations.forEach((registration) => {
+            registration.unregister().catch((err) => {
+              console.warn('Service worker unregister failed:', err);
+            });
+          });
+        })
+        .catch((err) => console.warn('Service worker lookup failed:', err));
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

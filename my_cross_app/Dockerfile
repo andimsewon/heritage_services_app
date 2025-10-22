@@ -30,7 +30,7 @@ RUN flutter pub get
 COPY . .
 
 # 웹 빌드
-RUN flutter build web --release
+RUN flutter build web --release --pwa-strategy=none
 
 # Nginx를 사용하여 정적 파일 서빙
 FROM nginx:alpine
