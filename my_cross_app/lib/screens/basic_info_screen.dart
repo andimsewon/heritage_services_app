@@ -866,30 +866,10 @@ class HeritageHistoryDialog extends StatefulWidget {
 }
 
 class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
-  static const List<_SurveyRowConfig> _surveyRowConfigs = [
-    _SurveyRowConfig(key: 'structure', label: '구조부'),
-    _SurveyRowConfig(key: 'wall', label: '축석(벽체부)'),
-    _SurveyRowConfig(key: 'roof', label: '지붕부'),
-  ];
-  static const List<_ConservationRowConfig> _conservationRowConfigs = [
-    _ConservationRowConfig(
-      key: 'structure',
-      section: '구조부',
-      part: '기단',
-    ),
-    _ConservationRowConfig(
-      key: 'roof',
-      section: '지붕부',
-      part: '—',
-    ),
-  ];
   String _selectedYear = '2024년 조사';
   final List<_HistoryImage> _locationImages = [];
   final List<_HistoryImage> _currentPhotos = [];
   final List<_HistoryImage> _damagePhotos = [];
-  late final Map<String, TextEditingController> _surveyControllers;
-  late final Map<String, TextEditingController> _conservationNoteControllers;
-  late final Map<String, TextEditingController> _conservationLocationControllers;
   final TextEditingController _fireSafetyNoteController =
       TextEditingController();
   final TextEditingController _electricalNoteController =
@@ -899,10 +879,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   bool _isSaving = false;
   Presence? _mgmtFireSafety;
   Presence? _mgmtElectrical;
+  Timer? _saveDebounce;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _managementSub;
 
   Future<void> _addPhoto(List<_HistoryImage> target) async {
-    if (!_isEditable) return;
     final picked = await ImageAcquire.pick(context);
     if (picked == null) return;
     final (bytes, _) = picked;
@@ -913,25 +893,6 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   @override
   void initState() {
     super.initState();
-    _surveyControllers = {
-      for (final row in _surveyRowConfigs) row.key: TextEditingController(),
-    };
-    _conservationNoteControllers = {
-      for (final row in _conservationRowConfigs)
-        row.key: TextEditingController(),
-    };
-    _conservationLocationControllers = {
-      for (final row in _conservationRowConfigs)
-        row.key: TextEditingController(),
-    };
-    _surveyControllers['structure']?.text = '이하 내용 1.1 총괄사항 참고';
-    _surveyControllers['wall']?.text = '—';
-    _surveyControllers['roof']?.text = '이하 내용 1.1 총괄사항 참고';
-    _conservationNoteControllers['structure']?.text = '이하 내용 1.2 보존사항 참고';
-    _conservationNoteControllers['roof']?.text = '* 필요시 사진 보이기';
-    _conservationLocationControllers['structure']?.text = '7,710';
-    _conservationLocationControllers['roof']?.text = '';
-
     _managementSub = FirebaseFirestore.instance
         .collection('heritage_management')
         .doc(widget.heritageId)
@@ -960,33 +921,15 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       final fireNote = _noteFromSection(fireSection);
       final electricalNote = _noteFromSection(electricalSection);
 
-      final shouldHydrate = !_isEditable;
-      if (shouldHydrate) {
+      if (!_isEditable) {
         _fireSafetyNoteController.text = fireNote;
         _electricalNoteController.text = electricalNote;
-        _populateSurveyFields(yearData);
-        _populateConservationFields(yearData);
       }
-
-      final locationImages = _decodePhotoList(yearData['locationPhotos']);
-      final currentImages = _decodePhotoList(yearData['currentPhotos']);
-      final damageImages = _decodePhotoList(yearData['damagePhotos']);
 
       setState(() {
         _managementYears = years;
         _mgmtFireSafety = firePresence;
         _mgmtElectrical = electricalPresence;
-        if (shouldHydrate) {
-          _locationImages
-            ..clear()
-            ..addAll(locationImages);
-          _currentPhotos
-            ..clear()
-            ..addAll(currentImages);
-          _damagePhotos
-            ..clear()
-            ..addAll(damageImages);
-        }
       });
     });
   }
@@ -1044,71 +987,6 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     return '';
   }
 
-  void _populateSurveyFields(
-    Map<String, dynamic> yearData, {
-    bool force = false,
-  }) {
-    if (!force && _isEditable) return;
-    final surveyData = _mapFrom(yearData['survey']);
-    for (final row in _surveyRowConfigs) {
-      final controller = _surveyControllers[row.key];
-      if (controller != null) {
-        final value = surveyData[row.key];
-        if (value is String) {
-          controller.text = value;
-        }
-      }
-    }
-  }
-
-  void _populateConservationFields(
-    Map<String, dynamic> yearData, {
-    bool force = false,
-  }) {
-    if (!force && _isEditable) return;
-    final conservationData = _mapFrom(yearData['conservation']);
-    for (final row in _conservationRowConfigs) {
-      final rowData = _mapFrom(conservationData[row.key]);
-      final note = rowData['note'];
-      final location = rowData['photoLocation'] ?? rowData['location'];
-      final noteController = _conservationNoteControllers[row.key];
-      final locationController = _conservationLocationControllers[row.key];
-      if (noteController != null && note is String) {
-        noteController.text = note;
-      }
-      if (locationController != null && location is String) {
-        locationController.text = location;
-      }
-    }
-  }
-
-  List<_HistoryImage> _decodePhotoList(dynamic raw) {
-    if (raw is List) {
-      final result = <_HistoryImage>[];
-      for (final item in raw) {
-        if (item is String && item.isNotEmpty) {
-          result.add(_HistoryImage.network(item));
-        } else if (item is Map) {
-          final mapItem = _mapFrom(item);
-          final url = mapItem['url'];
-          final bytesBase64 = mapItem['bytes'];
-          if (url is String && url.isNotEmpty) {
-            result.add(_HistoryImage.network(url));
-          } else if (bytesBase64 is String && bytesBase64.isNotEmpty) {
-            try {
-              final bytes = base64Decode(bytesBase64);
-              result.add(_HistoryImage.memory(bytes));
-            } catch (e) {
-              debugPrint('Failed to decode base64 image: $e');
-            }
-          }
-        }
-      }
-      return result;
-    }
-    return [];
-  }
-
   void _refreshManagementFields({bool overrideNotes = false}) {
     final yearData = _yearData(_currentYearKey);
     final fireSection = _sectionData(yearData, 'fireSafety');
@@ -1117,48 +995,78 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     final electricalPresence = _presenceFromSection(electricalSection);
     final fireNote = _noteFromSection(fireSection);
     final electricalNote = _noteFromSection(electricalSection);
-    final shouldHydrate = overrideNotes || !_isEditable;
 
-    if (shouldHydrate) {
+    if (overrideNotes || !_isEditable) {
       _fireSafetyNoteController.text = fireNote;
       _electricalNoteController.text = electricalNote;
-      _populateSurveyFields(yearData, force: true);
-      _populateConservationFields(yearData, force: true);
     }
-
-    final locationImages = _decodePhotoList(yearData['locationPhotos']);
-    final currentImages = _decodePhotoList(yearData['currentPhotos']);
-    final damageImages = _decodePhotoList(yearData['damagePhotos']);
 
     setState(() {
       _mgmtFireSafety = firePresence;
       _mgmtElectrical = electricalPresence;
-      if (shouldHydrate) {
-        _locationImages
-          ..clear()
-          ..addAll(locationImages);
-        _currentPhotos
-          ..clear()
-          ..addAll(currentImages);
-        _damagePhotos
-          ..clear()
-          ..addAll(damageImages);
+    });
+  }
+
+  void _scheduleSave() {
+    if (!_isEditable) return;
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        await _saveNow();
+      } catch (e, st) {
+        debugPrint('Failed to auto-save management data: $e');
+        if (kDebugMode) {
+          debugPrint(st.toString());
+        }
       }
     });
   }
 
+  Future<void> _saveNow() async {
+    _saveDebounce?.cancel();
+    final yearKey = _currentYearKey;
+    if (yearKey.isEmpty) return;
+
+    final fireSafetyData = <String, dynamic>{
+      'note': _fireSafetyNoteController.text,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (_mgmtFireSafety != null) {
+      fireSafetyData['exists'] =
+          _mgmtFireSafety == Presence.yes ? 'yes' : 'no';
+    }
+
+    final electricalData = <String, dynamic>{
+      'note': _electricalNoteController.text,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (_mgmtElectrical != null) {
+      electricalData['exists'] =
+          _mgmtElectrical == Presence.yes ? 'yes' : 'no';
+    }
+
+    final payload = <String, dynamic>{
+      'fireSafety': fireSafetyData,
+      'electrical': electricalData,
+    };
+
+    await FirebaseFirestore.instance
+        .collection('heritage_management')
+        .doc(widget.heritageId)
+        .set(
+      {
+        'years': {
+          yearKey: payload,
+        },
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   @override
   void dispose() {
+    _saveDebounce?.cancel();
     _managementSub?.cancel();
-    for (final controller in _surveyControllers.values) {
-      controller.dispose();
-    }
-    for (final controller in _conservationNoteControllers.values) {
-      controller.dispose();
-    }
-    for (final controller in _conservationLocationControllers.values) {
-      controller.dispose();
-    }
     _fireSafetyNoteController.dispose();
     _electricalNoteController.dispose();
     super.dispose();
