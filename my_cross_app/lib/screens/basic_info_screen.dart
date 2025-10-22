@@ -849,6 +849,34 @@ class _TableCell extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
+class _SurveyRowConfig {
+  const _SurveyRowConfig({
+    required this.key,
+    required this.label,
+    this.hint,
+  });
+
+  final String key;
+  final String label;
+  final String? hint;
+}
+
+class _ConservationRowConfig {
+  const _ConservationRowConfig({
+    required this.key,
+    required this.section,
+    required this.part,
+    this.noteHint,
+    this.locationHint,
+  });
+
+  final String key;
+  final String section;
+  final String part;
+  final String? noteHint;
+  final String? locationHint;
+}
+
 // Heritage History Dialog - 기존이력확인 팝업
 // ═══════════════════════════════════════════════════════════════
 
@@ -866,6 +894,33 @@ class HeritageHistoryDialog extends StatefulWidget {
 }
 
 class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
+  static const List<_SurveyRowConfig> _surveyRowConfigs = [
+    _SurveyRowConfig(key: 'structure', label: '구조부', hint: '예: 이하 내용 1.1 총괄사항 참고'),
+    _SurveyRowConfig(key: 'wall', label: '축석(벽체부)', hint: '예: 균열, 박락 등 조사 결과'),
+    _SurveyRowConfig(key: 'roof', label: '지붕부', hint: '예: 이하 내용 1.1 총괄사항 참고'),
+  ];
+  static const List<_ConservationRowConfig> _conservationRowConfigs = [
+    _ConservationRowConfig(
+      key: 'structure',
+      section: '구조부',
+      part: '기단',
+      noteHint: '예: 균열, 침하 등 현상 기록',
+      locationHint: '예: 7,710 / 좌표',
+    ),
+    _ConservationRowConfig(
+      key: 'roof',
+      section: '지붕부',
+      part: '—',
+      noteHint: '예: 필요 시 사진 보이기',
+      locationHint: '예: 첨탑 상부',
+    ),
+  ];
+  late final Map<String, TextEditingController> _surveyControllers;
+  late final Map<String, TextEditingController> _conservationNoteControllers;
+  late final Map<String, TextEditingController> _conservationLocationControllers;
+  static const double _tableHeaderFontSize = 15;
+  static const double _tableBodyFontSize = 14;
+  bool _hasUnsavedChanges = false;
   String _selectedYear = '2024년 조사';
   final List<_HistoryImage> _locationImages = [];
   final List<_HistoryImage> _currentPhotos = [];
