@@ -24,16 +24,24 @@ class FirebaseService {
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
         cacheControl: 'max-age=31536000', // 1년 캐시
+        customMetadata: {
+          'heritageId': heritageId,
+          'folder': folder,
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
       );
 
       final uploadTask = await ref.putData(bytes, metadata);
       
       if (uploadTask.state == TaskState.success) {
-        return await ref.getDownloadURL();
+        final downloadUrl = await ref.getDownloadURL();
+        print('✅ 이미지 업로드 성공: $downloadUrl');
+        return downloadUrl;
       } else {
         throw Exception('Upload failed with state: ${uploadTask.state}');
       }
     } catch (e) {
+      print('❌ Firebase Storage 업로드 실패: $e');
       throw Exception('Firebase Storage upload failed: $e');
     }
   }

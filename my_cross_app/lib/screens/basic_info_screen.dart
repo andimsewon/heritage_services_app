@@ -595,6 +595,56 @@ class _PhotoCard extends StatelessWidget {
     this.onDelete,
   });
 
+  bool _isValidUrl(String url) {
+    if (url.isEmpty) return false;
+    try {
+      final uri = Uri.parse(url);
+      return uri.scheme == 'https' && uri.host.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String _getProxiedUrl(String originalUrl) {
+    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
+    if (originalUrl.contains('firebasestorage.googleapis.com')) {
+      final proxyBase = Env.proxyBase;
+      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
+    }
+    // 다른 URL은 그대로 사용
+    return originalUrl;
+  }
+
+  Widget _buildErrorWidget() {
+    return Container(
+      color: Colors.grey.shade200,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported, 
+               size: 32, 
+               color: Colors.grey.shade400),
+          const SizedBox(height: 4),
+          Text(
+            '이미지 로딩 실패',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'URL 확인 필요',
+            style: TextStyle(
+              fontSize: 8,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -612,12 +662,29 @@ class _PhotoCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Center(child: Icon(Icons.broken_image)),
-              ),
+              child: _isValidUrl(url) 
+                ? Image.network(
+                    _getProxiedUrl(url),
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      print('이미지 로딩 에러: $error');
+                      print('원본 URL: $url');
+                      print('프록시 URL: ${_getProxiedUrl(url)}');
+                      return _buildErrorWidget();
+                    },
+                  )
+                : _buildErrorWidget(),
             ),
           ),
           const SizedBox(height: 6),
@@ -651,6 +718,16 @@ class _DamagePreview extends StatelessWidget {
   final List<Map<String, dynamic>> detections; // label, score, x,y,w,h
   const _DamagePreview({required this.url, required this.detections});
 
+  String _getProxiedUrl(String originalUrl) {
+    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
+    if (originalUrl.contains('firebasestorage.googleapis.com')) {
+      final proxyBase = Env.proxyBase;
+      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
+    }
+    // 다른 URL은 그대로 사용
+    return originalUrl;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -658,7 +735,7 @@ class _DamagePreview extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(url, fit: BoxFit.contain),
+            Image.network(_getProxiedUrl(url), fit: BoxFit.contain),
             ...detections.map((m) {
               final x = (m['x'] as num).toDouble();
               final y = (m['y'] as num).toDouble();
