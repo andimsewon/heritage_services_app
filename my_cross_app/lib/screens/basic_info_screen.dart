@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:convert' show base64Decode; // base64Decode 사용 대비
+import 'dart:async';                     // Timer(debounce) 대비
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +14,24 @@ import '../env.dart';
 import '../services/firebase_service.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
+
+// ── 누락된 설정용 타입 (const로 쓰기 때문에 반드시 const 생성자 필요)
+class _SurveyRowConfig {
+  final String key;
+  final String label;
+  const _SurveyRowConfig({required this.key, required this.label});
+}
+
+class _ConservationRowConfig {
+  final String key;
+  final String label;
+  final int maxLines;
+  const _ConservationRowConfig({
+    required this.key,
+    required this.label,
+    this.maxLines = 1,
+  });
+}
 
 /// ④ 기본개요 화면
 class BasicInfoScreen extends StatefulWidget {
@@ -239,8 +259,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ),
     );
   }
-
-  // 더 이상 사용하지 않음: _ai.detect 사용
 
   @override
   Widget build(BuildContext context) {
@@ -1006,6 +1024,26 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Presence? _mgmtFireSafety;
   Presence? _mgmtElectrical;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _managementSub;
+
+   Timer? _autoSaveTimer;
+
+  Future<void> _saveNow() async {
+    // TODO: 실제 저장 로직 연결 (예: Firestore/REST 호출)
+    // 예) await context.read<HistoryService>().save(_state);
+    if (!mounted) return;
+    setState(() {}); // 저장 후 UI 반영 필요 시
+  }
+
+  void _scheduleSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 600), _saveNow);
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _addPhoto(List<_HistoryImage> target) async {
     if (!_isEditable) return;
