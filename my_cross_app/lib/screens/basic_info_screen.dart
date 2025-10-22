@@ -12,6 +12,24 @@ import '../services/firebase_service.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 
+// ── 누락된 설정용 타입 (const로 쓰기 때문에 반드시 const 생성자 필요)
+class _SurveyRowConfig {
+  final String key;
+  final String label;
+  const _SurveyRowConfig({required this.key, required this.label});
+}
+
+class _ConservationRowConfig {
+  final String key;
+  final String label;
+  final int maxLines;
+  const _ConservationRowConfig({
+    required this.key,
+    required this.label,
+    this.maxLines = 1,
+  });
+}
+
 /// ④ 기본개요 화면
 class BasicInfoScreen extends StatefulWidget {
   static const route = '/basic-info';
@@ -938,6 +956,26 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   final List<_HistoryImage> _currentPhotos = [];
   final List<_HistoryImage> _damagePhotos = [];
 
+   Timer? _autoSaveTimer;
+
+  Future<void> _saveNow() async {
+    // TODO: 실제 저장 로직 연결 (예: Firestore/REST 호출)
+    // 예) await context.read<HistoryService>().save(_state);
+    if (!mounted) return;
+    setState(() {}); // 저장 후 UI 반영 필요 시
+  }
+
+  void _scheduleSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 600), _saveNow);
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _addPhoto(List<_HistoryImage> target) async {
     final picked = await ImageAcquire.pick(context);
     if (picked == null) return;
@@ -1491,7 +1529,7 @@ Widget _buildPhotoSection({
 }
 
 // ═══════════════════════════════════════════════════════════════
-— DamageDetectionDialog - AI 손상부 조사 다이얼로그
+// DamageDetectionDialog - AI 손상부 조사 다이얼로그
 // ═══════════════════════════════════════════════════════════════
 
 class DamageDetectionDialog extends StatefulWidget {
