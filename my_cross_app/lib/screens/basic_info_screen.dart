@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:convert' show base64Decode; // base64Decode 사용 대비
+import 'dart:async';                     // Timer(debounce) 대비
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +14,24 @@ import '../env.dart';
 import '../services/firebase_service.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
+
+// ── 누락된 설정용 타입 (const로 쓰기 때문에 반드시 const 생성자 필요)
+class _SurveyRowConfig {
+  final String key;
+  final String label;
+  const _SurveyRowConfig({required this.key, required this.label});
+}
+
+class _ConservationRowConfig {
+  final String key;
+  final String label;
+  final int maxLines;
+  const _ConservationRowConfig({
+    required this.key,
+    required this.label,
+    this.maxLines = 1,
+  });
+}
 
 /// ④ 기본개요 화면
 class BasicInfoScreen extends StatefulWidget {
@@ -239,8 +259,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ),
     );
   }
-
-  // 더 이상 사용하지 않음: _ai.detect 사용
 
   @override
   Widget build(BuildContext context) {
@@ -601,6 +619,56 @@ class _PhotoCard extends StatelessWidget {
     this.onDelete,
   });
 
+  bool _isValidUrl(String url) {
+    if (url.isEmpty) return false;
+    try {
+      final uri = Uri.parse(url);
+      return uri.scheme == 'https' && uri.host.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String _getProxiedUrl(String originalUrl) {
+    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
+    if (originalUrl.contains('firebasestorage.googleapis.com')) {
+      final proxyBase = Env.proxyBase;
+      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
+    }
+    // 다른 URL은 그대로 사용
+    return originalUrl;
+  }
+
+  Widget _buildErrorWidget() {
+    return Container(
+      color: Colors.grey.shade200,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported, 
+               size: 32, 
+               color: Colors.grey.shade400),
+          const SizedBox(height: 4),
+          Text(
+            '이미지 로딩 실패',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'URL 확인 필요',
+            style: TextStyle(
+              fontSize: 8,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -618,12 +686,29 @@ class _PhotoCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Center(child: Icon(Icons.broken_image)),
-              ),
+              child: _isValidUrl(url) 
+                ? Image.network(
+                    _getProxiedUrl(url),
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      print('이미지 로딩 에러: $error');
+                      print('원본 URL: $url');
+                      print('프록시 URL: ${_getProxiedUrl(url)}');
+                      return _buildErrorWidget();
+                    },
+                  )
+                : _buildErrorWidget(),
             ),
           ),
           const SizedBox(height: 6),
@@ -657,6 +742,16 @@ class _DamagePreview extends StatelessWidget {
   final List<Map<String, dynamic>> detections; // label, score, x,y,w,h
   const _DamagePreview({required this.url, required this.detections});
 
+  String _getProxiedUrl(String originalUrl) {
+    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
+    if (originalUrl.contains('firebasestorage.googleapis.com')) {
+      final proxyBase = Env.proxyBase;
+      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
+    }
+    // 다른 URL은 그대로 사용
+    return originalUrl;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -664,7 +759,7 @@ class _DamagePreview extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(url, fit: BoxFit.contain),
+            Image.network(_getProxiedUrl(url), fit: BoxFit.contain),
             ...detections.map((m) {
               final x = (m['x'] as num).toDouble();
               final y = (m['y'] as num).toDouble();
@@ -929,6 +1024,26 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Presence? _mgmtFireSafety;
   Presence? _mgmtElectrical;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _managementSub;
+
+   Timer? _autoSaveTimer;
+
+  Future<void> _saveNow() async {
+    // TODO: 실제 저장 로직 연결 (예: Firestore/REST 호출)
+    // 예) await context.read<HistoryService>().save(_state);
+    if (!mounted) return;
+    setState(() {}); // 저장 후 UI 반영 필요 시
+  }
+
+  void _scheduleSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 600), _saveNow);
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _addPhoto(List<_HistoryImage> target) async {
     if (!_isEditable) return;

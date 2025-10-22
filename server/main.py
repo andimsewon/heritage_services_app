@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 # 라우터 임포트
 from heritage.router import router as heritage_router
 from ai.router import router as ai_router
+from image.router import router as image_router
 
 # 공통 설정
 from common.config import settings
@@ -58,6 +59,7 @@ setup_middleware(app)
 # 라우터 등록
 app.include_router(heritage_router, prefix="/heritage", tags=["Heritage"])
 app.include_router(ai_router, prefix="/ai", tags=["AI Detection"])
+app.include_router(image_router, prefix="/image", tags=["Image Proxy"])
 
 
 # 루트 엔드포인트
@@ -74,6 +76,7 @@ async def root():
             "heritage_detail": "/heritage/detail",
             "ai_status": "/ai/model/status",
             "ai_infer": "/ai/damage/infer",
+            "image_proxy": "/image/proxy",
         }
     }
 

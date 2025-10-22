@@ -1,39 +1,39 @@
-version: '3.3'
+version: "3.8"
 
 services:
-  heritage-api:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: heritage-services-api
-    ports:
-      - "8080:8080"
-    environment:
-      - HOST=0.0.0.0
-      - PORT=8080
-      - RELOAD=false
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - heritage-network
-
+  # Flutter 웹 앱 (Nginx)
   heritage-web:
-    build:
-      context: ./my_cross_app
-      dockerfile: Dockerfile
-    container_name: heritage-web-app
+    image: nginx:alpine
+    container_name: heritage-web
     ports:
-      - "3001:3001"
+      - "3001:80"
+    volumes:
+      - ./my_cross_app/build/web:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
     depends_on:
       - heritage-api
-    restart: unless-stopped
-    networks:
-      - heritage-network
 
-networks:
-  heritage-network:
-    driver: bridge
+  # FastAPI 서버 (이미지 프록시 포함)
+  heritage-api:
+    build: ./server
+    container_name: heritage-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./server:/app
+    restart: unless-stopped
+    environment:
+      - PYTHONPATH=/app
+    command: ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+  # Firebase Storage CORS 설정 (선택사항)
+  firebase-cors-setup:
+    image: google/cloud-sdk:alpine
+    container_name: firebase-cors-setup
+    volumes:
+      - ./firebase_storage_cors.json:/firebase_storage_cors.json:ro
+      - ./setup_firebase_cors.sh:/setup_firebase_cors.sh:ro
+    command: ["sh", "-c", "echo 'Firebase CORS 설정은 수동으로 실행하세요: ./setup_firebase_cors.sh'"]
+    profiles:
+      - setup
