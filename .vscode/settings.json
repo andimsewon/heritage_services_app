@@ -1,3 +1,53 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive"
+  "dart.flutterSdkPath": null,
+  "dart.sdkPath": null,
+  "dart.enableSdkFormatter": true,
+  "dart.lineLength": 80,
+  "dart.insertArgumentPlaceholders": false,
+  "dart.previewFlutterUiGuides": true,
+  "dart.previewFlutterUiGuidesCustomTracking": true,
+  "dart.flutterOutline": true,
+  "dart.closingLabels": true,
+  "dart.enableSnippets": true,
+  "dart.completeFunctionCalls": true,
+  "dart.showTodos": true,
+  "dart.runPubGetOnPubspecChanges": true,
+  "dart.analysisExcludedFolders": [
+    "build",
+    ".dart_tool"
+  ],
+  "python.defaultInterpreterPath": "./server/venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.formatting.provider": "black",
+  "python.analysis.typeCheckingMode": "basic",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/node_modules": true,
+    "**/.dart_tool": true,
+    "**/build": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/.dart_tool": true,
+    "**/build": true,
+    "**/.git": true
+  },
+  "emmet.includeLanguages": {
+    "dart": "html"
+  },
+  "editor.rulers": [80],
+  "editor.wordWrap": "on",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  }
 }

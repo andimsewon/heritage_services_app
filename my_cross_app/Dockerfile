@@ -32,6 +32,9 @@ COPY . .
 # 웹 빌드
 RUN flutter build web --release --pwa-strategy=none
 
+# 서비스워커 파일 완전 제거
+RUN rm -f /app/build/web/flutter_service_worker.js
+
 # Nginx를 사용하여 정적 파일 서빙
 FROM nginx:alpine
 COPY --from=0 /app/build/web /usr/share/nginx/html
