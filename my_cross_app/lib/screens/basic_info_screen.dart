@@ -15,6 +15,24 @@ import '../services/firebase_service.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 
+String _proxyImageUrl(String originalUrl) {
+  if (originalUrl.contains('firebasestorage.googleapis.com')) {
+    final proxyBase = Env.proxyBase;
+    return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
+  }
+  return originalUrl;
+}
+
+bool _isValidImageUrl(String url) {
+  if (url.isEmpty) return false;
+  try {
+    final uri = Uri.parse(url);
+    return uri.scheme.isNotEmpty && uri.host.isNotEmpty;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ── 누락된 설정용 타입 (const로 쓰기 때문에 반드시 const 생성자 필요)
 class _SurveyRowConfig {
   const _SurveyRowConfig({
@@ -166,6 +184,83 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     return '${mb.toStringAsFixed(2)}MB';
   }
 
+  void _openPhotoViewer({required String url, required String title}) {
+    if (!_isValidImageUrl(url)) return;
+    final proxiedUrl = _proxyImageUrl(url);
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '사진 확대 보기',
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      pageBuilder: (context, _, __) {
+        return Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: InteractiveViewer(
+                      maxScale: 4,
+                      child: Image.network(
+                        proxiedUrl,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          final total = loadingProgress.expectedTotalBytes;
+                          final loaded = loadingProgress.cumulativeBytesLoaded;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: total != null ? loaded / total : null,
+                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white70,
+                          size: 64,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Material(
+                    color: Colors.black54,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                ),
+                if (title.trim().isNotEmpty)
+                  Positioned(
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
   // ───────────────────────── 문화유산 현황 사진 업로드
   Future<void> _addPhoto() async {
     if (!mounted) return;
@@ -305,16 +400,22 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
+        leadingWidth: 124,
+        titleSpacing: 0,
         title: Text(_name.isEmpty ? '기본개요' : _name),
-        leading: FilledButton.icon(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.menu, size: 20),
-          label: const Text('목록보기'),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            textStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: FilledButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.menu, size: 20),
+            label: const Text('목록보기'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),
@@ -438,7 +539,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             ),
           ),
           SizedBox(
-            height: 150,
+            height: 230,
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _fb.photosStream(heritageId),
               builder: (context, snap) {
@@ -460,18 +561,21 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (_, i) {
                       final d = docs[i].data();
+                      final title = (d['title'] as String?) ?? '';
+                      final url = (d['url'] as String?) ?? '';
+                      final meta = '${d['width'] ?? '?'}x${d['height'] ?? '?'} • ${_formatBytes(d['bytes'] as num?)}';
                       return _PhotoCard(
-                        title: (d['title'] as String?) ?? '',
-                        url: (d['url'] as String?) ?? '',
-                        meta:
-                            '${d['width'] ?? '?'}x${d['height'] ?? '?'} • ${_formatBytes(d['bytes'] as num?)}',
+                        title: title,
+                        url: url,
+                        meta: meta,
+                        onPreview: () => _openPhotoViewer(url: url, title: title),
                         onDelete: () async {
                           final ok = await _confirmDelete(context);
                           if (ok != true) return;
                           await _fb.deletePhoto(
                             heritageId: heritageId,
                             docId: docs[i].id,
-                            url: (d['url'] as String?) ?? '',
+                            url: url,
                             folder: 'photos',
                           );
                         },
@@ -628,33 +732,15 @@ class _InfoRow extends StatelessWidget {
 
 class _PhotoCard extends StatelessWidget {
   final String title, url, meta;
+  final VoidCallback? onPreview;
   final Future<void> Function()? onDelete;
   const _PhotoCard({
     required this.title,
     required this.url,
     required this.meta,
+    this.onPreview,
     this.onDelete,
   });
-
-  bool _isValidUrl(String url) {
-    if (url.isEmpty) return false;
-    try {
-      final uri = Uri.parse(url);
-      return uri.scheme == 'https' && uri.host.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  String _getProxiedUrl(String originalUrl) {
-    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
-    if (originalUrl.contains('firebasestorage.googleapis.com')) {
-      final proxyBase = Env.proxyBase;
-      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
-    }
-    // 다른 URL은 그대로 사용
-    return originalUrl;
-  }
 
   Widget _buildErrorWidget() {
     return Container(
@@ -662,9 +748,11 @@ class _PhotoCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.image_not_supported, 
-               size: 32, 
-               color: Colors.grey.shade400),
+          Icon(
+            Icons.image_not_supported,
+            size: 32,
+            color: Colors.grey.shade400,
+          ),
           const SizedBox(height: 4),
           Text(
             '이미지 로딩 실패',
@@ -688,67 +776,85 @@ class _PhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
+    final image = _isValidImageUrl(url)
+        ? Image.network(
+            _proxyImageUrl(url),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              final total = loadingProgress.expectedTotalBytes;
+              final loaded = loadingProgress.cumulativeBytesLoaded;
+              return Center(
+                child: CircularProgressIndicator(
+                  value: total != null ? loaded / total : null,
+                ),
+              );
+            },
+            errorBuilder: (_, __, ___) => _buildErrorWidget(),
+          )
+        : _buildErrorWidget();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPreview,
         borderRadius: BorderRadius.circular(12),
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: _isValidUrl(url) 
-                ? Image.network(
-                    _getProxiedUrl(url),
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      print('이미지 로딩 에러: $error');
-                      print('원본 URL: $url');
-                      print('프록시 URL: ${_getProxiedUrl(url)}');
-                      return _buildErrorWidget();
-                    },
-                  )
-                : _buildErrorWidget(),
-            ),
+        child: Container(
+          width: 220,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.3),
           ),
-          const SizedBox(height: 6),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+              AspectRatio(
+                aspectRatio: 4 / 3,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: image,
                 ),
               ),
-              if (onDelete != null)
-                IconButton(
-                  tooltip: '삭제',
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  onPressed: onDelete,
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title.isEmpty ? '제목 없음' : title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (onDelete != null)
+                    IconButton(
+                      tooltip: '삭제',
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      onPressed: onDelete,
+                    ),
+                ],
+              ),
+              Text(
+                meta,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (onPreview != null)
+                Text(
+                  '탭하여 확대 보기',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: Colors.grey.shade600),
                 ),
             ],
           ),
-          Text(meta, style: Theme.of(context).textTheme.bodySmall),
-        ],
+        ),
       ),
     );
   }
@@ -759,16 +865,6 @@ class _DamagePreview extends StatelessWidget {
   final List<Map<String, dynamic>> detections; // label, score, x,y,w,h
   const _DamagePreview({required this.url, required this.detections});
 
-  String _getProxiedUrl(String originalUrl) {
-    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
-    if (originalUrl.contains('firebasestorage.googleapis.com')) {
-      final proxyBase = Env.proxyBase;
-      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
-    }
-    // 다른 URL은 그대로 사용
-    return originalUrl;
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -776,7 +872,7 @@ class _DamagePreview extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(_getProxiedUrl(url), fit: BoxFit.contain),
+            Image.network(_proxyImageUrl(url), fit: BoxFit.contain),
             ...detections.map((m) {
               final x = (m['x'] as num).toDouble();
               final y = (m['y'] as num).toDouble();
