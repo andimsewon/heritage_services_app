@@ -14,9 +14,10 @@ class AssetSelectScreen extends StatefulWidget {
 
 class _AssetSelectScreenState extends State<AssetSelectScreen> {
   final _keyword = TextEditingController();
-  final _scroll = ScrollController();
   late final HeritageApi _api = HeritageApi(Env.proxyBase);
   final _fb = FirebaseService();
+
+  static const int _pageSize = 20;
 
   // 필터 값 (샘플 코드표 — 실제는 서버/상수로 치환 가능)
   String? _kind = '';
@@ -40,7 +41,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   final List<HeritageRow> _rows = [];
   final List<Map<String, dynamic>> _customRows = [];
   int _page = 1;
-  bool _hasMore = true;
+  int _totalCount = 0;
   bool _loading = false;
   String _curKeyword = '';
 
@@ -48,13 +49,10 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   void initState() {
     super.initState();
     _fetch(reset: true);
-    _scroll.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scroll.removeListener(_onScroll);
-    _scroll.dispose();
     _keyword.dispose();
     super.dispose();
   }
@@ -95,15 +93,13 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
-  Future<void> _fetch({bool reset = false}) async {
+  Future<void> _fetch({bool reset = false, int? page}) async {
     if (_loading) return;
+    final targetPage = reset ? 1 : (page ?? _page);
+    if (targetPage < 1) return;
     setState(() => _loading = true);
 
     if (reset) {
-      _page = 1;
-      _rows.clear();
-      _customRows.clear();
-      _hasMore = true;
       _curKeyword = _keyword.text.trim();
     }
 
@@ -112,15 +108,9 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         keyword: _curKeyword.isEmpty ? null : _curKeyword,
         kind: (_kind == null || _kind!.isEmpty) ? null : _kind,
         region: (_region == null || _region!.isEmpty) ? null : _region,
-        page: _page,
-        size: 20,
+        page: targetPage,
+        size: _pageSize,
       );
-      setState(() {
-        _rows.addAll(res.items);
-        _page += 1;
-        _hasMore = _rows.length < res.totalCount;
-      });
-      // 커스텀 유산도 로드/필터링
       final snap = await _fb.customHeritagesStream().first;
       final all = snap.docs.map((e) => e.data()..['__docId'] = e.id).toList();
       final filtered = all.where((m) {
@@ -139,7 +129,13 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
             (m['addr'] as String? ?? '').contains(_region!);
         return matchKw && matchKind && matchRegion;
       }).toList();
+      if (!mounted) return;
       setState(() {
+        _rows
+          ..clear()
+          ..addAll(res.items);
+        _page = targetPage;
+        _totalCount = res.totalCount;
         _customRows
           ..clear()
           ..addAll(filtered);
@@ -154,15 +150,159 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     }
   }
 
-  void _onScroll() {
-    if (_hasMore &&
-        !_loading &&
-        _scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
-      _fetch();
-    }
+  void _onSearch() => _fetch(reset: true);
+
+  void _goToPage(int page) {
+    final totalPages = _totalPages;
+    if (page < 1 || page > totalPages || page == _page) return;
+    _fetch(page: page);
   }
 
-  void _onSearch() => _fetch(reset: true);
+  int get _totalPages {
+    if (_totalCount <= 0) return 0;
+    return (_totalCount + _pageSize - 1) ~/ _pageSize;
+  }
+
+  String _formatCount(int value) {
+    final s = value.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      buffer.write(s[i]);
+      final remaining = s.length - i - 1;
+      if (remaining > 0 && remaining % 3 == 0) {
+        buffer.write(',');
+      }
+    }
+    return buffer.toString();
+  }
+
+  Widget _buildResultList() {
+    final totalItems = _customRows.length + _rows.length;
+    if (totalItems == 0) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 220,
+            child: Center(
+              child: _loading
+                  ? const CircularProgressIndicator()
+                  : const Text('데이터가 없습니다'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: totalItems,
+      separatorBuilder: (_, __) => const Divider(height: 0),
+      itemBuilder: (context, i) {
+        if (i < _customRows.length) {
+          final m = _customRows[i];
+          return _CustomRow(
+            data: m,
+            onTap: () => _openCustomHeritageDialog(m),
+            onDelete: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('삭제 확인'),
+                  content: const Text('해당 국가 유산을 삭제하시겠습니까?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('취소'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                await _fb.deleteCustomHeritage(m['__docId'] as String);
+                _fetch(reset: true);
+              }
+            },
+          );
+        }
+
+        final r = _rows[i - _customRows.length];
+        return InkWell(
+          onTap: () => _openApiHeritageDialog(r),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                _Cell(r.kindName, flex: 2),
+                _Cell(r.name, flex: 4),
+                _Cell(r.sojaeji, flex: 3),
+                _Cell(r.addr, flex: 3),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPagination() {
+    final totalPages = _totalPages;
+    if (totalPages <= 1) {
+      return const SizedBox.shrink();
+    }
+
+    final current = _page;
+    final startPage = ((current - 1) ~/ 5) * 5 + 1;
+    int endPage = startPage + 4;
+    if (endPage > totalPages) {
+      endPage = totalPages;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          if (startPage > 1)
+            _PaginationButton(
+              label: '≪',
+              onPressed: _loading ? null : () => _goToPage(1),
+            ),
+          if (current > 1)
+            _PaginationButton(
+              label: '이전',
+              onPressed: _loading ? null : () => _goToPage(current - 1),
+            ),
+          for (int i = startPage; i <= endPage; i++)
+            _PaginationButton(
+              label: '$i',
+              selected: i == current,
+              onPressed: i == current || _loading ? null : () => _goToPage(i),
+            ),
+          if (current < totalPages)
+            _PaginationButton(
+              label: '다음',
+              onPressed: _loading
+                  ? null
+                  : () => _goToPage(
+                      endPage < totalPages ? endPage + 1 : totalPages,
+                    ),
+            ),
+          if (endPage < totalPages)
+            _PaginationButton(
+              label: '≫',
+              onPressed: _loading ? null : () => _goToPage(totalPages),
+            ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -315,84 +455,29 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
             ),
           ),
 
-          // 표 리스트
+          // 표 리스트 + 페이지네이션
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => _fetch(reset: true),
-              child: ListView.separated(
-                controller: _scroll,
-                itemCount: _customRows.length + _rows.length + 1,
-                separatorBuilder: (_, __) => const Divider(height: 0),
-                itemBuilder: (context, i) {
-                  if (i == _customRows.length + _rows.length) {
-                    if (_loading) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    if (_customRows.isEmpty && _rows.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(child: Text('데이터가 없습니다')),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  }
-                  // 커스텀 먼저, 그 다음 API 항목
-                  if (i < _customRows.length) {
-                    final m = _customRows[i];
-                    return _CustomRow(
-                      data: m,
-                      onTap: () => _openCustomHeritageDialog(m),
-                      onDelete: () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('삭제 확인'),
-                            content: const Text('해당 국가 유산을 삭제하시겠습니까?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('취소'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('삭제'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (ok == true) {
-                          await _fb.deleteCustomHeritage(
-                            m['__docId'] as String,
-                          );
-                          _fetch(reset: true);
-                        }
-                      },
-                    );
-                  }
-
-                  final r = _rows[i - _customRows.length];
-                  return InkWell(
-                    onTap: () => _openApiHeritageDialog(r),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          _Cell(r.kindName, flex: 2),
-                          _Cell(r.name, flex: 4),
-                          _Cell(r.sojaeji, flex: 3),
-                          _Cell(r.addr, flex: 3),
-                        ],
-                      ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '총 ${_formatCount(_totalCount)}건',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                if (_loading) const LinearProgressIndicator(minHeight: 2),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () => _fetch(reset: true),
+                    child: _buildResultList(),
+                  ),
+                ),
+                _buildPagination(),
+              ],
             ),
           ),
         ],
@@ -505,6 +590,91 @@ class _CustomRow extends StatelessWidget {
   }
 }
 
+class _PaginationButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+  const _PaginationButton({
+    required this.label,
+    this.selected = false,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const selectedBg = Color(0xFF1F4E79);
+    const defaultBorder = Color(0xFFDCDCDC);
+    const hoverBg = Color(0xFFF2F6FB);
+    const defaultTextColor = Color(0xFF333333);
+    const disabledTextColor = Color(0xFF9CA3AF);
+
+    final buttonStyle = ButtonStyle(
+      minimumSize: const MaterialStatePropertyAll(Size(32, 32)),
+      padding: const MaterialStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      shape: MaterialStateProperty.all(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      backgroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.disabled)) {
+          return Colors.white;
+        }
+        if (selected) {
+          return selectedBg;
+        }
+        if (states.contains(MaterialState.hovered) ||
+            states.contains(MaterialState.pressed)) {
+          return hoverBg;
+        }
+        return Colors.white;
+      }),
+      foregroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.disabled)) {
+          return disabledTextColor;
+        }
+        return selected ? Colors.white : defaultTextColor;
+      }),
+      overlayColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.pressed)) {
+          return hoverBg.withOpacity(0.6);
+        }
+        if (states.contains(MaterialState.hovered)) {
+          return hoverBg.withOpacity(0.4);
+        }
+        return null;
+      }),
+      side: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.disabled)) {
+          return const BorderSide(color: defaultBorder);
+        }
+        if (selected ||
+            states.contains(MaterialState.hovered) ||
+            states.contains(MaterialState.focused)) {
+          return const BorderSide(color: selectedBg);
+        }
+        return const BorderSide(color: defaultBorder);
+      }),
+    );
+
+    final textStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      child: TextButton(
+        onPressed: onPressed,
+        style: buttonStyle,
+        child: Text(label, style: textStyle, textAlign: TextAlign.center),
+      ),
+    );
+  }
+}
+
 class _CreateCustomDialog extends StatefulWidget {
   const _CreateCustomDialog();
   @override
@@ -598,10 +768,7 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
                     controller: _kindName,
                     requiredField: true,
                   ),
-                  _buildTextField(
-                    label: '종목코드 (예: 11)',
-                    controller: _kindCode,
-                  ),
+                  _buildTextField(label: '종목코드 (예: 11)', controller: _kindCode),
                   _buildTextField(
                     label: '유산명',
                     controller: _name,
@@ -612,36 +779,18 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
                     controller: _sojaeji,
                     requiredField: true,
                   ),
-                  _buildTextField(
-                    label: '주소',
-                    controller: _addr,
-                  ),
+                  _buildTextField(label: '주소', controller: _addr),
                   const SizedBox(height: 24),
                   const Text(
                     '기본 개요 (선택 입력)',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  _buildTextField(
-                    label: '지정(등록)일',
-                    controller: _asdt,
-                  ),
-                  _buildTextField(
-                    label: '소유자',
-                    controller: _owner,
-                  ),
-                  _buildTextField(
-                    label: '관리자',
-                    controller: _admin,
-                  ),
-                  _buildTextField(
-                    label: '소재지',
-                    controller: _lcto,
-                  ),
-                  _buildTextField(
-                    label: '소재지 상세',
-                    controller: _lcad,
-                  ),
+                  _buildTextField(label: '지정(등록)일', controller: _asdt),
+                  _buildTextField(label: '소유자', controller: _owner),
+                  _buildTextField(label: '관리자', controller: _admin),
+                  _buildTextField(label: '소재지', controller: _lcto),
+                  _buildTextField(label: '소재지 상세', controller: _lcad),
                   const SizedBox(height: 28),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -663,7 +812,9 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
                           });
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 48,
@@ -709,9 +860,7 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-        ),
+        decoration: InputDecoration(labelText: label),
         validator: (value) {
           if (!requiredField) return null;
           if (value == null || value.trim().isEmpty) {

@@ -35,11 +35,7 @@ bool _isValidImageUrl(String url) {
 
 // ── 누락된 설정용 타입 (const로 쓰기 때문에 반드시 const 생성자 필요)
 class _SurveyRowConfig {
-  const _SurveyRowConfig({
-    required this.key,
-    required this.label,
-    this.hint,
-  });
+  const _SurveyRowConfig({required this.key, required this.label, this.hint});
 
   final String key;
   final String label;
@@ -212,7 +208,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                           return Center(
                             child: CircularProgressIndicator(
                               value: total != null ? loaded / total : null,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           );
                         },
@@ -259,7 +257,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       },
     );
   }
-
 
   // ───────────────────────── 문화유산 현황 사진 업로드
   Future<void> _addPhoto() async {
@@ -315,10 +312,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     final result = await showDialog<DamageDetectionResult>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => DamageDetectionDialog(
-        aiService: _ai,
-        autoCapture: autoCapture,
-      ),
+      builder: (_) =>
+          DamageDetectionDialog(aiService: _ai, autoCapture: autoCapture),
     );
 
     if (result == null) return;
@@ -340,9 +335,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     );
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('손상부 조사 등록 완료')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('손상부 조사 등록 완료')));
     }
   }
 
@@ -444,257 +439,952 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // ① 기본개요 섹션
-          const Text(
-            '기본개요',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Table(
-            border: TableBorder.all(color: Colors.grey.shade300),
-            columnWidths: const {
-              0: FlexColumnWidth(1.2),
-              1: FlexColumnWidth(2.5),
-              2: FlexColumnWidth(1.2),
-              3: FlexColumnWidth(2.5),
-            },
-            children: [
-              TableRow(children: [
-                _TableHeaderCell('국가유산명'),
-                _TableCell(_name.isEmpty ? '미상' : _name),
-                _TableHeaderCell('종목'),
-                _TableCell(kind),
-              ]),
-              TableRow(children: [
-                _TableHeaderCell('지정(등록)일'),
-                _TableCell(asdt),
-                _TableHeaderCell('소유자'),
-                _TableCell(owner),
-              ]),
-              TableRow(children: [
-                _TableHeaderCell('관리자'),
-                _TableCell(admin),
-                _TableHeaderCell('소재지'),
-                _TableCell(lcto),
-              ]),
-              if (lcad.isNotEmpty)
-                TableRow(children: [
-                  _TableHeaderCell('소재지 상세'),
-                  _TableCell(lcad, colspan: 3),
-                  const SizedBox.shrink(),
-                  const SizedBox.shrink(),
-                ]),
-            ],
-          ),
-
-          const SizedBox(height: 32),
-
-          // ② 보존관리 이력 섹션
-          const Text(
-            '보존관리 이력',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              '* 과거 최초 기록부터 현재까지 정비·보수·수리 내용',
-              style: TextStyle(color: Colors.red, fontSize: 13),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              '보존관리 이력 데이터가 없습니다.\n향후 업데이트 예정입니다.',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          const Divider(height: 48),
-
-          // ───── 문화유산 현황(사진)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                const Text(
-                  '문화유산 현황',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                FilledButton.icon(
-                  onPressed: _addPhoto,
-                  icon: const Icon(Icons.add_a_photo),
-                  label: const Text('사진 등록'),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 230,
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _fb.photosStream(heritageId),
-              builder: (context, snap) {
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snap.data!.docs;
-                if (docs.isEmpty) {
-                  return const Center(child: Text('등록된 사진이 없습니다'));
-                }
-                return ScrollConfiguration(
-                  behavior: const MaterialScrollBehavior(),
-                  child: ListView.separated(
-                    primary: false,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (_, i) {
-                      final d = docs[i].data();
-                      final title = (d['title'] as String?) ?? '';
-                      final url = (d['url'] as String?) ?? '';
-                      final meta = '${d['width'] ?? '?'}x${d['height'] ?? '?'} • ${_formatBytes(d['bytes'] as num?)}';
-                      return _PhotoCard(
-                        title: title,
-                        url: url,
-                        meta: meta,
-                        onPreview: () => _openPhotoViewer(url: url, title: title),
-                        onDelete: () async {
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          const maxContentWidth = 960.0;
+          final horizontalPadding = constraints.maxWidth > maxContentWidth
+              ? (constraints.maxWidth - maxContentWidth) / 2
+              : 16.0;
+          return ScrollConfiguration(
+            behavior: const MaterialScrollBehavior(),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 24,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: maxContentWidth),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      BasicInfoCard(
+                        name: _name.isEmpty ? '미상' : _name,
+                        kind: kind,
+                        asdt: asdt,
+                        owner: owner,
+                        admin: admin,
+                        lcto: lcto,
+                        lcad: lcad,
+                      ),
+                      const SizedBox(height: 24),
+                      HeritagePhotoSection(
+                        photosStream: _fb.photosStream(heritageId),
+                        onAddPhoto: _addPhoto,
+                        onPreview: (url, title) =>
+                            _openPhotoViewer(url: url, title: title),
+                        onDelete: (docId, url) async {
                           final ok = await _confirmDelete(context);
                           if (ok != true) return;
                           await _fb.deletePhoto(
                             heritageId: heritageId,
-                            docId: docs[i].id,
+                            docId: docId,
                             url: url,
                             folder: 'photos',
                           );
                         },
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-
-          const Divider(height: 32),
-
-          // ───── 손상부 조사
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Row(
-              children: [
-                const Text(
-                  '손상부 조사',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                FilledButton.icon(
-                  onPressed: () => _openDamageDetectionDialog(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('조사 등록'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: () async {
-                    final result = await showDialog(
-                      context: context,
-                      builder: (_) => const DeepDamageInspectionDialog(),
-                    );
-                    if (result != null && result['saved'] == true && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('심화조사 데이터가 저장되었습니다')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.assignment),
-                  label: const Text('심화조사'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.deepPurple.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 240,
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _fb.damageStream(heritageId),
-              builder: (context, snap) {
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snap.data!.docs;
-                if (docs.isEmpty) {
-                  return const Center(child: Text('등록된 손상부 조사가 없습니다'));
-                }
-                return ScrollConfiguration(
-                  behavior: const MaterialScrollBehavior(),
-                  child: ListView.separated(
-                    primary: false,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: docs
-                        .where(
-                          (e) =>
-                              ((e.data())['imageUrl'] as String?)?.isNotEmpty ==
-                                  true,
-                        )
-                        .length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (_, i) {
-                      final filtered = docs
-                          .where(
-                            (e) =>
-                                ((e.data())['imageUrl'] as String?)?.isNotEmpty ==
-                                true,
-                          )
-                          .toList();
-                      final doc = filtered[i];
-                      final d = doc.data();
-                      final url = d['imageUrl'] as String? ?? '';
-                      final dets = (d['detections'] as List? ?? [])
-                          .cast<Map<String, dynamic>>();
-                      final grade = d['severityGrade'] as String?;
-                      final loc = d['location'] as String?;
-                      final phe = d['phenomenon'] as String?;
-                      return _DamageCard(
-                        url: url,
-                        detections: dets,
-                        severityGrade: grade,
-                        location: loc,
-                        phenomenon: phe,
-                        onDelete: () async {
+                        formatBytes: _formatBytes,
+                      ),
+                      const SizedBox(height: 24),
+                      DamageSurveySection(
+                        damageStream: _fb.damageStream(heritageId),
+                        onAddSurvey: () => _openDamageDetectionDialog(),
+                        onDeepInspection: () async {
+                          final result = await showDialog(
+                            context: context,
+                            builder: (_) => const DeepDamageInspectionDialog(),
+                          );
+                          if (result != null &&
+                              result['saved'] == true &&
+                              mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('심화조사 데이터가 저장되었습니다'),
+                              ),
+                            );
+                          }
+                        },
+                        onDelete: (docId, imageUrl) async {
                           final ok = await _confirmDelete(context);
                           if (ok != true) return;
                           await _fb.deleteDamageSurvey(
                             heritageId: heritageId,
-                            docId: doc.id,
-                            imageUrl: url,
+                            docId: docId,
+                            imageUrl: imageUrl,
                           );
                         },
-                      );
-                    },
+                      ),
+                      const SizedBox(height: 24),
+                      const InspectionResultCard(),
+                      const SizedBox(height: 24),
+                      const DamageSummaryTable(),
+                      const SizedBox(height: 24),
+                      const InvestigatorOpinionField(),
+                      const SizedBox(height: 24),
+                      const GradeClassificationCard(),
+                      const SizedBox(height: 24),
+                      const AIPredictionSection(),
+                      const SizedBox(height: 48),
+                    ],
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Redesigned detail components
+// ═══════════════════════════════════════════════════════════════
+
+class SectionHeader extends StatelessWidget {
+  const SectionHeader({super.key, required this.title, this.trailing});
+
+  final String title;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dividerColor = theme.dividerColor.withOpacity(0.35);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (trailing != null) ...[const SizedBox(width: 12), trailing!],
+          ],
+        ),
+        const SizedBox(height: 8),
+        Divider(height: 16, thickness: 1, color: dividerColor),
+      ],
+    );
+  }
+}
+
+class BasicInfoCard extends StatelessWidget {
+  const BasicInfoCard({
+    super.key,
+    required this.name,
+    required this.kind,
+    required this.asdt,
+    required this.owner,
+    required this.admin,
+    required this.lcto,
+    required this.lcad,
+  });
+
+  final String name;
+  final String kind;
+  final String asdt;
+  final String owner;
+  final String admin;
+  final String lcto;
+  final String lcad;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: '기본 정보'),
+            const SizedBox(height: 16),
+            Table(
+              border: TableBorder.all(color: Colors.grey.shade300),
+              columnWidths: const {
+                0: FlexColumnWidth(1.2),
+                1: FlexColumnWidth(2.5),
+                2: FlexColumnWidth(1.2),
+                3: FlexColumnWidth(2.5),
+              },
+              children: [
+                TableRow(
+                  children: [
+                    const _TableHeaderCell('국가유산명'),
+                    _TableCell(name.isEmpty ? '미상' : name),
+                    const _TableHeaderCell('종목'),
+                    _TableCell(kind),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    const _TableHeaderCell('지정(등록)일'),
+                    _TableCell(asdt),
+                    const _TableHeaderCell('소유자'),
+                    _TableCell(owner),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    const _TableHeaderCell('관리자'),
+                    _TableCell(admin),
+                    const _TableHeaderCell('소재지'),
+                    _TableCell(lcto),
+                  ],
+                ),
+                if (lcad.trim().isNotEmpty)
+                  TableRow(
+                    children: [
+                      const _TableHeaderCell('소재지 상세'),
+                      _TableCell(lcad, colspan: 3),
+                      const SizedBox.shrink(),
+                      const SizedBox.shrink(),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HeritagePhotoSection extends StatelessWidget {
+  const HeritagePhotoSection({
+    super.key,
+    required this.photosStream,
+    required this.onAddPhoto,
+    required this.onPreview,
+    required this.onDelete,
+    required this.formatBytes,
+  });
+
+  final Stream<QuerySnapshot<Map<String, dynamic>>> photosStream;
+  final VoidCallback onAddPhoto;
+  final void Function(String url, String title) onPreview;
+  final Future<void> Function(String docId, String url) onDelete;
+  final String Function(num? bytes) formatBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(
+              title: '문화유산 현황',
+              trailing: FilledButton.icon(
+                onPressed: onAddPhoto,
+                icon: const Icon(Icons.add_a_photo),
+                label: const Text('사진 등록'),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 230,
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: photosStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('등록된 사진이 없습니다'));
+                  }
+                  final docs = snapshot.data!.docs
+                      .where(
+                        (doc) =>
+                            ((doc.data())['url'] as String?)?.isNotEmpty ??
+                            false,
+                      )
+                      .toList();
+                  if (docs.isEmpty) {
+                    return const Center(child: Text('등록된 사진이 없습니다'));
+                  }
+                  return ScrollConfiguration(
+                    behavior: const MaterialScrollBehavior(),
+                    child: ListView.separated(
+                      primary: false,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (_, index) {
+                        final data = docs[index].data();
+                        final title = (data['title'] as String?) ?? '';
+                        final url = (data['url'] as String?) ?? '';
+                        final meta =
+                            '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
+                        return _PhotoCard(
+                          title: title,
+                          url: url,
+                          meta: meta,
+                          onPreview: () => onPreview(url, title),
+                          onDelete: () => onDelete(docs[index].id, url),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DamageSurveySection extends StatelessWidget {
+  const DamageSurveySection({
+    super.key,
+    required this.damageStream,
+    required this.onAddSurvey,
+    required this.onDeepInspection,
+    required this.onDelete,
+  });
+
+  final Stream<QuerySnapshot<Map<String, dynamic>>> damageStream;
+  final VoidCallback onAddSurvey;
+  final Future<void> Function() onDeepInspection;
+  final Future<void> Function(String docId, String imageUrl) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(
+              title: '손상부 조사',
+              trailing: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: onAddSurvey,
+                    icon: const Icon(Icons.add),
+                    label: const Text('조사 등록'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: onDeepInspection,
+                    icon: const Icon(Icons.assignment),
+                    label: const Text('심화조사'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.deepPurple.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 240,
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: damageStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('등록된 손상부 조사가 없습니다'));
+                  }
+                  final docs = snapshot.data!.docs
+                      .where(
+                        (doc) =>
+                            ((doc.data())['imageUrl'] as String?)?.isNotEmpty ??
+                            false,
+                      )
+                      .toList();
+                  if (docs.isEmpty) {
+                    return const Center(child: Text('등록된 손상부 조사가 없습니다'));
+                  }
+                  return ScrollConfiguration(
+                    behavior: const MaterialScrollBehavior(),
+                    child: ListView.separated(
+                      primary: false,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (_, index) {
+                        final doc = docs[index];
+                        final data = doc.data();
+                        final url = data['imageUrl'] as String? ?? '';
+                        final detections = (data['detections'] as List? ?? [])
+                            .cast<Map<String, dynamic>>();
+                        final grade = data['severityGrade'] as String?;
+                        final location = data['location'] as String?;
+                        final phenomenon = data['phenomenon'] as String?;
+                        return _DamageCard(
+                          url: url,
+                          detections: detections,
+                          severityGrade: grade,
+                          location: location,
+                          phenomenon: phenomenon,
+                          onDelete: () => onDelete(doc.id, url),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class InspectionResultCard extends StatefulWidget {
+  const InspectionResultCard({super.key});
+
+  @override
+  State<InspectionResultCard> createState() => _InspectionResultCardState();
+}
+
+class _InspectionResultCardState extends State<InspectionResultCard> {
+  static const _rowConfigs = [
+    ('structure', '구조부', '예: 기초, 기둥 등 구조 부재 점검 결과'),
+    ('wall', '축부(벽체부)', '예: 벽체 균열, 박락 등 조사 내용'),
+    ('roof', '지붕부', '예: 지붕재 손상, 누수 관찰 결과'),
+  ];
+
+  late final Map<String, TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = {
+      for (final (key, _, __) in _rowConfigs) key: TextEditingController(),
+    };
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: '주요 점검 결과'),
+            const SizedBox(height: 16),
+            Table(
+              border: TableBorder.all(color: Colors.grey.shade300),
+              columnWidths: const {
+                0: FlexColumnWidth(1.3),
+                1: FlexColumnWidth(3),
+              },
+              children: [
+                const TableRow(
+                  children: [_TableHeaderCell('분류'), _TableHeaderCell('내용')],
+                ),
+                for (final (key, label, hint) in _rowConfigs)
+                  TableRow(
+                    children: [
+                      _TableCell(label),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: TextField(
+                          controller: _controllers[key],
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: hint,
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DamageSummaryTable extends StatefulWidget {
+  const DamageSummaryTable({super.key});
+
+  @override
+  State<DamageSummaryTable> createState() => _DamageSummaryTableState();
+}
+
+class _DamageSummaryTableState extends State<DamageSummaryTable> {
+  final List<_DamageSummaryRow> _rows = [
+    _DamageSummaryRow(category: '구조적 손상'),
+    _DamageSummaryRow(category: '물리적 손상'),
+    _DamageSummaryRow(category: '생물·화학적 손상'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: '손상부 종합'),
+            const SizedBox(height: 12),
+            const Text('손상이 탐지된 경우 O / 아닌 경우 X 형태로 표시하세요.'),
+            const SizedBox(height: 12),
+            Table(
+              border: TableBorder.all(color: Colors.grey.shade300),
+              columnWidths: const {
+                0: FlexColumnWidth(1.6),
+                1: FlexColumnWidth(1),
+                2: FlexColumnWidth(1),
+              },
+              children: [
+                const TableRow(
+                  children: [
+                    _TableHeaderCell('손상 유형'),
+                    _TableHeaderCell('손상 여부'),
+                    _TableHeaderCell('손상 등급 (A~E)'),
+                  ],
+                ),
+                for (final row in _rows)
+                  TableRow(
+                    children: [
+                      _TableCell(row.category),
+                      Center(
+                        child: Checkbox(
+                          value: row.detected,
+                          onChanged: (value) => setState(() {
+                            row.detected = value ?? false;
+                          }),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: DropdownButton<String>(
+                          value: row.grade,
+                          isExpanded: true,
+                          onChanged: (value) => setState(() {
+                            if (value != null) row.grade = value;
+                          }),
+                          items: const [
+                            DropdownMenuItem(value: 'A', child: Text('A')),
+                            DropdownMenuItem(value: 'B', child: Text('B')),
+                            DropdownMenuItem(value: 'C', child: Text('C')),
+                            DropdownMenuItem(value: 'D', child: Text('D')),
+                            DropdownMenuItem(value: 'E', child: Text('E')),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class InvestigatorOpinionField extends StatefulWidget {
+  const InvestigatorOpinionField({super.key});
+
+  @override
+  State<InvestigatorOpinionField> createState() =>
+      _InvestigatorOpinionFieldState();
+}
+
+class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: '조사자 의견'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              maxLines: 6,
+              minLines: 4,
+              decoration: const InputDecoration(
+                hintText: '조사자의 의견 및 메모를 입력하세요',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class GradeClassificationCard extends StatefulWidget {
+  const GradeClassificationCard({super.key});
+
+  @override
+  State<GradeClassificationCard> createState() =>
+      _GradeClassificationCardState();
+}
+
+class _GradeClassificationCardState extends State<GradeClassificationCard> {
+  static const Map<String, Color> _gradeColors = {
+    'A': Color(0xFF81C784),
+    'B': Color(0xFFAED581),
+    'C': Color(0xFFFFF59D),
+    'D': Color(0xFFFFD54F),
+    'E': Color(0xFFE57373),
+  };
+
+  final List<String> _grades = const ['A', 'B', 'C', 'D', 'E'];
+  String _selectedGrade = 'E';
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _gradeColors[_selectedGrade] ?? Colors.grey.shade300;
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: '등급 분류'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '손상등급 $_selectedGrade',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Text(
+                    '보수정비 필요',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final grade in _grades)
+                  ChoiceChip(
+                    label: Text('등급 $grade'),
+                    selected: _selectedGrade == grade,
+                    onSelected: (selected) => setState(() {
+                      if (selected) _selectedGrade = grade;
+                    }),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AIPredictionSection extends StatefulWidget {
+  const AIPredictionSection({super.key});
+
+  @override
+  State<AIPredictionSection> createState() => _AIPredictionSectionState();
+}
+
+class _AIPredictionSectionState extends State<AIPredictionSection> {
+  bool _showGrade = false;
+  bool _showMap = false;
+  bool _showSuggestion = false;
+
+  static const _climateSuggestions = [
+    {'factor': '고습 · 고온', 'action': '환기 강화 / 방수 처리'},
+    {'factor': '폭우 · 침수', 'action': '배수로 점검 / 임시차수 설치'},
+    {'factor': '한랭 · 결빙', 'action': '보온 자재 확보 / 동결 방지 코팅'},
+  ];
+
+  void _handlePrediction(String type) {
+    setState(() {
+      if (type == 'grade') {
+        _showGrade = true;
+      } else if (type == 'map') {
+        _showMap = true;
+      } else if (type == 'suggestion') {
+        _showSuggestion = true;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: 'AI 예측 기능'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: () => _handlePrediction('grade'),
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('AI 손상등급 예측'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _handlePrediction('map'),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('손상지도 생성'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _handlePrediction('suggestion'),
+                  icon: const Icon(Icons.eco_outlined),
+                  label: const Text('기후변화 대응 방안 도출'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (_showGrade) ...[
+              Text(
+                'AI 손상등급 예측 결과 예시',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 12),
+              _GradePredictionPreview(
+                fromGrade: 'C',
+                toGrade: 'D',
+                yearsLater: '5년 후',
+              ),
+              const SizedBox(height: 24),
+            ],
+            if (_showMap) ...[
+              Text('손상지도 생성 결과', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 12),
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.blueGrey.shade200,
+                      width: 1.5,
+                    ),
+                    color: Colors.blueGrey.shade50,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.image_outlined,
+                      size: 48,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+            if (_showSuggestion) ...[
+              Text(
+                '기후 요인별 대응 방안',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 12),
+              Table(
+                border: TableBorder.all(color: Colors.grey.shade300),
+                columnWidths: const {
+                  0: FlexColumnWidth(1.5),
+                  1: FlexColumnWidth(2.5),
+                },
+                children: [
+                  const TableRow(
+                    children: [
+                      _TableHeaderCell('기후 요인'),
+                      _TableHeaderCell('대응 방안'),
+                    ],
+                  ),
+                  for (final row in _climateSuggestions)
+                    TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(row['factor']!),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(row['action']!),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+            if (!_showGrade && !_showMap && !_showSuggestion)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'AI 버튼을 눌러 예측 결과와 대응 방안을 확인하세요.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GradePredictionPreview extends StatelessWidget {
+  const _GradePredictionPreview({
+    required this.fromGrade,
+    required this.toGrade,
+    required this.yearsLater,
+  });
+
+  final String fromGrade;
+  final String toGrade;
+  final String yearsLater;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+        final arrow = Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.arrow_forward, size: 28),
+            const SizedBox(height: 4),
+            Text(yearsLater, style: theme.textTheme.labelMedium),
+          ],
+        );
+        final current = _PredictionPanel(title: '현재 (등급 $fromGrade)');
+        final future = _PredictionPanel(title: '예상 (등급 $toGrade)');
+        if (isNarrow) {
+          return Column(
+            children: [
+              current,
+              const SizedBox(height: 12),
+              arrow,
+              const SizedBox(height: 12),
+              future,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: current),
+            const SizedBox(width: 12),
+            arrow,
+            const SizedBox(width: 12),
+            Expanded(child: future),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PredictionPanel extends StatelessWidget {
+  const _PredictionPanel({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 160,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.grey.shade100,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.account_tree_outlined, size: 40, color: Colors.grey),
+          const SizedBox(height: 12),
+          Text(title, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );
   }
+}
+
+class _DamageSummaryRow {
+  _DamageSummaryRow({required this.category});
+
+  final String category;
+  bool detected = false;
+  String grade = 'A';
 }
 
 class _InfoRow extends StatelessWidget {
@@ -756,18 +1446,12 @@ class _PhotoCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '이미지 로딩 실패',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 2),
           Text(
             'URL 확인 필요',
-            style: TextStyle(
-              fontSize: 8,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 8, color: Colors.grey.shade500),
           ),
         ],
       ),
@@ -806,10 +1490,9 @@ class _PhotoCard extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest
-                .withValues(alpha: 0.3),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,17 +1523,13 @@ class _PhotoCard extends StatelessWidget {
                     ),
                 ],
               ),
-              Text(
-                meta,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(meta, style: Theme.of(context).textTheme.bodySmall),
               if (onPreview != null)
                 Text(
                   '탭하여 확대 보기',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: Colors.grey.shade600),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: Colors.grey.shade600),
                 ),
             ],
           ),
@@ -1031,10 +1710,7 @@ class _TableHeaderCell extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       child: Text(
         text,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-        ),
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
       ),
     );
   }
@@ -1085,7 +1761,11 @@ class HeritageHistoryDialog extends StatefulWidget {
 
 class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   static const List<_SurveyRowConfig> _surveyRowConfigs = [
-    _SurveyRowConfig(key: 'structure', label: '구조부', hint: '예: 이하 내용 1.1 총괄사항 참고'),
+    _SurveyRowConfig(
+      key: 'structure',
+      label: '구조부',
+      hint: '예: 이하 내용 1.1 총괄사항 참고',
+    ),
     _SurveyRowConfig(key: 'wall', label: '축석(벽체부)', hint: '예: 균열, 박락 등 조사 결과'),
     _SurveyRowConfig(key: 'roof', label: '지붕부', hint: '예: 이하 내용 1.1 총괄사항 참고'),
   ];
@@ -1110,8 +1790,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
 
   FirebaseFirestore get _firestore =>
       widget.firestore ?? FirebaseFirestore.instance;
-  FirebaseStorage get _storage =>
-      widget.storage ?? FirebaseStorage.instance;
+  FirebaseStorage get _storage => widget.storage ?? FirebaseStorage.instance;
   final Uuid _uuid = const Uuid();
 
   bool _invalidHeritage = false;
@@ -1119,11 +1798,16 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   late final Map<String, TextEditingController> _surveyControllers;
   late final Map<String, TextEditingController> _conservationPartControllers;
   late final Map<String, TextEditingController> _conservationNoteControllers;
-  late final Map<String, TextEditingController> _conservationLocationControllers;
-  final TextEditingController _fireSafetyPartController = TextEditingController();
-  final TextEditingController _fireSafetyNoteController = TextEditingController();
-  final TextEditingController _electricalPartController = TextEditingController();
-  final TextEditingController _electricalNoteController = TextEditingController();
+  late final Map<String, TextEditingController>
+  _conservationLocationControllers;
+  final TextEditingController _fireSafetyPartController =
+      TextEditingController();
+  final TextEditingController _fireSafetyNoteController =
+      TextEditingController();
+  final TextEditingController _electricalPartController =
+      TextEditingController();
+  final TextEditingController _electricalNoteController =
+      TextEditingController();
 
   final List<_HistoryImage> _locationImages = [];
   final List<_HistoryImage> _currentPhotos = [];
@@ -1154,13 +1838,16 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       for (final row in _surveyRowConfigs) row.key: TextEditingController(),
     };
     _conservationPartControllers = {
-      for (final row in _conservationRowConfigs) row.key: TextEditingController(),
+      for (final row in _conservationRowConfigs)
+        row.key: TextEditingController(),
     };
     _conservationNoteControllers = {
-      for (final row in _conservationRowConfigs) row.key: TextEditingController(),
+      for (final row in _conservationRowConfigs)
+        row.key: TextEditingController(),
     };
     _conservationLocationControllers = {
-      for (final row in _conservationRowConfigs) row.key: TextEditingController(),
+      for (final row in _conservationRowConfigs)
+        row.key: TextEditingController(),
     };
 
     _surveyControllers['structure']?.text = '이하 내용 1.1 총괄사항 참고';
@@ -1175,7 +1862,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _fireSafetyPartController.text = '방재/피뢰설비';
     _electricalPartController.text = '전선/조명 등';
 
-    final stream = widget.managementDataStream ??
+    final stream =
+        widget.managementDataStream ??
         _firestore
             .collection('heritage_management')
             .doc(widget.heritageId)
@@ -1197,7 +1885,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       if (legacyFire != null || legacyElectrical != null) {
         years[_currentYearKey] = {
           if (legacyFire != null) 'fireSafety': {'exists': legacyFire},
-          if (legacyElectrical != null) 'electrical': {'exists': legacyElectrical},
+          if (legacyElectrical != null)
+            'electrical': {'exists': legacyElectrical},
         };
       }
     }
@@ -1267,8 +1956,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     return match?.group(0) ?? _selectedYear;
   }
 
-  Map<String, dynamic> _yearDataFromYears(Map<String, dynamic> years, String yearKey) =>
-      _mapFrom(years[yearKey]);
+  Map<String, dynamic> _yearDataFromYears(
+    Map<String, dynamic> years,
+    String yearKey,
+  ) => _mapFrom(years[yearKey]);
 
   Map<String, dynamic> _mapFrom(dynamic value) {
     if (value is Map<String, dynamic>) {
@@ -1326,14 +2017,16 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               }
             }
           }
-          result.add(_HistoryImage(
-            id: id,
-            url: url,
-            bytes: bytes,
-            storagePath: storagePath,
-            uploadedAt: uploadedAt,
-            rawValue: mapItem,
-          ));
+          result.add(
+            _HistoryImage(
+              id: id,
+              url: url,
+              bytes: bytes,
+              storagePath: storagePath,
+              uploadedAt: uploadedAt,
+              rawValue: mapItem,
+            ),
+          );
         }
       }
     }
@@ -1420,7 +2113,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     String trim(TextEditingController controller) => controller.text.trim();
 
     final surveyData = <String, dynamic>{
-      for (final row in _surveyRowConfigs) row.key: trim(_surveyControllers[row.key]!),
+      for (final row in _surveyRowConfigs)
+        row.key: trim(_surveyControllers[row.key]!),
     };
 
     final conservationData = <String, dynamic>{
@@ -1439,13 +2133,17 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       required String section,
       required String part,
     }) => {
-          'section': section,
-          'part': part,
-          'note': trim(controller),
-          'presence': presence == null ? null : (presence == Presence.yes ? 'yes' : 'no'),
-          'exists': presence == null ? null : (presence == Presence.yes ? 'yes' : 'no'),
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
+      'section': section,
+      'part': part,
+      'note': trim(controller),
+      'presence': presence == null
+          ? null
+          : (presence == Presence.yes ? 'yes' : 'no'),
+      'exists': presence == null
+          ? null
+          : (presence == Presence.yes ? 'yes' : 'no'),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
     final fireData = presencePayload(
       _mgmtFireSafety,
@@ -1461,18 +2159,18 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
 
     final timestamp = FieldValue.serverTimestamp();
-    await _firestore.collection('heritage_management').doc(widget.heritageId).set(
-      {
-        'years.$yearKey.survey': surveyData,
-        'years.$yearKey.conservation': conservationData,
-        'years.$yearKey.fireSafety': fireData,
-        'years.$yearKey.electrical': electricalData,
-        'years.$yearKey.updatedAt': timestamp,
-        'heritageName': widget.heritageName,
-        'updatedAt': timestamp,
-      },
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('heritage_management')
+        .doc(widget.heritageId)
+        .set({
+          'years.$yearKey.survey': surveyData,
+          'years.$yearKey.conservation': conservationData,
+          'years.$yearKey.fireSafety': fireData,
+          'years.$yearKey.electrical': electricalData,
+          'years.$yearKey.updatedAt': timestamp,
+          'heritageName': widget.heritageName,
+          'updatedAt': timestamp,
+        }, SetOptions(merge: true));
 
     if (mounted) {
       setState(() {
@@ -1483,9 +2181,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
 
   Future<void> _addPhoto(_HistoryPhotoKind kind) async {
     if (!_isEditable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('수정 모드에서만 사진을 추가할 수 있습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('수정 모드에서만 사진을 추가할 수 있습니다.')));
       return;
     }
     if (_uploadingKinds.contains(kind)) return;
@@ -1493,7 +2191,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     if (picked == null) return;
     final (bytes, _) = picked;
     if (!mounted) return;
-    final image = _HistoryImage(id: _uuid.v4(), bytes: bytes, isUploading: true);
+    final image = _HistoryImage(
+      id: _uuid.v4(),
+      bytes: bytes,
+      isUploading: true,
+    );
     final target = _photosForKind(kind);
     setState(() {
       _uploadingKinds.add(kind);
@@ -1513,9 +2215,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         image.isUploading = false;
         _uploadingKinds.remove(kind);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진이 업로드되었습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진이 업로드되었습니다.')));
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('Failed to upload history photo: $e');
@@ -1526,9 +2228,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _uploadingKinds.remove(kind);
         target.remove(image);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 업로드 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
     }
   }
 
@@ -1542,7 +2244,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     }
     final yearKey = _currentYearKey;
     final field = _photoField(kind);
-    final storagePath = 'heritages/${widget.heritageId}/history/$field/$yearKey/${image.id}.jpg';
+    final storagePath =
+        'heritages/${widget.heritageId}/history/$field/$yearKey/${image.id}.jpg';
     final ref = _storage.ref(storagePath);
     final metadata = SettableMetadata(
       contentType: 'image/jpeg',
@@ -1565,14 +2268,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       'storagePath': storagePath,
       'uploadedAt': uploadedAt,
     };
-    await _firestore.collection('heritage_management').doc(widget.heritageId).set(
-      {
-        'years.$yearKey.$field': FieldValue.arrayUnion([map]),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'heritageName': widget.heritageName,
-      },
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('heritage_management')
+        .doc(widget.heritageId)
+        .set({
+          'years.$yearKey.$field': FieldValue.arrayUnion([map]),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'heritageName': widget.heritageName,
+        }, SetOptions(merge: true));
     return map;
   }
 
@@ -1589,10 +2292,12 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     final yearKey = _currentYearKey;
     try {
       if (payload != null) {
-        await _firestore.collection('heritage_management').doc(widget.heritageId).set(
-          {'years.$yearKey.$field': FieldValue.arrayRemove([payload])},
-          SetOptions(merge: true),
-        );
+        await _firestore
+            .collection('heritage_management')
+            .doc(widget.heritageId)
+            .set({
+              'years.$yearKey.$field': FieldValue.arrayRemove([payload]),
+            }, SetOptions(merge: true));
       }
       if (image.storagePath != null) {
         await _storage.ref(image.storagePath!).delete();
@@ -1604,9 +2309,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
       if (!mounted) return;
       setState(() => target.insert(index, image));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 삭제 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 삭제 실패: $e')));
     }
   }
 
@@ -1683,14 +2388,26 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                     children: [
                       const Text(
                         '기존 이력',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       DropdownButton<String>(
                         value: _selectedYear,
                         items: const [
-                          DropdownMenuItem(value: '2024년 조사', child: Text('2024년 조사')),
-                          DropdownMenuItem(value: '2022년 조사', child: Text('2022년 조사')),
-                          DropdownMenuItem(value: '2020년 조사', child: Text('2020년 조사')),
+                          DropdownMenuItem(
+                            value: '2024년 조사',
+                            child: Text('2024년 조사'),
+                          ),
+                          DropdownMenuItem(
+                            value: '2022년 조사',
+                            child: Text('2022년 조사'),
+                          ),
+                          DropdownMenuItem(
+                            value: '2020년 조사',
+                            child: Text('2020년 조사'),
+                          ),
                         ],
                         onChanged: (v) {
                           if (v == null) return;
@@ -1776,7 +2493,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: _isEditable && !_isSaving && _hasUnsavedChanges
+                        onPressed:
+                            _isEditable && !_isSaving && _hasUnsavedChanges
                             ? () async {
                                 FocusScope.of(context).unfocus();
                                 setState(() => _isSaving = true);
@@ -1808,7 +2526,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('저장'),
                       ),
@@ -1839,74 +2559,70 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   }
 
   Widget _tableHeaderCell(String text) => Container(
-        color: Colors.grey.shade200,
-        padding: const EdgeInsets.all(10),
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: _tableHeaderFontSize,
-          ),
-        ),
-      );
+    color: Colors.grey.shade200,
+    padding: const EdgeInsets.all(10),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: _tableHeaderFontSize,
+      ),
+    ),
+  );
 
   Widget _readOnlyCell(String text) => Padding(
-        padding: const EdgeInsets.all(10),
-        child: Text(
-          text.isEmpty ? '—' : text,
-          style: TextStyle(fontSize: _tableBodyFontSize),
-        ),
-      );
+    padding: const EdgeInsets.all(10),
+    child: Text(
+      text.isEmpty ? '—' : text,
+      style: TextStyle(fontSize: _tableBodyFontSize),
+    ),
+  );
 
   Widget _editableCell(
     TextEditingController controller, {
     String? hint,
     int maxLines = 1,
   }) => Padding(
-        padding: const EdgeInsets.all(6),
-        child: TextFormField(
-          controller: controller,
-          enabled: _isEditable,
-          minLines: 1,
-          maxLines: maxLines,
-          style: TextStyle(fontSize: _tableBodyFontSize),
-          onChanged: (_) => _scheduleSave(),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hint ?? '입력하세요',
-            border: const OutlineInputBorder(),
-            disabledBorder: const OutlineInputBorder(),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            filled: true,
-            fillColor: _isEditable ? Colors.white : Colors.grey.shade100,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.all(6),
+    child: TextFormField(
+      controller: controller,
+      enabled: _isEditable,
+      minLines: 1,
+      maxLines: maxLines,
+      style: TextStyle(fontSize: _tableBodyFontSize),
+      onChanged: (_) => _scheduleSave(),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: hint ?? '입력하세요',
+        border: const OutlineInputBorder(),
+        disabledBorder: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        filled: true,
+        fillColor: _isEditable ? Colors.white : Colors.grey.shade100,
+      ),
+    ),
+  );
 
   Widget _buildSurveyTable() {
     return Table(
       border: TableBorder.all(color: Colors.grey.shade300),
-      columnWidths: const {
-        0: FlexColumnWidth(1),
-        1: FlexColumnWidth(3),
-      },
+      columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(3)},
       children: [
         TableRow(
           decoration: const BoxDecoration(color: Color(0xFFF5F5F5)),
-          children: [
-            _tableHeaderCell('구분'),
-            _tableHeaderCell('내용'),
-          ],
+          children: [_tableHeaderCell('구분'), _tableHeaderCell('내용')],
         ),
         for (final row in _surveyRowConfigs)
-          TableRow(children: [
-            _readOnlyCell(row.label),
-            _editableCell(
-              _surveyControllers[row.key]!,
-              hint: row.hint,
-              maxLines: 2,
-            ),
-          ]),
+          TableRow(
+            children: [
+              _readOnlyCell(row.label),
+              _editableCell(
+                _surveyControllers[row.key]!,
+                hint: row.hint,
+                maxLines: 2,
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -1931,22 +2647,24 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           ],
         ),
         for (final row in _conservationRowConfigs)
-          TableRow(children: [
-            _readOnlyCell(row.section),
-            _editableCell(
-              _conservationPartControllers[row.key]!,
-              hint: '예: ${row.part}',
-            ),
-            _editableCell(
-              _conservationNoteControllers[row.key]!,
-              hint: row.noteHint,
-              maxLines: 3,
-            ),
-            _editableCell(
-              _conservationLocationControllers[row.key]!,
-              hint: row.locationHint,
-            ),
-          ]),
+          TableRow(
+            children: [
+              _readOnlyCell(row.section),
+              _editableCell(
+                _conservationPartControllers[row.key]!,
+                hint: '예: ${row.part}',
+              ),
+              _editableCell(
+                _conservationNoteControllers[row.key]!,
+                hint: row.noteHint,
+                maxLines: 3,
+              ),
+              _editableCell(
+                _conservationLocationControllers[row.key]!,
+                hint: row.locationHint,
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -1972,68 +2690,72 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             _HistoryTableCell('없음', isHeader: true),
           ],
         ),
-        TableRow(children: [
-          const _HistoryTableCell('소방 및 안전관리'),
-          _MgmtNoteCell(
-            controller: _fireSafetyPartController,
-            enabled: _isEditable,
-            onChanged: (_) => _scheduleSave(),
-          ),
-          _MgmtNoteCell(
-            controller: _fireSafetyNoteController,
-            enabled: _isEditable,
-            onChanged: (_) => _scheduleSave(),
-          ),
-          _MgmtRadioCell(
-            enabled: _isEditable,
-            groupValue: _mgmtFireSafety,
-            target: Presence.yes,
-            onChanged: (value) {
-              setState(() => _mgmtFireSafety = value);
-              _scheduleSave();
-            },
-          ),
-          _MgmtRadioCell(
-            enabled: _isEditable,
-            groupValue: _mgmtFireSafety,
-            target: Presence.no,
-            onChanged: (value) {
-              setState(() => _mgmtFireSafety = value);
-              _scheduleSave();
-            },
-          ),
-        ]),
-        TableRow(children: [
-          const _HistoryTableCell('전기시설'),
-          _MgmtNoteCell(
-            controller: _electricalPartController,
-            enabled: _isEditable,
-            onChanged: (_) => _scheduleSave(),
-          ),
-          _MgmtNoteCell(
-            controller: _electricalNoteController,
-            enabled: _isEditable,
-            onChanged: (_) => _scheduleSave(),
-          ),
-          _MgmtRadioCell(
-            enabled: _isEditable,
-            groupValue: _mgmtElectrical,
-            target: Presence.yes,
-            onChanged: (value) {
-              setState(() => _mgmtElectrical = value);
-              _scheduleSave();
-            },
-          ),
-          _MgmtRadioCell(
-            enabled: _isEditable,
-            groupValue: _mgmtElectrical,
-            target: Presence.no,
-            onChanged: (value) {
-              setState(() => _mgmtElectrical = value);
-              _scheduleSave();
-            },
-          ),
-        ]),
+        TableRow(
+          children: [
+            const _HistoryTableCell('소방 및 안전관리'),
+            _MgmtNoteCell(
+              controller: _fireSafetyPartController,
+              enabled: _isEditable,
+              onChanged: (_) => _scheduleSave(),
+            ),
+            _MgmtNoteCell(
+              controller: _fireSafetyNoteController,
+              enabled: _isEditable,
+              onChanged: (_) => _scheduleSave(),
+            ),
+            _MgmtRadioCell(
+              enabled: _isEditable,
+              groupValue: _mgmtFireSafety,
+              target: Presence.yes,
+              onChanged: (value) {
+                setState(() => _mgmtFireSafety = value);
+                _scheduleSave();
+              },
+            ),
+            _MgmtRadioCell(
+              enabled: _isEditable,
+              groupValue: _mgmtFireSafety,
+              target: Presence.no,
+              onChanged: (value) {
+                setState(() => _mgmtFireSafety = value);
+                _scheduleSave();
+              },
+            ),
+          ],
+        ),
+        TableRow(
+          children: [
+            const _HistoryTableCell('전기시설'),
+            _MgmtNoteCell(
+              controller: _electricalPartController,
+              enabled: _isEditable,
+              onChanged: (_) => _scheduleSave(),
+            ),
+            _MgmtNoteCell(
+              controller: _electricalNoteController,
+              enabled: _isEditable,
+              onChanged: (_) => _scheduleSave(),
+            ),
+            _MgmtRadioCell(
+              enabled: _isEditable,
+              groupValue: _mgmtElectrical,
+              target: Presence.yes,
+              onChanged: (value) {
+                setState(() => _mgmtElectrical = value);
+                _scheduleSave();
+              },
+            ),
+            _MgmtRadioCell(
+              enabled: _isEditable,
+              groupValue: _mgmtElectrical,
+              target: Presence.no,
+              onChanged: (value) {
+                setState(() => _mgmtElectrical = value);
+                _scheduleSave();
+              },
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -2050,18 +2772,12 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6),
         Text(
           description,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 13,
-          ),
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
         ),
         const SizedBox(height: 12),
         GridView.builder(
@@ -2180,7 +2896,9 @@ class _MgmtRadioCell extends StatelessWidget {
               child: Radio<Presence>(
                 value: target,
                 groupValue: groupValue,
-                onChanged: enabled ? (value) => value != null ? onChanged(value) : null : null,
+                onChanged: enabled
+                    ? (value) => value != null ? onChanged(value) : null
+                    : null,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
@@ -2217,7 +2935,9 @@ class _MgmtNoteCell extends StatelessWidget {
             minLines: 1,
             maxLines: 3,
             onChanged: enabled ? onChanged : null,
-            style: TextStyle(color: enabled ? Colors.black87 : Colors.grey.shade600),
+            style: TextStyle(
+              color: enabled ? Colors.black87 : Colors.grey.shade600,
+            ),
             decoration: InputDecoration(
               isDense: true,
               hintText: '조사내용을 입력하세요',
@@ -2260,9 +2980,19 @@ class _AddPhotoTile extends StatelessWidget {
               : const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.add_photo_alternate, size: 32, color: Colors.black54),
+                    Icon(
+                      Icons.add_photo_alternate,
+                      size: 32,
+                      color: Colors.black54,
+                    ),
                     SizedBox(height: 6),
-                    Text('사진 추가', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    Text(
+                      '사진 추가',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
         ),
@@ -2309,7 +3039,11 @@ class _HistoryImageTile extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                child: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -2389,11 +3123,11 @@ class _HistoryImage {
   }
 
   Map<String, dynamic> toFirestore() => {
-        'id': id,
-        if (url != null) 'url': url,
-        if (storagePath != null) 'storagePath': storagePath,
-        if (uploadedAt != null) 'uploadedAt': uploadedAt,
-      };
+    'id': id,
+    if (url != null) 'url': url,
+    if (storagePath != null) 'storagePath': storagePath,
+    if (uploadedAt != null) 'uploadedAt': uploadedAt,
+  };
 
   Object? removalPayload() => rawValue ?? (url != null ? toFirestore() : null);
 }
@@ -2476,8 +3210,8 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
 
     final sorted = List<Map<String, dynamic>>.from(detectionResult.detections)
       ..sort(
-        (a, b) => ((b['score'] as num?) ?? 0)
-            .compareTo(((a['score'] as num?) ?? 0)),
+        (a, b) =>
+            ((b['score'] as num?) ?? 0).compareTo(((a['score'] as num?) ?? 0)),
       );
     final normalized = _normalizeDetections(sorted);
 
@@ -2486,8 +3220,7 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
       _detections = normalized;
       if (_detections.isNotEmpty) {
         _selectedLabel = _detections.first['label'] as String?;
-        _selectedConfidence =
-            (_detections.first['score'] as num?)?.toDouble();
+        _selectedConfidence = (_detections.first['score'] as num?)?.toDouble();
       }
       final normalizedGrade = detectionResult.grade?.toUpperCase();
       _autoGrade = normalizedGrade;
@@ -2501,9 +3234,9 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
 
   Future<void> _handleSave() async {
     if (_imageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')));
       return;
     }
 
@@ -2607,13 +3340,19 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: _infoField('온도(℃)', _temperatureController,
-                          hint: '예: 23'),
+                      child: _infoField(
+                        '온도(℃)',
+                        _temperatureController,
+                        hint: '예: 23',
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child:
-                          _infoField('습도(%)', _humidityController, hint: '예: 55'),
+                      child: _infoField(
+                        '습도(%)',
+                        _humidityController,
+                        hint: '예: 55',
+                      ),
                     ),
                   ],
                 ),
@@ -2625,9 +3364,7 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
                     border: OutlineInputBorder(),
                   ),
                   items: const ['A', 'B', 'C', 'D', 'E', 'F']
-                      .map(
-                        (g) => DropdownMenuItem(value: g, child: Text(g)),
-                      )
+                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                       .toList(),
                   onChanged: (val) {
                     if (val != null) setState(() => _severityGrade = val);
@@ -2703,9 +3440,7 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
                   color: Colors.black.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                child: const Center(child: CircularProgressIndicator()),
               ),
             ),
         ],
@@ -2754,10 +3489,7 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
           ),
           items: uniqueLabels
               .map(
-                (label) => DropdownMenuItem(
-                  value: label,
-                  child: Text(label),
-                ),
+                (label) => DropdownMenuItem(value: label, child: Text(label)),
               )
               .toList(),
           onChanged: (val) {
@@ -2849,20 +3581,14 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
             backgroundColor: Colors.white,
             child: Text(
               grade.isEmpty ? '?' : grade,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               explanation,
-              style: const TextStyle(
-                fontSize: 14,
-                height: 1.4,
-              ),
+              style: const TextStyle(fontSize: 14, height: 1.4),
             ),
           ),
         ],
@@ -2881,31 +3607,32 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
           .toList(growable: false);
     }
 
-    double clamp01(double value) =>
-        value.clamp(0.0, 1.0).toDouble();
+    double clamp01(double value) => value.clamp(0.0, 1.0).toDouble();
 
-    return detections.map((det) {
-      final mapped = Map<String, dynamic>.from(det);
-      if (!(mapped.containsKey('x') &&
-          mapped.containsKey('y') &&
-          mapped.containsKey('w') &&
-          mapped.containsKey('h'))) {
-        final bbox = (mapped['bbox'] as List?)?.cast<num>();
-        if (bbox != null && bbox.length == 4) {
-          final x1 = bbox[0].toDouble();
-          final y1 = bbox[1].toDouble();
-          final x2 = bbox[2].toDouble();
-          final y2 = bbox[3].toDouble();
-          final w = (x2 - x1).clamp(0, width).toDouble();
-          final h = (y2 - y1).clamp(0, height).toDouble();
-          mapped['x'] = clamp01(x1 / width);
-          mapped['y'] = clamp01(y1 / height);
-          mapped['w'] = clamp01(w / width);
-          mapped['h'] = clamp01(h / height);
-        }
-      }
-      return mapped;
-    }).toList(growable: false);
+    return detections
+        .map((det) {
+          final mapped = Map<String, dynamic>.from(det);
+          if (!(mapped.containsKey('x') &&
+              mapped.containsKey('y') &&
+              mapped.containsKey('w') &&
+              mapped.containsKey('h'))) {
+            final bbox = (mapped['bbox'] as List?)?.cast<num>();
+            if (bbox != null && bbox.length == 4) {
+              final x1 = bbox[0].toDouble();
+              final y1 = bbox[1].toDouble();
+              final x2 = bbox[2].toDouble();
+              final y2 = bbox[3].toDouble();
+              final w = (x2 - x1).clamp(0, width).toDouble();
+              final h = (y2 - y1).clamp(0, height).toDouble();
+              mapped['x'] = clamp01(x1 / width);
+              mapped['y'] = clamp01(y1 / height);
+              mapped['w'] = clamp01(w / width);
+              mapped['h'] = clamp01(h / height);
+            }
+          }
+          return mapped;
+        })
+        .toList(growable: false);
   }
 }
 
@@ -2944,8 +3671,7 @@ class DamageDetectionResult {
       if (temperature != null) 'temperature': temperature,
       if (humidity != null) 'humidity': humidity,
       if (selectedLabel != null) 'selectedLabel': selectedLabel,
-      if (selectedConfidence != null)
-        'selectedConfidence': selectedConfidence,
+      if (selectedConfidence != null) 'selectedConfidence': selectedConfidence,
       if (autoGrade != null) 'autoGrade': autoGrade,
       if (autoExplanation != null) 'autoExplanation': autoExplanation,
     };
@@ -3152,33 +3878,33 @@ class _DeepDamageInspectionDialogState
 
   // 테이블 헤더
   TableRow _tableHeader(List<String> titles) => TableRow(
-        decoration: BoxDecoration(color: Colors.grey.shade200),
-        children: titles
-            .map(
-              (t) => Padding(
-                padding: const EdgeInsets.all(8),
-                child: Center(
-                  child: Text(
-                    t,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
+    decoration: BoxDecoration(color: Colors.grey.shade200),
+    children: titles
+        .map(
+          (t) => Padding(
+            padding: const EdgeInsets.all(8),
+            child: Center(
+              child: Text(
+                t,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-            )
-            .toList(),
-      );
+            ),
+          ),
+        )
+        .toList(),
+  );
 
   // 테이블 행
   TableRow _tableRow(List<String> data) => TableRow(
-        children: data
-            .map(
-              (d) => Padding(
-                padding: const EdgeInsets.all(8),
-                child: Center(child: Text(d)),
-              ),
-            )
-            .toList(),
-      );
+    children: data
+        .map(
+          (d) => Padding(
+            padding: const EdgeInsets.all(8),
+            child: Center(child: Text(d)),
+          ),
+        )
+        .toList(),
+  );
 
   // 손상 박스 위젯
   Widget _damageBox(String label, Color color) {
