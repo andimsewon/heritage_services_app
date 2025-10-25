@@ -14,6 +14,15 @@ import '../env.dart';
 import '../services/firebase_service.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
+import '../models/heritage_detail_models.dart';
+import '../repositories/ai_prediction_repository.dart';
+import '../ui/heritage_detail/ai_prediction_section.dart';
+import '../ui/heritage_detail/damage_summary_table.dart';
+import '../ui/heritage_detail/grade_classification_card.dart';
+import '../ui/heritage_detail/inspection_result_card.dart';
+import '../ui/heritage_detail/investigator_opinion_field.dart';
+import '../ui/widgets/section_divider.dart';
+import '../viewmodels/heritage_detail_view_model.dart';
 
 String _proxyImageUrl(String originalUrl) {
   if (originalUrl.contains('firebasestorage.googleapis.com')) {
@@ -77,6 +86,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   final _ai = AiDetectionService(
     baseUrl: Env.proxyBase.replaceFirst(':8080', ':8081'),
   );
+  HeritageDetailViewModel? _detailViewModel;
+  late final AIPredictionRepository _aiPredictionRepository =
+      _MockAIPredictionRepository();
 
   @override
   void didChangeDependencies() {
@@ -93,6 +105,19 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         heritageId =
             "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
       }
+      _detailViewModel ??= HeritageDetailViewModel(
+        heritageId: heritageId,
+        aiRepository: _aiPredictionRepository,
+        inspectionResult: const InspectionResult(
+          foundation: '기단부 점검 내용을 입력하세요.',
+          wall: '축부(벽체부) 점검 내용을 입력하세요.',
+          roof: '지붕부 점검 내용을 입력하세요.',
+        ),
+        damageSummary: DamageSummary.initial(),
+        investigatorOpinion: InvestigatorOpinion.empty(),
+        gradeClassification: GradeClassification.initial(),
+        aiState: AIPredictionState.initial(),
+      );
       _load();
     }
   }
@@ -362,6 +387,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   }
 
   @override
+  void dispose() {
+    _detailViewModel?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -514,16 +545,47 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                           );
                         },
                       ),
-                      const SizedBox(height: 24),
-                      const InspectionResultCard(),
-                      const SizedBox(height: 24),
-                      const DamageSummaryTable(),
-                      const SizedBox(height: 24),
-                      const InvestigatorOpinionField(),
-                      const SizedBox(height: 24),
-                      const GradeClassificationCard(),
-                      const SizedBox(height: 24),
-                      const AIPredictionSection(),
+                      const SectionDivider(),
+                      if (_detailViewModel != null)
+                        AnimatedBuilder(
+                          animation: _detailViewModel!,
+                          builder: (context, _) {
+                            final vm = _detailViewModel!;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                InspectionResultCard(
+                                  value: vm.inspectionResult,
+                                  onChanged: vm.updateInspectionResult,
+                                ),
+                                const SectionDivider(),
+                                DamageSummaryTable(
+                                  value: vm.damageSummary,
+                                  onChanged: vm.updateDamageSummary,
+                                ),
+                                const SectionDivider(),
+                                InvestigatorOpinionField(
+                                  value: vm.investigatorOpinion,
+                                  onChanged: vm.updateInvestigatorOpinion,
+                                ),
+                                const SectionDivider(),
+                                GradeClassificationCard(
+                                  value: vm.gradeClassification,
+                                  onChanged: vm.updateGradeClassification,
+                                ),
+                                const SectionDivider(),
+                                AIPredictionSection(
+                                  state: vm.aiPredictionState,
+                                  actions: AIPredictionActions(
+                                    onPredictGrade: vm.predictGrade,
+                                    onGenerateMap: vm.generateMap,
+                                    onSuggest: vm.suggestMitigation,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       const SizedBox(height: 48),
                     ],
                   ),
@@ -550,7 +612,7 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dividerColor = theme.dividerColor.withOpacity(0.35);
+    final dividerColor = theme.dividerColor.withValues(alpha: 0.35);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -749,6 +811,97 @@ class HeritagePhotoSection extends StatelessWidget {
       ),
     );
   }
+
+  Widget _PhotoCard({
+    required String title,
+    required String url,
+    required String meta,
+    required VoidCallback onPreview,
+    required VoidCallback onDelete,
+  }) {
+    return Container(
+      width: 180,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Stack(
+                children: [
+                  Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.broken_image, size: 50),
+                      );
+                    },
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.8),
+                        padding: const EdgeInsets.all(4),
+                        minimumSize: const Size(32, 32),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  meta,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: onPreview,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    child: const Text('미리보기', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class DamageSurveySection extends StatelessWidget {
@@ -857,841 +1010,181 @@ class DamageSurveySection extends StatelessWidget {
       ),
     );
   }
-}
 
-class InspectionResultCard extends StatefulWidget {
-  const InspectionResultCard({super.key});
-
-  @override
-  State<InspectionResultCard> createState() => _InspectionResultCardState();
-}
-
-class _InspectionResultCardState extends State<InspectionResultCard> {
-  static const _rowConfigs = [
-    ('structure', '구조부', '예: 기초, 기둥 등 구조 부재 점검 결과'),
-    ('wall', '축부(벽체부)', '예: 벽체 균열, 박락 등 조사 내용'),
-    ('roof', '지붕부', '예: 지붕재 손상, 누수 관찰 결과'),
-  ];
-
-  late final Map<String, TextEditingController> _controllers;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = {
-      for (final (key, _, __) in _rowConfigs) key: TextEditingController(),
-    };
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _controllers.values) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(title: '주요 점검 결과'),
-            const SizedBox(height: 16),
-            Table(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              columnWidths: const {
-                0: FlexColumnWidth(1.3),
-                1: FlexColumnWidth(3),
-              },
-              children: [
-                const TableRow(
-                  children: [_TableHeaderCell('분류'), _TableHeaderCell('내용')],
-                ),
-                for (final (key, label, hint) in _rowConfigs)
-                  TableRow(
-                    children: [
-                      _TableCell(label),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: TextField(
-                          controller: _controllers[key],
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            hintText: hint,
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class DamageSummaryTable extends StatefulWidget {
-  const DamageSummaryTable({super.key});
-
-  @override
-  State<DamageSummaryTable> createState() => _DamageSummaryTableState();
-}
-
-class _DamageSummaryTableState extends State<DamageSummaryTable> {
-  final List<_DamageSummaryRow> _rows = [
-    _DamageSummaryRow(category: '구조적 손상'),
-    _DamageSummaryRow(category: '물리적 손상'),
-    _DamageSummaryRow(category: '생물·화학적 손상'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(title: '손상부 종합'),
-            const SizedBox(height: 12),
-            const Text('손상이 탐지된 경우 O / 아닌 경우 X 형태로 표시하세요.'),
-            const SizedBox(height: 12),
-            Table(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              columnWidths: const {
-                0: FlexColumnWidth(1.6),
-                1: FlexColumnWidth(1),
-                2: FlexColumnWidth(1),
-              },
-              children: [
-                const TableRow(
-                  children: [
-                    _TableHeaderCell('손상 유형'),
-                    _TableHeaderCell('손상 여부'),
-                    _TableHeaderCell('손상 등급 (A~E)'),
-                  ],
-                ),
-                for (final row in _rows)
-                  TableRow(
-                    children: [
-                      _TableCell(row.category),
-                      Center(
-                        child: Checkbox(
-                          value: row.detected,
-                          onChanged: (value) => setState(() {
-                            row.detected = value ?? false;
-                          }),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: DropdownButton<String>(
-                          value: row.grade,
-                          isExpanded: true,
-                          onChanged: (value) => setState(() {
-                            if (value != null) row.grade = value;
-                          }),
-                          items: const [
-                            DropdownMenuItem(value: 'A', child: Text('A')),
-                            DropdownMenuItem(value: 'B', child: Text('B')),
-                            DropdownMenuItem(value: 'C', child: Text('C')),
-                            DropdownMenuItem(value: 'D', child: Text('D')),
-                            DropdownMenuItem(value: 'E', child: Text('E')),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class InvestigatorOpinionField extends StatefulWidget {
-  const InvestigatorOpinionField({super.key});
-
-  @override
-  State<InvestigatorOpinionField> createState() =>
-      _InvestigatorOpinionFieldState();
-}
-
-class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(title: '조사자 의견'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _controller,
-              maxLines: 6,
-              minLines: 4,
-              decoration: const InputDecoration(
-                hintText: '조사자의 의견 및 메모를 입력하세요',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class GradeClassificationCard extends StatefulWidget {
-  const GradeClassificationCard({super.key});
-
-  @override
-  State<GradeClassificationCard> createState() =>
-      _GradeClassificationCardState();
-}
-
-class _GradeClassificationCardState extends State<GradeClassificationCard> {
-  static const Map<String, Color> _gradeColors = {
-    'A': Color(0xFF81C784),
-    'B': Color(0xFFAED581),
-    'C': Color(0xFFFFF59D),
-    'D': Color(0xFFFFD54F),
-    'E': Color(0xFFE57373),
-  };
-
-  final List<String> _grades = const ['A', 'B', 'C', 'D', 'E'];
-  String _selectedGrade = 'E';
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _gradeColors[_selectedGrade] ?? Colors.grey.shade300;
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(title: '등급 분류'),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    '손상등급 $_selectedGrade',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  const Text(
-                    '보수정비 필요',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final grade in _grades)
-                  ChoiceChip(
-                    label: Text('등급 $grade'),
-                    selected: _selectedGrade == grade,
-                    onSelected: (selected) => setState(() {
-                      if (selected) _selectedGrade = grade;
-                    }),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AIPredictionSection extends StatefulWidget {
-  const AIPredictionSection({super.key});
-
-  @override
-  State<AIPredictionSection> createState() => _AIPredictionSectionState();
-}
-
-class _AIPredictionSectionState extends State<AIPredictionSection> {
-  bool _showGrade = false;
-  bool _showMap = false;
-  bool _showSuggestion = false;
-
-  static const _climateSuggestions = [
-    {'factor': '고습 · 고온', 'action': '환기 강화 / 방수 처리'},
-    {'factor': '폭우 · 침수', 'action': '배수로 점검 / 임시차수 설치'},
-    {'factor': '한랭 · 결빙', 'action': '보온 자재 확보 / 동결 방지 코팅'},
-  ];
-
-  void _handlePrediction(String type) {
-    setState(() {
-      if (type == 'grade') {
-        _showGrade = true;
-      } else if (type == 'map') {
-        _showMap = true;
-      } else if (type == 'suggestion') {
-        _showSuggestion = true;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(title: 'AI 예측 기능'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: () => _handlePrediction('grade'),
-                  icon: const Icon(Icons.auto_awesome),
-                  label: const Text('AI 손상등급 예측'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _handlePrediction('map'),
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('손상지도 생성'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _handlePrediction('suggestion'),
-                  icon: const Icon(Icons.eco_outlined),
-                  label: const Text('기후변화 대응 방안 도출'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            if (_showGrade) ...[
-              Text(
-                'AI 손상등급 예측 결과 예시',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 12),
-              _GradePredictionPreview(
-                fromGrade: 'C',
-                toGrade: 'D',
-                yearsLater: '5년 후',
-              ),
-              const SizedBox(height: 24),
-            ],
-            if (_showMap) ...[
-              Text('손상지도 생성 결과', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 12),
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.blueGrey.shade200,
-                      width: 1.5,
-                    ),
-                    color: Colors.blueGrey.shade50,
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.image_outlined,
-                      size: 48,
-                      color: Colors.blueGrey,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-            if (_showSuggestion) ...[
-              Text(
-                '기후 요인별 대응 방안',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 12),
-              Table(
-                border: TableBorder.all(color: Colors.grey.shade300),
-                columnWidths: const {
-                  0: FlexColumnWidth(1.5),
-                  1: FlexColumnWidth(2.5),
-                },
-                children: [
-                  const TableRow(
-                    children: [
-                      _TableHeaderCell('기후 요인'),
-                      _TableHeaderCell('대응 방안'),
-                    ],
-                  ),
-                  for (final row in _climateSuggestions)
-                    TableRow(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(row['factor']!),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(row['action']!),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ],
-            if (!_showGrade && !_showMap && !_showSuggestion)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'AI 버튼을 눌러 예측 결과와 대응 방안을 확인하세요.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GradePredictionPreview extends StatelessWidget {
-  const _GradePredictionPreview({
-    required this.fromGrade,
-    required this.toGrade,
-    required this.yearsLater,
-  });
-
-  final String fromGrade;
-  final String toGrade;
-  final String yearsLater;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 520;
-        final arrow = Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.arrow_forward, size: 28),
-            const SizedBox(height: 4),
-            Text(yearsLater, style: theme.textTheme.labelMedium),
-          ],
-        );
-        final current = _PredictionPanel(title: '현재 (등급 $fromGrade)');
-        final future = _PredictionPanel(title: '예상 (등급 $toGrade)');
-        if (isNarrow) {
-          return Column(
-            children: [
-              current,
-              const SizedBox(height: 12),
-              arrow,
-              const SizedBox(height: 12),
-              future,
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: current),
-            const SizedBox(width: 12),
-            arrow,
-            const SizedBox(width: 12),
-            Expanded(child: future),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _PredictionPanel extends StatelessWidget {
-  const _PredictionPanel({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _DamageCard({
+    required String url,
+    required List<Map<String, dynamic>> detections,
+    required String? severityGrade,
+    required String? location,
+    required String? phenomenon,
+    required VoidCallback onDelete,
+  }) {
     return Container(
-      height: 160,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-        color: Colors.grey.shade100,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.account_tree_outlined, size: 40, color: Colors.grey),
-          const SizedBox(height: 12),
-          Text(title, style: Theme.of(context).textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
-}
-
-class _DamageSummaryRow {
-  _DamageSummaryRow({required this.category});
-
-  final String category;
-  bool detected = false;
-  String grade = 'A';
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, String? value) : value = value ?? '';
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value.isEmpty ? '—' : value,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PhotoCard extends StatelessWidget {
-  final String title, url, meta;
-  final VoidCallback? onPreview;
-  final Future<void> Function()? onDelete;
-  const _PhotoCard({
-    required this.title,
-    required this.url,
-    required this.meta,
-    this.onPreview,
-    this.onDelete,
-  });
-
-  Widget _buildErrorWidget() {
-    return Container(
-      color: Colors.grey.shade200,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.image_not_supported,
-            size: 32,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '이미지 로딩 실패',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'URL 확인 필요',
-            style: TextStyle(fontSize: 8, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final image = _isValidImageUrl(url)
-        ? Image.network(
-            _proxyImageUrl(url),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              final total = loadingProgress.expectedTotalBytes;
-              final loaded = loadingProgress.cumulativeBytesLoaded;
-              return Center(
-                child: CircularProgressIndicator(
-                  value: total != null ? loaded / total : null,
-                ),
-              );
-            },
-            errorBuilder: (_, __, ___) => _buildErrorWidget(),
-          )
-        : _buildErrorWidget();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPreview,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 220,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AspectRatio(
-                aspectRatio: 4 / 3,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: image,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title.isEmpty ? '제목 없음' : title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  if (onDelete != null)
-                    IconButton(
-                      tooltip: '삭제',
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      onPressed: onDelete,
-                    ),
-                ],
-              ),
-              Text(meta, style: Theme.of(context).textTheme.bodySmall),
-              if (onPreview != null)
-                Text(
-                  '탭하여 확대 보기',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: Colors.grey.shade600),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DamagePreview extends StatelessWidget {
-  final String url;
-  final List<Map<String, dynamic>> detections; // label, score, x,y,w,h
-  const _DamagePreview({required this.url, required this.detections});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(_proxyImageUrl(url), fit: BoxFit.contain),
-            ...detections.map((m) {
-              final x = (m['x'] as num).toDouble();
-              final y = (m['y'] as num).toDouble();
-              final w = (m['w'] as num).toDouble();
-              final h = (m['h'] as num).toDouble();
-              return FractionallySizedBox(
-                widthFactor: w,
-                heightFactor: h,
-                alignment: Alignment(-1 + x * 2 + w, -1 + y * 2 + h),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(width: 2.5, color: Colors.redAccent),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text(
-                        '${m['label']} ${(m['score'] as num).toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _DamageCard extends StatelessWidget {
-  final String url;
-  final List<Map<String, dynamic>> detections;
-  final String? severityGrade;
-  final String? location;
-  final String? phenomenon;
-  const _DamageCard({
-    required this.url,
-    required this.detections,
-    this.severityGrade,
-    this.location,
-    this.phenomenon,
-    this.onDelete,
-  });
-  final Future<void> Function()? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 300,
+      width: 200,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Stack(
+                children: [
+                  Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.broken_image, size: 50),
+                      );
+                    },
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.8),
+                        padding: const EdgeInsets.all(4),
+                        minimumSize: const Size(32, 32),
+                      ),
+                    ),
+                  ),
+                  if (severityGrade != null)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getSeverityColor(severityGrade),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          severityGrade,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              child: _DamagePreview(url: url, detections: detections),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    if (severityGrade != null && severityGrade!.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.lightBlue.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.lightBlue.shade400),
-                        ),
-                        child: Text(
-                          '등급 ${severityGrade!}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    const Spacer(),
-                    Text(
-                      '${detections.length}개 감지',
-                      style: Theme.of(context).textTheme.bodySmall,
+                if (location != null && location.isNotEmpty) ...[
+                  Text(
+                    '위치: $location',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
-                    if (onDelete != null)
-                      IconButton(
-                        tooltip: '삭제',
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        onPressed: onDelete,
-                      ),
-                  ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (phenomenon != null && phenomenon.isNotEmpty) ...[
+                  Text(
+                    '현상: $phenomenon',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 11,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  '검출: ${detections.length}개',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 11,
+                  ),
                 ),
-                if ((location ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '위치: $location',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                if ((phenomenon ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      '현상: $phenomenon',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Color _getSeverityColor(String grade) {
+    switch (grade.toUpperCase()) {
+      case 'A':
+        return Colors.green;
+      case 'B':
+        return Colors.orange;
+      case 'C':
+        return Colors.red;
+      case 'D':
+        return Colors.red.shade800;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+class _MockAIPredictionRepository implements AIPredictionRepository {
+  final Map<int, Future<ImageProvider>> _imageCache = {};
+
+  @override
+  Future<AIPredictionGrade> predictGrade(String heritageId) async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    return AIPredictionGrade(
+      from: 'C',
+      to: 'D',
+      before: await _imageFor(const Color(0xFF6C8CD5)),
+      after: await _imageFor(const Color(0xFFD95D5D)),
+      years: 5,
+    );
+  }
+
+  @override
+  Future<ImageProvider> generateDamageMap(String heritageId) async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    return _imageFor(const Color(0xFF64B5F6));
+  }
+
+  @override
+  Future<List<MitigationRow>> suggestMitigation(String heritageId) async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    return const [
+      MitigationRow(factor: '고습 · 고온', action: '환기 강화, 방수 모니터링, 방충·방균 처리'),
+      MitigationRow(factor: '폭우 · 침수', action: '배수로 점검, 차수 시설 점검, 응급 복구 계획 수립'),
+      MitigationRow(factor: '한랭 · 결빙', action: '보온 자재 확보, 균열 모니터링, 제설 계획 마련'),
+    ];
+  }
+
+  Future<ImageProvider> _imageFor(Color color) {
+    final key = color.value;
+    return _imageCache.putIfAbsent(key, () async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final paint = Paint()..color = color;
+      canvas.drawRect(const Rect.fromLTWH(0, 0, 160, 120), paint);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(320, 240);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return MemoryImage(byteData!.buffer.asUint8List());
+    });
   }
 }
 
