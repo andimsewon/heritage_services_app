@@ -351,7 +351,7 @@ class _ImprovedDamageSurveyDialogState
       return {
         'label': label,
         'score': d['score'],
-        'box': d['box'],
+        'bbox': d['bbox'],  // 백엔드와 키 이름 일치 ('box' → 'bbox')
       };
     }).toList();
   }
