@@ -89,6 +89,19 @@ flutter run -d chrome
 flutter run -d emulator-5554
 ```
 
+## ♻️ 안전한 재배포 스크립트
+
+Flutter 웹 번들을 다시 만들고 Docker 컨테이너를 깨끗하게 재시작해야 할 때는 중간에 끊기지 않는 순서가 중요합니다. `scripts/redeploy_web.sh`를 실행하면 Flutter 정리/빌드 → docker-compose down → 기존 컨테이너 강제 제거 → API 이미지 무캐시 빌드 → heritage-web 재기동까지 한 번에 처리하므로 `heritage-api` 이름 충돌 오류를 예방할 수 있습니다.
+
+```bash
+./scripts/redeploy_web.sh                # Flutter + Docker 모두 수행
+./scripts/redeploy_web.sh --skip-flutter # Flutter 결과가 이미 있으면 Docker만
+./scripts/redeploy_web.sh --flutter-only # Docker는 건드리지 않고 Flutter만
+```
+
+> 내부적으로 `docker-compose down --remove-orphans` 와 `docker rm -f heritage-api heritage-web`을 호출하여 기존 컨테이너가 남아 있어도 안전하게 정리한 뒤 재배포합니다.
+
+
 ---
 
 ## 📡 네트워크 구성

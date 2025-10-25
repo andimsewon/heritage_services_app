@@ -17,6 +17,7 @@ import '../services/firebase_service.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 import 'improved_damage_survey_dialog.dart';
+import '../ui/widgets/image_preview_dialog.dart';
 
 // ── 누락된 설정용 타입 (const로 쓰기 때문에 반드시 const 생성자 필요)
 /// ④ 기본개요 화면
@@ -1093,32 +1094,41 @@ class _PhotoCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         clipBehavior: Clip.hardEdge,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          Expanded(
-            child: _isValidUrl(url)
-                  ? CachedNetworkImage(
-                      imageUrl: _getProxiedUrl(url),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Shimmer.fromColors(
-                        baseColor: Colors.grey.shade300,
-                        highlightColor: Colors.grey.shade100,
-                        child: Container(
-                          width: double.infinity,
-                          height: double.infinity,
-                          color: Colors.grey.shade300,
+        child: GestureDetector(
+          onTap: () {
+            ImagePreviewDialog.show(
+              context,
+              imageUrl: url,
+              title: title,
+              meta: meta,
+            );
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            Expanded(
+              child: _isValidUrl(url)
+                    ? CachedNetworkImage(
+                        imageUrl: _getProxiedUrl(url),
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Shimmer.fromColors(
+                          baseColor: Colors.grey.shade300,
+                          highlightColor: Colors.grey.shade100,
+                          child: Container(
+                            width: double.infinity,
+                            height: double.infinity,
+                            color: Colors.grey.shade300,
+                          ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) {
-                        print('이미지 로딩 에러: $error');
-                        print('프록시 URL: $url');
-                        return _buildErrorWidget();
-                      },
-                    )
-                  : _buildErrorWidget(),
-          ),
+                        errorWidget: (context, url, error) {
+                          print('이미지 로딩 에러: $error');
+                          print('프록시 URL: $url');
+                          return _buildErrorWidget();
+                        },
+                      )
+                    : _buildErrorWidget(),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
             child: Column(
@@ -1161,6 +1171,7 @@ class _PhotoCard extends StatelessWidget {
             ),
           ),
         ],
+          ),
         ),
       ),
     );
