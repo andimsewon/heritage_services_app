@@ -1,4 +1,4 @@
-version: "3.8"
+version: "3.3"
 
 services:
   # Flutter 웹 앱 (Nginx)
@@ -28,12 +28,10 @@ services:
     command: ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
 
   # Firebase Storage CORS 설정 (선택사항)
-  firebase-cors-setup:
-    image: google/cloud-sdk:alpine
-    container_name: firebase-cors-setup
-    volumes:
-      - ./firebase_storage_cors.json:/firebase_storage_cors.json:ro
-      - ./setup_firebase_cors.sh:/setup_firebase_cors.sh:ro
-    command: ["sh", "-c", "echo 'Firebase CORS 설정은 수동으로 실행하세요: ./setup_firebase_cors.sh'"]
-    profiles:
-      - setup
+  # firebase-cors-setup:
+  #   image: google/cloud-sdk:alpine
+  #   container_name: firebase-cors-setup
+  #   volumes:
+  #     - ./firebase_storage_cors.json:/firebase_storage_cors.json:ro
+  #     - ./setup_firebase_cors.sh:/setup_firebase_cors.sh:ro
+  #   command: ["sh", "-c", "echo 'Firebase CORS 설정은 수동으로 실행하세요: ./setup_firebase_cors.sh'"]

@@ -43,17 +43,20 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   bool _hasMore = true;
   bool _loading = false;
   String _curKeyword = '';
+  int _totalCount = 0;
+  int get _totalPages => (_totalCount / 20).ceil();
 
   @override
   void initState() {
     super.initState();
     _fetch(reset: true);
-    _scroll.addListener(_onScroll);
+    // Pagination으로 변경하여 infinite scroll 비활성화
+    // _scroll.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scroll.removeListener(_onScroll);
+    // _scroll.removeListener(_onScroll);
     _scroll.dispose();
     _keyword.dispose();
     super.dispose();
@@ -117,6 +120,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       );
       setState(() {
         _rows.addAll(res.items);
+        _totalCount = res.totalCount;
         _page += 1;
         _hasMore = _rows.length < res.totalCount;
       });
@@ -163,6 +167,15 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   }
 
   void _onSearch() => _fetch(reset: true);
+
+  void _goToPage(int page) {
+    if (page < 1 || page > _totalPages || page == _page - 1) return;
+    setState(() {
+      _page = page;
+      _rows.clear();
+    });
+    _fetch();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -323,6 +336,9 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
               ),
             ),
           ),
+
+          // 페이지네이션 버튼
+          if (_totalPages > 1) _buildPagination(),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -355,6 +371,101 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         },
         shape: const CircleBorder(),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildPagination() {
+    final currentPage = _page - 1; // _page is already incremented after fetch
+    final start = ((currentPage - 1) ~/ 5) * 5 + 1;
+    final end = (start + 4).clamp(1, _totalPages);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 이전 버튼
+          _PaginationButton(
+            label: '이전',
+            isActive: false,
+            onPressed: currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
+          ),
+          const SizedBox(width: 8),
+
+          // 페이지 번호 버튼
+          ...List.generate(end - start + 1, (i) {
+            final pageNum = start + i;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: _PaginationButton(
+                label: '$pageNum',
+                isActive: pageNum == currentPage,
+                onPressed: () => _goToPage(pageNum),
+              ),
+            );
+          }),
+
+          const SizedBox(width: 8),
+          // 다음 버튼
+          _PaginationButton(
+            label: '다음',
+            isActive: false,
+            onPressed: currentPage < _totalPages ? () => _goToPage(currentPage + 1) : null,
+          ),
+          const SizedBox(width: 8),
+          // 마지막 페이지 버튼
+          _PaginationButton(
+            label: '≫',
+            isActive: false,
+            onPressed: currentPage < _totalPages ? () => _goToPage(_totalPages) : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaginationButton extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final VoidCallback? onPressed;
+
+  const _PaginationButton({
+    required this.label,
+    required this.isActive,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isActive ? Colors.blue.shade50 : Colors.white,
+        foregroundColor: isActive ? Colors.blue : Colors.grey.shade700,
+        side: BorderSide(
+          color: isActive ? Colors.blue : Colors.grey.shade300,
+          width: isActive ? 2 : 1,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: const Size(40, 36),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          fontSize: 14,
+        ),
       ),
     );
   }

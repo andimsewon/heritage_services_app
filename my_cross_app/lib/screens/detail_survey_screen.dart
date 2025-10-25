@@ -8,6 +8,7 @@ import '../ui/widgets/attach_tile.dart';
 import '../ui/widgets/yellow_nav_button.dart';
 import '../services/firebase_service.dart';
 import 'damage_model_screen.dart';
+import 'damage_part_dialog.dart';
 
 class DetailSurveyScreen extends StatefulWidget {
   static const route = '/detail-survey';
@@ -36,33 +37,51 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
   final List<Map<String, dynamic>> _damages = [];
 
   // ─────────────────────────────────────────────
-  // 손상요소 신규 등록 (카메라/갤러리 → Firestore 저장)
+  // 손상요소 신규 등록 (도면 선택 → 카메라/갤러리 → Firestore 저장)
   // ─────────────────────────────────────────────
   Future<void> _pickAndUploadDamage(ImageSource source) async {
-    // 1) 카메라 또는 갤러리에서 이미지 가져오기
+    // 1) 도면에서 부재 선택 (Dialog 방식)
+    if (!mounted) return;
+    final selectedPart = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => const DamagePartDialog(),
+    );
+    if (selectedPart == null) return;
+
+    // 2) 카메라 또는 갤러리에서 이미지 가져오기
     final pickedFile = await _picker.pickImage(source: source);
     if (pickedFile == null) return;
 
-    // 2) 바이트 변환
+    // 3) 바이트 변환
     final Uint8List bytes = await pickedFile.readAsBytes();
 
-    // 3) 손상 정보 입력 다이얼로그
-    final item = await _showAddDamageDialog(context);
+    // 4) 손상 정보 입력 다이얼로그 (부재 정보 포함)
+    if (!mounted) return;
+    final item = await _showAddDamageDialog(context, selectedPart);
     if (item == null) return;
 
-    // 4) Firestore에 저장
+    // 5) Firestore에 저장
     await _firebaseService.addDamageSurvey(
       heritageId: "HERITAGE_ID",     // TODO: 실제 heritageId 전달
       heritageName: "HERITAGE_NAME", // TODO: 실제 heritageName 전달
       imageBytes: bytes,
       detections: [],
-      location: "천장",
+      location: "${selectedPart['name']} #${selectedPart['id']}",
       phenomenon: item['type'],
       severityGrade: item['severity'],
       inspectorOpinion: item['memo'],
     );
 
-    // 5) UI 반영
+    // 6) UI 반영
+    setState(() => _damages.add(item));
+  }
+
+  // 도면 선택 없이 손상요소 등록 (기존 방식)
+  Future<void> _addDamageManually() async {
+    if (!mounted) return;
+    final item = await _showAddDamageDialog(context, null);
+    if (item == null) return;
+
     setState(() => _damages.add(item));
   }
 
@@ -158,18 +177,30 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                 // (4) 손상요소
                 Section(
                   title: '손상요소',
-                  action: Row(
+                  action: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       FilledButton.icon(
                         onPressed: () => _pickAndUploadDamage(ImageSource.camera),
                         icon: const Icon(Icons.photo_camera),
-                        label: const Text('촬영 등록'),
+                        label: const Text('도면+촬영'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xff003B7A),
+                        ),
                       ),
-                      const SizedBox(width: 8),
                       FilledButton.icon(
                         onPressed: () => _pickAndUploadDamage(ImageSource.gallery),
                         icon: const Icon(Icons.image_outlined),
-                        label: const Text('갤러리 등록'),
+                        label: const Text('도면+갤러리'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xff003B7A),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _addDamageManually,
+                        icon: const Icon(Icons.add),
+                        label: const Text('수동 등록'),
                       ),
                     ],
                   ),
@@ -180,7 +211,15 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                           child: ListTile(
                             leading: const Icon(Icons.report_problem_outlined),
                             title: Text('${d['type']} · 심각도 ${d['severity']}'),
-                            subtitle: Text('${d['memo']}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (d['partName'] != null && d['partName'].toString().isNotEmpty)
+                                  Text('부재: ${d['partName']} #${d['partNumber']} (${d['direction']})'),
+                                Text('${d['memo']}'),
+                              ],
+                            ),
+                            isThreeLine: true,
                           ),
                         ),
                     ],
@@ -253,7 +292,13 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
   }
 
   // 손상요소 신규 등록 다이얼로그
-  Future<Map<String, String>?> _showAddDamageDialog(BuildContext context) async {
+  Future<Map<String, String>?> _showAddDamageDialog(
+    BuildContext context,
+    Map<String, dynamic>? selectedPart,
+  ) async {
+    final partName = TextEditingController(text: selectedPart?['name'] ?? '');
+    final partNumber = TextEditingController(text: selectedPart != null ? '${selectedPart['id']}' : '');
+    final direction = TextEditingController(text: selectedPart?['direction'] ?? '');
     final type = TextEditingController();
     final severity = ValueNotifier<String>('중');
     final memo = TextEditingController();
@@ -262,43 +307,101 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('손상요소 등록'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: type,
-              decoration: const InputDecoration(labelText: '손상유형(예: 균열/박락/오염)'),
-            ),
-            const SizedBox(height: 8),
-            ValueListenableBuilder(
-              valueListenable: severity,
-              builder: (context, value, _) => DropdownButtonFormField<String>(
-                initialValue: value,
-                decoration: const InputDecoration(labelText: '심각도'),
-                items: const [
-                  DropdownMenuItem(value: '경', child: Text('경')),
-                  DropdownMenuItem(value: '중', child: Text('중')),
-                  DropdownMenuItem(value: '심', child: Text('심')),
-                ],
-                onChanged: (v) => severity.value = v!,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 부재 정보 (도면에서 선택한 경우 자동 입력됨)
+              if (selectedPart != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Color(0xff003B7A), size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '도면에서 선택된 부재',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('부재명: ${selectedPart['name']}'),
+                      Text('부재번호: ${selectedPart['id']}'),
+                      Text('향: ${selectedPart['direction']}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextField(
+                controller: partName,
+                decoration: const InputDecoration(labelText: '부재명'),
+                readOnly: selectedPart != null,
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: memo,
-              decoration: const InputDecoration(labelText: '메모'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              TextField(
+                controller: partNumber,
+                decoration: const InputDecoration(labelText: '부재번호'),
+                readOnly: selectedPart != null,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: direction,
+                decoration: const InputDecoration(labelText: '향'),
+                readOnly: selectedPart != null,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: type,
+                decoration: const InputDecoration(labelText: '손상유형(예: 균열/박락/오염)'),
+              ),
+              const SizedBox(height: 8),
+              ValueListenableBuilder(
+                valueListenable: severity,
+                builder: (context, value, _) => DropdownButtonFormField<String>(
+                  value: value,
+                  decoration: const InputDecoration(labelText: '심각도'),
+                  items: const [
+                    DropdownMenuItem(value: '경', child: Text('경')),
+                    DropdownMenuItem(value: '중', child: Text('중')),
+                    DropdownMenuItem(value: '심', child: Text('심')),
+                  ],
+                  onChanged: (v) => severity.value = v!,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: memo,
+                decoration: const InputDecoration(labelText: '메모'),
+                maxLines: 2,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(
             onPressed: () => Navigator.pop(context, {
+              'partName': partName.text,
+              'partNumber': partNumber.text,
+              'direction': direction.text,
               'type': type.text,
               'severity': severity.value,
               'memo': memo.text,
             }),
-            child: const Text('등록'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xff003B7A),
+            ),
+            child: const Text('저장'),
           ),
         ],
       ),

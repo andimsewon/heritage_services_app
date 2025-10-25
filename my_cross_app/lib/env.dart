@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart'
-    show kIsWeb, kDebugMode, defaultTargetPlatform, TargetPlatform, debugPrint;
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 // Web-specific imports
 /// Build-time override:
@@ -12,32 +12,32 @@ class Env {
   static const String dockerPort = '8080';
 
   static String get proxyBase {
-    // 🔍 디버그 로그
-    if (kDebugMode) debugPrint('🔍 [Env] _apiBaseOverride: "$_apiBaseOverride"');
-    if (kDebugMode) debugPrint('🔍 [Env] kIsWeb: $kIsWeb');
-    if (kDebugMode) debugPrint('🔍 [Env] defaultTargetPlatform: $defaultTargetPlatform');
+    // 🔍 디버그 로그 (Release 모드에서도 출력하도록 print 사용)
+    print('🔍 [Env] _apiBaseOverride: "$_apiBaseOverride"');
+    print('🔍 [Env] kIsWeb: $kIsWeb');
+    print('🔍 [Env] Uri.base.origin: ${kIsWeb ? Uri.base.origin : "N/A"}');
 
     if (_apiBaseOverride.isNotEmpty) {
-      if (kDebugMode) debugPrint('🔍 [Env] ✅ 오버라이드 사용: $_apiBaseOverride');
+      print('🔍 [Env] ✅ 오버라이드 사용: $_apiBaseOverride');
       return _apiBaseOverride;
     }
 
     // ✅ 웹 → 현재 오리진의 Nginx 프록시(/api) 사용
     if (kIsWeb) {
       final apiUrl = '${Uri.base.origin}/api';
-      if (kDebugMode) debugPrint('🔍 [Env] ✅ 웹 환경: $apiUrl');
+      print('🔍 [Env] ✅ 웹 환경: $apiUrl');
       return apiUrl;
     }
 
     // ✅ 안드로이드 에뮬레이터 → Nginx 프록시 (3001 포트)
     // 10.0.2.2는 안드로이드 에뮬레이터에서 호스트 머신을 가리킴
     if (defaultTargetPlatform == TargetPlatform.android) {
-      if (kDebugMode) debugPrint('🔍 [Env] ✅ Android: http://10.0.2.2:3001/api');
+      print('🔍 [Env] ✅ Android: http://10.0.2.2:3001/api');
       return 'http://10.0.2.2:3001/api';
     }
 
     // ✅ iOS 시뮬레이터/데스크톱 → Nginx 프록시 (3001 포트)
-    if (kDebugMode) debugPrint('🔍 [Env] ✅ iOS/Desktop: http://localhost:3001/api');
+    print('🔍 [Env] ✅ iOS/Desktop: http://localhost:3001/api');
     return 'http://localhost:3001/api';
   }
 

@@ -32,3 +32,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Assets
+  # assets:
+  #   - assets/plan_sample.png
+  # 참고: 도면 이미지를 사용하려면 위 주석을 해제하고 assets/plan_sample.png 파일을 추가하세요
