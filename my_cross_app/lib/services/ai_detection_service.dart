@@ -12,6 +12,9 @@ class AiDetectionService {
     final uri = Uri.parse('$baseUrl/ai/damage/infer');
 
     try {
+      print('[AI] 요청 URL: $uri');
+      print('[AI] 이미지 크기: ${imageBytes.length} bytes');
+
       final request = http.MultipartRequest('POST', uri)
         ..files.add(
           http.MultipartFile.fromBytes(
@@ -25,9 +28,19 @@ class AiDetectionService {
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
+      print('[AI] 응답 상태 코드: ${response.statusCode}');
+      print('[AI] 응답 본문: ${response.body}');
+
+      if (response.statusCode == 503) {
+        // AI 모델이 로드되지 않은 경우
+        throw AiModelNotLoadedException(
+          'AI 모델이 아직 로드되지 않았습니다. 서버 관리자에게 문의하세요.',
+        );
+      }
+
       if (response.statusCode != 200) {
         throw Exception(
-          'AI 서버 오류: ${response.statusCode} - ${response.reasonPhrase}',
+          'AI 서버 오류: ${response.statusCode} - ${response.reasonPhrase}\n응답: ${response.body}',
         );
       }
 
@@ -38,37 +51,19 @@ class AiDetectionService {
       final grade = data['grade'] as String?;
       final explanation = data['explanation'] as String?;
 
+      print('[AI] 탐지된 객체 수: ${detections.length}');
+
       return AiDetectionResult(
         detections: detections,
         grade: grade,
         explanation: explanation,
+        isSuccess: true,
       );
     } catch (e) {
-      // 실패 시 더미 결과 반환 (개발 단계용)
-      final fallbackDetections = [
-        {
-          'label': '갈라짐',
-          'score': 0.91,
-          'x': 0.32,
-          'y': 0.22,
-          'w': 0.22,
-          'h': 0.16,
-        },
-        {
-          'label': '오염',
-          'score': 0.78,
-          'x': 0.62,
-          'y': 0.55,
-          'w': 0.18,
-          'h': 0.14,
-        },
-      ];
+      print('[AI] 오류 발생: $e');
 
-      return AiDetectionResult(
-        detections: fallbackDetections,
-        grade: 'B',
-        explanation: '네트워크 오류로 더미 예측을 반환했습니다. 결과를 확인 후 수정하세요.',
-      );
+      // 에러를 그대로 던지기 (더미 데이터 반환하지 않음)
+      rethrow;
     }
   }
 }
@@ -78,9 +73,20 @@ class AiDetectionResult {
     required this.detections,
     this.grade,
     this.explanation,
+    this.isSuccess = false,
   });
 
   final List<Map<String, dynamic>> detections;
   final String? grade;
   final String? explanation;
+  final bool isSuccess;
+}
+
+/// AI 모델이 로드되지 않았을 때 발생하는 예외
+class AiModelNotLoadedException implements Exception {
+  AiModelNotLoadedException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'AiModelNotLoadedException: $message';
 }

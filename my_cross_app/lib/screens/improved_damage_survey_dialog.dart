@@ -546,6 +546,9 @@ class _ImprovedDamageSurveyDialogState
                 _imageBytes,
                 onTap: _loading ? null : _pickImageAndDetect,
                 isLoading: _loading,
+                detections: _detections.isNotEmpty ? _detections : null,
+                imageWidth: 640,  // DETA 모델 입력 크기
+                imageHeight: 640,
               ),
             ),
           ],
@@ -912,6 +915,9 @@ class _ImprovedDamageSurveyDialogState
     dynamic imageSource, {  // Uint8List? 또는 String? (URL) 지원
     VoidCallback? onTap,
     bool isLoading = false,
+    List<Map<String, dynamic>>? detections,
+    double? imageWidth,
+    double? imageHeight,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,11 +987,24 @@ class _ImprovedDamageSurveyDialogState
                   // Uint8List인 경우 Image.memory 사용
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      imageSource,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    ),
+                    child: (detections != null && detections.isNotEmpty && imageWidth != null && imageHeight != null)
+                      ? CustomPaint(
+                          painter: BoundingBoxPainter(
+                            detections: detections,
+                            imageWidth: imageWidth,
+                            imageHeight: imageHeight,
+                          ),
+                          child: Image.memory(
+                            imageSource,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                          ),
+                        )
+                      : Image.memory(
+                          imageSource,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        ),
                   ),
                 if (isLoading)
                   Positioned.fill(
@@ -1357,5 +1376,81 @@ class DamageDetectionResult {
       'part': damagePart,
       'damageTypes': selectedDamageTypes?.join(', '),
     };
+  }
+}
+
+/// 바운딩 박스를 이미지 위에 그리는 CustomPainter
+class BoundingBoxPainter extends CustomPainter {
+  const BoundingBoxPainter({
+    required this.detections,
+    required this.imageWidth,
+    required this.imageHeight,
+  });
+
+  final List<Map<String, dynamic>> detections;
+  final double imageWidth;
+  final double imageHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final det in detections) {
+      final bbox = det['bbox'] as List?;
+      if (bbox == null || bbox.length != 4) continue;
+
+      final x1 = (bbox[0] as num).toDouble();
+      final y1 = (bbox[1] as num).toDouble();
+      final x2 = (bbox[2] as num).toDouble();
+      final y2 = (bbox[3] as num).toDouble();
+
+      final scaleX = size.width / imageWidth;
+      final scaleY = size.height / imageHeight;
+
+      final rect = Rect.fromLTRB(
+        x1 * scaleX,
+        y1 * scaleY,
+        x2 * scaleX,
+        y2 * scaleY,
+      );
+
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..color = Colors.red
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0,
+      );
+
+      final label = det['label'] as String? ?? '';
+      final score = (det['score'] as num?)?.toDouble() ?? 0;
+      final text = '$label ${(score * 100).toStringAsFixed(0)}%';
+
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      final textBg = Rect.fromLTWH(
+        rect.left,
+        rect.top - textPainter.height - 4,
+        textPainter.width + 8,
+        textPainter.height + 4,
+      );
+
+      canvas.drawRect(textBg, Paint()..color = Colors.red);
+      textPainter.paint(canvas, Offset(rect.left + 4, textBg.top + 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(BoundingBoxPainter oldDelegate) {
+    return detections != oldDelegate.detections;
   }
 }
