@@ -196,6 +196,11 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     ['item', 'ccbaMnm1'],
   ]);
 
+  String get _managementNumber => _read([
+    ['result', 'item', 'ccbaAsno'],
+    ['item', 'ccbaAsno'],
+  ]);
+
   String _formatBytes(num? b) {
     final bytes = (b ?? 0).toDouble();
     if (bytes < 1024) return '${bytes.toInt()}B';
@@ -497,6 +502,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                         admin: admin,
                         lcto: lcto,
                         lcad: lcad,
+                        managementNumber: _managementNumber,
                       ),
                       const SizedBox(height: 24),
                       HeritagePhotoSection(
@@ -647,6 +653,7 @@ class BasicInfoCard extends StatelessWidget {
     required this.admin,
     required this.lcto,
     required this.lcad,
+    required this.managementNumber,
   });
 
   final String name;
@@ -656,9 +663,13 @@ class BasicInfoCard extends StatelessWidget {
   final String admin;
   final String lcto;
   final String lcad;
+  final String managementNumber;
 
   @override
   Widget build(BuildContext context) {
+    // 정기조사 지침 기준: 소재지는 lcad 우선, 없으면 lcto
+    final location = lcad.trim().isNotEmpty ? lcad : lcto;
+
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
@@ -668,54 +679,72 @@ class BasicInfoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SectionHeader(title: '기본 정보'),
+            SectionHeader(title: '개요'),
             const SizedBox(height: 16),
-            Table(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              columnWidths: const {
-                0: FlexColumnWidth(1.2),
-                1: FlexColumnWidth(2.5),
-                2: FlexColumnWidth(1.2),
-                3: FlexColumnWidth(2.5),
-              },
-              children: [
-                TableRow(
-                  children: [
-                    const _TableHeaderCell('국가유산명'),
-                    _TableCell(name.isEmpty ? '미상' : name),
-                    const _TableHeaderCell('종목'),
-                    _TableCell(kind),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const _TableHeaderCell('지정(등록)일'),
-                    _TableCell(asdt),
-                    const _TableHeaderCell('소유자'),
-                    _TableCell(owner),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const _TableHeaderCell('관리자'),
-                    _TableCell(admin),
-                    const _TableHeaderCell('소재지'),
-                    _TableCell(lcto),
-                  ],
-                ),
-                if (lcad.trim().isNotEmpty)
-                  TableRow(
-                    children: [
-                      const _TableHeaderCell('소재지 상세'),
-                      _TableCell(lcad, colspan: 3),
-                      const SizedBox.shrink(),
-                      const SizedBox.shrink(),
-                    ],
-                  ),
-              ],
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFDDDDDD), width: 1.5),
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 유산명
+                  _buildOverviewRow('유산명', name.isEmpty ? '미상' : name),
+                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                  // 지정연월
+                  _buildOverviewRow('지정연월', asdt.isEmpty ? '-' : asdt),
+                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                  // 종목
+                  _buildOverviewRow('종목', kind.isEmpty ? '-' : kind),
+                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                  // 소재지
+                  _buildOverviewRow('소재지', location.isEmpty ? '-' : location),
+                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                  // 관리번호
+                  _buildOverviewRow('관리번호', managementNumber.isEmpty ? '-' : managementNumber),
+                ],
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: Color(0xFF374151),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
