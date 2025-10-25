@@ -26,10 +26,10 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -37,53 +37,61 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
             'AI 예측 기능',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: 16,
+              color: Color(0xFF111827),
             ),
           ),
           const SizedBox(height: 16),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 12,
-            runSpacing: 12,
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 2.6,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _aiButton(
-                context,
                 'AI 손상등급 예측',
                 Icons.auto_awesome,
                 _PredictionTab.grade,
               ),
               _aiButton(
-                context,
                 '손상지도 생성',
                 Icons.map_outlined,
                 _PredictionTab.map,
               ),
               _aiButton(
-                context,
                 '기후변화 대응',
-                Icons.cloud_queue,
+                Icons.cloud_outlined,
                 _PredictionTab.mitigation,
               ),
               _aiButton(
-                context,
                 '보고서 생성',
                 Icons.description_outlined,
                 _PredictionTab.report,
               ),
             ],
           ),
+          const SizedBox(height: 20),
           if (widget.state.loading) ...[
-            const SizedBox(height: 12),
             const LinearProgressIndicator(minHeight: 3),
+            const SizedBox(height: 20),
           ],
           if (widget.state.error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              widget.state.error!,
-              style: const TextStyle(color: Colors.redAccent),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Text(
+                widget.state.error!,
+                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13),
+              ),
             ),
+            const SizedBox(height: 20),
           ],
-          const SizedBox(height: 16),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
             child: _buildContent(context),
@@ -94,28 +102,34 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
   }
 
   Widget _aiButton(
-    BuildContext context,
     String label,
     IconData icon,
     _PredictionTab tab,
   ) {
     final isSelected = _selected == tab;
-    return SizedBox(
-      width: (MediaQuery.of(context).size.width - 80) / 2,
-      child: ElevatedButton.icon(
-        onPressed: () => setState(() => _selected = tab),
-        icon: Icon(icon, size: 20),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected
-              ? const Color(0xFF2956CC)
-              : const Color(0xFFB0B3B9),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+    return ElevatedButton.icon(
+      onPressed: () => setState(() => _selected = tab),
+      icon: Icon(
+        icon,
+        size: 18,
+        color: isSelected ? Colors.white : const Color(0xFF1F2937),
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : const Color(0xFF1F2937),
+          fontSize: 13,
         ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected
+            ? const Color(0xFF2C3E8C)
+            : const Color(0xFFF3F4F6),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
   }
@@ -349,10 +363,12 @@ class _PlaceholderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.tableDivider),
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -360,14 +376,17 @@ class _PlaceholderCard extends StatelessWidget {
         children: [
           const Icon(
             Icons.explore_outlined,
-            size: 32,
-            color: AppTheme.primaryBlue,
+            size: 28,
+            color: Color(0xFF2C3E8C),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: const TextStyle(
+              color: Color(0xFF4B5563),
+              fontSize: 13,
+            ),
           ),
         ],
       ),

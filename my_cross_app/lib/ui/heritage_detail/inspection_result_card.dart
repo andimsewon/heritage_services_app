@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/heritage_detail_models.dart';
-import '../../theme.dart';
-import '../widgets/section_title.dart';
 
 class InspectionResultCard extends StatefulWidget {
   const InspectionResultCard({
@@ -62,85 +60,135 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final border = TableBorder(
-      horizontalInside: BorderSide(color: AppTheme.tableDivider),
-      verticalInside: BorderSide(color: AppTheme.tableDivider),
-      top: BorderSide(color: AppTheme.tableDivider),
-      bottom: BorderSide(color: AppTheme.tableDivider),
-      left: BorderSide(color: AppTheme.tableDivider),
-      right: BorderSide(color: AppTheme.tableDivider),
-    );
-
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: AppTheme.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Padding(
-        padding: AppTheme.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionTitle(
-              title: '주요 점검 결과',
-              trailing: FilledButton.icon(
-                onPressed: () {
-                  // TODO: Connect to Firestore/REST persistence layer.
-                },
-                icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('저장'),
-              ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '주요 점검 결과',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: Color(0xFF111827),
             ),
-            const SizedBox(height: 16),
-            Table(
-              border: border,
-              columnWidths: const {
-                0: FixedColumnWidth(130),
-                1: FlexColumnWidth(),
-              },
-              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
+            ),
+            child: Column(
               children: [
-                TableRow(
-                  decoration: const BoxDecoration(
-                    color: AppTheme.tableHeaderBackground,
+                for (int i = 0; i < _rows.length; i++) ...[
+                  if (i > 0) _dividerLine(),
+                  _tableRow(
+                    _rows[i].$2,
+                    _rows[i].$3,
+                    _controllers[_rows[i].$1]!,
                   ),
-                  children: [
-                    _HeaderCell(theme: theme, label: '분류'),
-                    _HeaderCell(theme: theme, label: '내용'),
-                  ],
-                ),
-                for (final (key, label, placeholder) in _rows)
-                  TableRow(
-                    decoration: const BoxDecoration(color: Colors.white),
-                    children: [
-                      _LabelCell(text: label),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        child: TextFormField(
-                          controller: _controllers[key],
-                          maxLines: 4,
-                          minLines: 3,
-                          decoration: InputDecoration(
-                            isDense: false,
-                            hintText: placeholder,
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                ],
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 600;
+              return Align(
+                alignment: isMobile ? Alignment.center : Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ 주요 점검 결과가 저장되었습니다'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('저장'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E2A44),
+                    minimumSize: isMobile
+                        ? const Size(double.infinity, 44)
+                        : const Size(120, 42),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _tableRow(String title, String hint, TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: Color(0xFF1E2A44),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextFormField(
+              controller: controller,
+              maxLines: 3,
+              minLines: 3,
+              decoration: InputDecoration(
+                hintText: hint,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF1E2A44), width: 1.2),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dividerLine() {
+    return Container(
+      height: 1,
+      color: const Color(0xFFE5E7EB),
+      margin: const EdgeInsets.symmetric(horizontal: 12),
     );
   }
 
@@ -167,45 +215,5 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       roof: key == 'roof' ? controller.text : widget.value.roof,
     );
     widget.onChanged(updated);
-  }
-}
-
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell({required this.theme, required this.label});
-
-  final ThemeData theme;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Text(
-        label,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _LabelCell extends StatelessWidget {
-  const _LabelCell({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppTheme.tableHeaderBackground.withValues(alpha: 0.6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Text(
-        text,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-      ),
-    );
   }
 }

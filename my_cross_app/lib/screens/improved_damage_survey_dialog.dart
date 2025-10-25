@@ -643,7 +643,7 @@ class _ImprovedDamageSurveyDialogState
                 const SizedBox(height: 20),
               ],
 
-              // 촬영 이미지
+              // 촬영 이미지 (바운딩 박스 포함)
               if (_imageBytes != null) ...[
                 const Text(
                   '촬영 이미지',
@@ -652,7 +652,16 @@ class _ImprovedDamageSurveyDialogState
                 const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(_imageBytes!, fit: BoxFit.contain),
+                  child: _detections.isNotEmpty
+                    ? CustomPaint(
+                        painter: BoundingBoxPainter(
+                          detections: _detections,
+                          imageWidth: 640,  // DETA 모델 입력 크기
+                          imageHeight: 640,
+                        ),
+                        child: Image.memory(_imageBytes!, fit: BoxFit.contain),
+                      )
+                    : Image.memory(_imageBytes!, fit: BoxFit.contain),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -776,8 +785,8 @@ class _ImprovedDamageSurveyDialogState
 
   @override
   Widget build(BuildContext context) {
-    final headerColor = const Color(0xFF3B82F6); // 부드러운 파란색 (공공앱 스타일)
-    final accentBlue = const Color(0xFF3B82F6); // 포인트 블루 (통일)
+    final headerColor = const Color(0xFF1E2A44); // 짙은 네이비 (공공기관 스타일)
+    final accentBlue = const Color(0xFF1E2A44); // 포인트 네이비 (통일)
     final grayBg = const Color(0xFFF8FAFC); // 밝은 회색톤 배경
 
     // 화면 크기 가져오기

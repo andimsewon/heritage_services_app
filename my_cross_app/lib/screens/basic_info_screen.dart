@@ -435,20 +435,21 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        centerTitle: false,
+        backgroundColor: const Color(0xFFE8ECF3),
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.12),
+        centerTitle: true,
         title: Text(
           _name.isEmpty ? '기본개요' : _name,
           style: const TextStyle(
-            color: Colors.black87,
+            color: Color(0xFF111827),
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             overflow: TextOverflow.ellipsis,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1E2A44), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -465,23 +466,28 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                   ),
                 );
               },
-              icon: const Icon(Icons.history, size: 16, color: Color(0xFF2563EB)),
+              icon: const Icon(Icons.history, size: 16, color: Color(0xFF1E2A44)),
               label: const Text(
                 '기존이력',
-                style: TextStyle(color: Color(0xFF2563EB), fontSize: 13),
+                style: TextStyle(
+                  color: Color(0xFF1E2A44),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF2563EB)),
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF1E2A44), width: 1),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),
           ),
         ],
       ),
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5F6FA),
       body: LayoutBuilder(
         builder: (context, constraints) {
           const maxContentWidth = 960.0;
@@ -680,10 +686,10 @@ class BasicInfoCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -691,10 +697,11 @@ class BasicInfoCard extends StatelessWidget {
             '기본 정보',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: 16,
+              color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
           // 유산명
           _buildOverviewRow('유산명', name.isEmpty ? '미상' : name),
           const Divider(height: 10, color: Color(0xFFE0E0E0)),
@@ -743,21 +750,23 @@ class BasicInfoCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Color(0xFF374151),
+              ),
             ),
           ),
-          const SizedBox(width: 16),
-          Flexible(
+          Expanded(
             child: Text(
               value,
-              textAlign: TextAlign.right,
               style: const TextStyle(
-                fontSize: 15,
-                color: Color(0xFF333333),
+                fontSize: 14,
+                color: Color(0xFF374151),
               ),
             ),
           ),
@@ -788,10 +797,10 @@ class HeritagePhotoSection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -799,10 +808,11 @@ class HeritagePhotoSection extends StatelessWidget {
             '문화유산 현황',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: 16,
+              color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           SizedBox(
             height: 230,
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -817,17 +827,18 @@ class HeritagePhotoSection extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text('등록된 사진이 없습니다.',
-                          style: TextStyle(color: Color(0xFF666666))),
-                        const SizedBox(height: 10),
-                        ElevatedButton.icon(
+                          style: TextStyle(color: Color(0xFF6B7280))),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
                           onPressed: onAddPhoto,
-                          icon: const Icon(Icons.add_photo_alternate_outlined),
-                          label: const Text('사진 등록'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2956CC),
+                          icon: const Icon(Icons.photo_camera_outlined, color: Color(0xFF2C3E8C)),
+                          label: const Text('사진 등록', style: TextStyle(color: Color(0xFF2C3E8C))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF2C3E8C)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           ),
                         ),
                       ],
@@ -847,17 +858,18 @@ class HeritagePhotoSection extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text('등록된 사진이 없습니다.',
-                          style: TextStyle(color: Color(0xFF666666))),
-                        const SizedBox(height: 10),
-                        ElevatedButton.icon(
+                          style: TextStyle(color: Color(0xFF6B7280))),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
                           onPressed: onAddPhoto,
-                          icon: const Icon(Icons.add_photo_alternate_outlined),
-                          label: const Text('사진 등록'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2956CC),
+                          icon: const Icon(Icons.photo_camera_outlined, color: Color(0xFF2C3E8C)),
+                          label: const Text('사진 등록', style: TextStyle(color: Color(0xFF2C3E8C))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF2C3E8C)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           ),
                         ),
                       ],
@@ -1013,14 +1025,8 @@ class DamageSurveySection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -1030,41 +1036,37 @@ class DamageSurveySection extends StatelessWidget {
             '손상부 조사',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 18,
+              fontSize: 16,
+              color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onAddSurvey,
-                  icon: const Icon(Icons.add, color: Color(0xFF2563EB)),
-                  label: const Text('조사 등록'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2563EB),
-                    side: const BorderSide(color: Color(0xFF2563EB)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              OutlinedButton.icon(
+                onPressed: onAddSurvey,
+                icon: const Icon(Icons.add, color: Color(0xFF2C3E8C)),
+                label: const Text('조사 등록', style: TextStyle(color: Color(0xFF2C3E8C))),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF2C3E8C)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onDeepInspection,
-                  icon: const Icon(Icons.article_outlined, color: Colors.white),
-                  label: const Text('심화조사'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7C3AED),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: onDeepInspection,
+                icon: const Icon(Icons.assignment, size: 16, color: Colors.white),
+                label: const Text('심화조사'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4B6CB7),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  elevation: 0,
                 ),
               ),
             ],
@@ -1079,7 +1081,12 @@ class DamageSurveySection extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('등록된 손상부 조사가 없습니다'));
+                  return const Center(
+                    child: Text(
+                      '등록된 손상부 조사가 없습니다.',
+                      style: TextStyle(color: Color(0xFF6B7280)),
+                    ),
+                  );
                 }
                 final docs = snapshot.data!.docs
                     .where(
@@ -1089,7 +1096,12 @@ class DamageSurveySection extends StatelessWidget {
                     )
                     .toList();
                 if (docs.isEmpty) {
-                  return const Center(child: Text('등록된 손상부 조사가 없습니다'));
+                  return const Center(
+                    child: Text(
+                      '등록된 손상부 조사가 없습니다.',
+                      style: TextStyle(color: Color(0xFF6B7280)),
+                    ),
+                  );
                 }
                 return ScrollConfiguration(
                   behavior: const MaterialScrollBehavior(),

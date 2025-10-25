@@ -121,24 +121,36 @@ class DamageSummary {
 
 class InvestigatorOpinion {
   const InvestigatorOpinion({
+    this.structural = '',
+    this.others = '',
+    this.notes = '',
     required this.opinion,
     this.date,
     this.organization,
     this.author,
   });
 
-  final String opinion;
+  final String structural;  // 구조부
+  final String others;      // 기타부
+  final String notes;       // 특기사항
+  final String opinion;     // 조사자 종합의견
   final String? date;
   final String? organization;
   final String? author;
 
   InvestigatorOpinion copyWith({
+    String? structural,
+    String? others,
+    String? notes,
     String? opinion,
     String? date,
     String? organization,
     String? author,
   }) {
     return InvestigatorOpinion(
+      structural: structural ?? this.structural,
+      others: others ?? this.others,
+      notes: notes ?? this.notes,
       opinion: opinion ?? this.opinion,
       date: date ?? this.date,
       organization: organization ?? this.organization,

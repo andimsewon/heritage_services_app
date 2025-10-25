@@ -20,6 +20,9 @@ class InvestigatorOpinionField extends StatefulWidget {
 }
 
 class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
+  late final TextEditingController _structuralController;
+  late final TextEditingController _othersController;
+  late final TextEditingController _notesController;
   late final TextEditingController _opinionController;
   late final TextEditingController _dateController;
   late final TextEditingController _organizationController;
@@ -28,8 +31,14 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
   @override
   void initState() {
     super.initState();
+    _structuralController = TextEditingController(text: widget.value.structural)
+      ..addListener(_handleFieldChanged);
+    _othersController = TextEditingController(text: widget.value.others)
+      ..addListener(_handleFieldChanged);
+    _notesController = TextEditingController(text: widget.value.notes)
+      ..addListener(_handleFieldChanged);
     _opinionController = TextEditingController(text: widget.value.opinion)
-      ..addListener(_handleOpinionChanged);
+      ..addListener(_handleFieldChanged);
     _dateController = TextEditingController(text: widget.value.date ?? '')
       ..addListener(_handleMetaChanged);
     _organizationController = TextEditingController(
@@ -42,6 +51,9 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
   @override
   void didUpdateWidget(covariant InvestigatorOpinionField oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncController(_structuralController, widget.value.structural);
+    _syncController(_othersController, widget.value.others);
+    _syncController(_notesController, widget.value.notes);
     _syncController(_opinionController, widget.value.opinion);
     _syncController(_dateController, widget.value.date ?? '');
     _syncController(_organizationController, widget.value.organization ?? '');
@@ -50,6 +62,9 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
 
   @override
   void dispose() {
+    _structuralController.dispose();
+    _othersController.dispose();
+    _notesController.dispose();
     _opinionController.dispose();
     _dateController.dispose();
     _organizationController.dispose();
@@ -87,7 +102,12 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
                 final content = [
                   Expanded(
                     flex: 3,
-                    child: _OpinionEditor(controller: _opinionController),
+                    child: _TotalOpinionSection(
+                      structuralController: _structuralController,
+                      othersController: _othersController,
+                      notesController: _notesController,
+                      opinionController: _opinionController,
+                    ),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
@@ -110,7 +130,12 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _OpinionEditor(controller: _opinionController),
+                    _TotalOpinionSection(
+                      structuralController: _structuralController,
+                      othersController: _othersController,
+                      notesController: _notesController,
+                      opinionController: _opinionController,
+                    ),
                     const SizedBox(height: 16),
                     _MetaPanel(
                       dateController: _dateController,
@@ -127,8 +152,15 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
     );
   }
 
-  void _handleOpinionChanged() {
-    widget.onChanged(widget.value.copyWith(opinion: _opinionController.text));
+  void _handleFieldChanged() {
+    widget.onChanged(
+      widget.value.copyWith(
+        structural: _structuralController.text,
+        others: _othersController.text,
+        notes: _notesController.text,
+        opinion: _opinionController.text,
+      ),
+    );
   }
 
   void _handleMetaChanged() {
@@ -152,33 +184,89 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
   }
 }
 
-class _OpinionEditor extends StatelessWidget {
-  const _OpinionEditor({required this.controller});
+class _TotalOpinionSection extends StatelessWidget {
+  const _TotalOpinionSection({
+    required this.structuralController,
+    required this.othersController,
+    required this.notesController,
+    required this.opinionController,
+  });
 
-  final TextEditingController controller;
+  final TextEditingController structuralController;
+  final TextEditingController othersController;
+  final TextEditingController notesController;
+  final TextEditingController opinionController;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextFormField(
-          controller: controller,
-          maxLines: 10,
-          minLines: 6,
-          decoration: const InputDecoration(
-            labelText: '조사자 종합 의견',
-            hintText: '조사 내용을 정리해 주세요.',
-            border: OutlineInputBorder(),
-            alignLabelWithHint: true,
+        _buildField(
+          label: '구조부',
+          hint: '예: 균열, 변형 등의 구조적 손상 평가',
+          controller: structuralController,
+          maxLines: 2,
+        ),
+        const SizedBox(height: 12),
+        _buildField(
+          label: '기타부',
+          hint: '예: 비구조적 손상, 오염, 마감재 상태 등',
+          controller: othersController,
+          maxLines: 2,
+        ),
+        const SizedBox(height: 12),
+        _buildField(
+          label: '특기사항',
+          hint: '예: 긴급 보수 필요 부위, 비고 사항 등',
+          controller: notesController,
+          maxLines: 2,
+        ),
+        const SizedBox(height: 12),
+        _buildField(
+          label: '조사자 종합의견',
+          hint: '전체 평가 및 개선 제안',
+          controller: opinionController,
+          maxLines: 4,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: Color(0xFF374151),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          '조사 결과와 권고 사항을 서술해 주세요.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          minLines: maxLines > 1 ? maxLines - 1 : 1,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+            ),
+          ),
         ),
       ],
     );
