@@ -266,4 +266,63 @@ class FirebaseService {
   Future<void> deleteCustomHeritage(String id) async {
     await _fs.collection('custom_heritages').doc(id).delete();
   }
+
+  /// 전년도 손상부 조사 사진 로드
+  /// 부재명, 방향, 번호, 위치로 검색하여 가장 최근 전년도 데이터 반환
+  Future<String?> fetchPreviousYearPhoto({
+    required String heritageId,
+    String? location,
+    String? partName,
+    String? direction,
+    String? number,
+    String? position,
+  }) async {
+    try {
+      // 현재 년도와 전년도 계산
+      final now = DateTime.now();
+      final currentYear = now.year;
+      final lastYear = currentYear - 1;
+
+      // 전년도 시작/종료 시간
+      final lastYearStart = DateTime(lastYear, 1, 1);
+      final lastYearEnd = DateTime(lastYear, 12, 31, 23, 59, 59);
+
+      // 손상부 조사 컬렉션 쿼리
+      var query = _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('damage_surveys')
+          .where('timestamp', isGreaterThanOrEqualTo: lastYearStart.toIso8601String())
+          .where('timestamp', isLessThanOrEqualTo: lastYearEnd.toIso8601String());
+
+      // location 필드로 검색 (전체 위치 정보 포함)
+      if (location != null && location.isNotEmpty) {
+        query = query.where('location', isEqualTo: location);
+      }
+
+      final snapshot = await query
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        print('🔍 전년도 조사 사진 없음 (heritageId: $heritageId, location: $location)');
+        return null;
+      }
+
+      final doc = snapshot.docs.first;
+      final data = doc.data();
+      final imageUrl = data['imageUrl'] as String?;
+
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        print('✅ 전년도 조사 사진 로드 성공: $imageUrl');
+        return imageUrl;
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ 전년도 사진 로드 실패: $e');
+      return null;
+    }
+  }
 }

@@ -8,6 +8,8 @@ import 'dart:async'; // Timer(debounce) 대비
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../data/heritage_api.dart';
 import '../env.dart';
@@ -193,8 +195,11 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     final result = await showDialog<DamageDetectionResult>(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          ImprovedDamageSurveyDialog(aiService: _ai, autoCapture: autoCapture),
+      builder: (_) => ImprovedDamageSurveyDialog(
+        aiService: _ai,
+        heritageId: heritageId,
+        autoCapture: autoCapture,
+      ),
     );
 
     if (result == null) return;
@@ -615,6 +620,267 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
                 const SizedBox(height: 28),
 
+                // ───── 주요 점검결과
+                const Text(
+                  '주요 점검결과',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _fb.damageStream(heritageId),
+                  builder: (context, snap) {
+                    if (!snap.hasData) {
+                      return Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            '손상부 조사 데이터 로딩 중...',
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final docs = snap.data!.docs;
+                    if (docs.isEmpty) {
+                      return Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.blue.shade700),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '아직 등록된 손상부 조사가 없습니다.\n조사를 등록하면 자동으로 집계됩니다.',
+                                style: TextStyle(
+                                  color: Colors.blue.shade900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // 손상 데이터 집계
+                    final Map<String, int> gradeCount = {};
+                    final Map<String, List<String>> partByGrade = {};
+                    int totalCount = 0;
+
+                    for (final doc in docs) {
+                      final data = doc.data();
+                      final grade = (data['severityGrade'] as String?)?.toUpperCase();
+                      final location = data['location'] as String?;
+
+                      if (grade != null && grade.isNotEmpty) {
+                        gradeCount[grade] = (gradeCount[grade] ?? 0) + 1;
+                        totalCount++;
+
+                        if (location != null && location.isNotEmpty) {
+                          partByGrade[grade] = partByGrade[grade] ?? [];
+                          partByGrade[grade]!.add(location);
+                        }
+                      }
+                    }
+
+                    // 평균 등급 계산 (A=1, B=2, ... F=6)
+                    final gradeValues = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6};
+                    double avgValue = 0;
+                    gradeCount.forEach((grade, count) {
+                      avgValue += (gradeValues[grade] ?? 3) * count;
+                    });
+                    avgValue = totalCount > 0 ? avgValue / totalCount : 0;
+
+                    String avgGrade = 'C';
+                    if (avgValue <= 1.5) avgGrade = 'A';
+                    else if (avgValue <= 2.5) avgGrade = 'B';
+                    else if (avgValue <= 3.5) avgGrade = 'C';
+                    else if (avgValue <= 4.5) avgGrade = 'D';
+                    else if (avgValue <= 5.5) avgGrade = 'E';
+                    else avgGrade = 'F';
+
+                    // 등급별 색상
+                    Color getGradeColor(String grade) {
+                      switch (grade) {
+                        case 'A': return Colors.green.shade600;
+                        case 'B': return Colors.blue.shade600;
+                        case 'C': return Colors.orange.shade600;
+                        case 'D': return Colors.deepOrange.shade600;
+                        case 'E': return Colors.red.shade600;
+                        case 'F': return Colors.red.shade900;
+                        default: return Colors.grey.shade600;
+                      }
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E6EA)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 전체 요약
+                          Row(
+                            children: [
+                              Icon(Icons.assessment, color: const Color(0xFF4C8BF5), size: 24),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      '종합 상태',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF6C757D),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          '평균 등급: ',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: getGradeColor(avgGrade).withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: getGradeColor(avgGrade),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$avgGrade 등급',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: getGradeColor(avgGrade),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '(총 ${totalCount}건)',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 16),
+                          const Divider(),
+                          const SizedBox(height: 16),
+
+                          // 등급별 상세
+                          const Text(
+                            '등급별 현황',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF6C757D),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: gradeCount.entries.map((entry) {
+                              final grade = entry.key;
+                              final count = entry.value;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: getGradeColor(grade).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: getGradeColor(grade).withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '$grade 등급',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: getGradeColor(grade),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: getGradeColor(grade),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '$count건',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 28),
+
                 // ───── 조사자 의견
                 const Text(
                   '조사자 의견',
@@ -832,25 +1098,22 @@ class _PhotoCard extends StatelessWidget {
           children: [
           Expanded(
             child: _isValidUrl(url)
-                  ? Image.network(
-                      _getProxiedUrl(url),
+                  ? CachedNetworkImage(
+                      imageUrl: _getProxiedUrl(url),
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                : null,
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
+                      placeholder: (context, url) => Shimmer.fromColors(
+                        baseColor: Colors.grey.shade300,
+                        highlightColor: Colors.grey.shade100,
+                        child: Container(
+                          width: double.infinity,
+                          height: double.infinity,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
+                      errorWidget: (context, url, error) {
                         print('이미지 로딩 에러: $error');
-                        print('원본 URL: $url');
-                        print('프록시 URL: ${_getProxiedUrl(url)}');
+                        print('프록시 URL: $url');
                         return _buildErrorWidget();
                       },
                     )
@@ -926,7 +1189,19 @@ class _DamagePreview extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(_getProxiedUrl(url), fit: BoxFit.contain),
+            CachedNetworkImage(
+              imageUrl: _getProxiedUrl(url),
+              fit: BoxFit.contain,
+              placeholder: (context, url) => Center(
+                child: CircularProgressIndicator(
+                  color: Colors.blue.shade400,
+                  strokeWidth: 2,
+                ),
+              ),
+              errorWidget: (context, url, error) => Center(
+                child: Icon(Icons.error, color: Colors.red.shade400, size: 40),
+              ),
+            ),
             ...detections.map((m) {
               final x = (m['x'] as num).toDouble();
               final y = (m['y'] as num).toDouble();
@@ -2275,7 +2550,7 @@ class _HistoryImage {
   final String? url;
 
   ImageProvider get provider =>
-      bytes != null ? MemoryImage(bytes!) : NetworkImage(url!);
+      bytes != null ? MemoryImage(bytes!) : CachedNetworkImageProvider(url!);
 }
 
 Widget _buildPhotoSection({
@@ -2378,6 +2653,11 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
   String? _autoExplanation;
   double? _imageWidth;
   double? _imageHeight;
+
+  // 전년도 사진 관련
+  String? _previousYearImageUrl;
+  bool _loadingPreviousPhoto = false;
+  final _fb = FirebaseService();
 
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _partController = TextEditingController();
@@ -3639,10 +3919,17 @@ class _DeepDamageInspectionDialogState
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                damageImageUrl,
+                              child: CachedNetworkImage(
+                                imageUrl: damageImageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                placeholder: (context, url) => Shimmer.fromColors(
+                                  baseColor: Colors.grey.shade300,
+                                  highlightColor: Colors.grey.shade100,
+                                  child: Container(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => Container(
                                   color: Colors.grey.shade200,
                                   child: const Center(
                                     child: Icon(

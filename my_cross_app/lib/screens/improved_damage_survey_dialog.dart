@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
+import '../services/firebase_service.dart';
 
 /// 조사 단계 정의
 enum SurveyStep {
@@ -24,11 +25,13 @@ class ImprovedDamageSurveyDialog extends StatefulWidget {
   const ImprovedDamageSurveyDialog({
     super.key,
     required this.aiService,
+    required this.heritageId,
     this.autoCapture = false,
     this.initialPart,
   });
 
   final AiDetectionService aiService;
+  final String heritageId;
   final bool autoCapture;
   final Map<String, dynamic>? initialPart;
 
@@ -54,9 +57,13 @@ class _ImprovedDamageSurveyDialogState
 
   // 이미지 데이터
   Uint8List? _imageBytes;
-  Uint8List? _previousYearImage; // TODO: 전년도 사진 로딩
+  String? _previousYearImageUrl; // 전년도 사진 URL
+  bool _loadingPreviousPhoto = false;
   List<Map<String, dynamic>> _detections = [];
   bool _loading = false;
+
+  // Firebase Service
+  final _fb = FirebaseService();
 
   // AI 감지 결과
   String? _selectedLabel;
@@ -96,6 +103,60 @@ class _ImprovedDamageSurveyDialogState
     _temperatureController.dispose();
     _humidityController.dispose();
     super.dispose();
+  }
+
+  /// 전년도 손상부 조사 사진 자동 로드
+  Future<void> _loadPreviousYearPhoto() async {
+    // 부재 정보가 모두 입력되어 있는지 확인
+    if (_selectedPartName == null || _selectedDirection == null || _selectedPosition == null) {
+      return;
+    }
+
+    setState(() => _loadingPreviousPhoto = true);
+
+    try {
+      // 부재 정보를 조합하여 location 문자열 생성
+      final partNumber = _partNumberController.text.trim();
+      final locationPieces = <String>[
+        _selectedDirection!,
+        if (partNumber.isNotEmpty) '$partNumber번',
+        _selectedPosition!,
+      ];
+      final location = '$_selectedPartName ${locationPieces.join(' ')}';
+
+      // Firebase에서 전년도 사진 검색
+      final photoUrl = await _fb.fetchPreviousYearPhoto(
+        heritageId: widget.heritageId,
+        location: location,
+        partName: _selectedPartName,
+        direction: _selectedDirection,
+        number: partNumber,
+        position: _selectedPosition,
+      );
+
+      if (mounted) {
+        setState(() {
+          _previousYearImageUrl = photoUrl;
+          _loadingPreviousPhoto = false;
+        });
+
+        if (photoUrl != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ 전년도 조사 사진을 불러왔습니다'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingPreviousPhoto = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('전년도 사진 로드 실패: $e')),
+        );
+      }
+    }
   }
 
   void _applyInitialPart(Map<String, dynamic>? rawPart, {bool notify = false}) {
@@ -205,6 +266,8 @@ class _ImprovedDamageSurveyDialogState
             'position': _selectedPosition,
           }, notify: false);
         });
+        // 전년도 사진 자동 로드
+        _loadPreviousYearPhoto();
         return;
 
       case SurveyStep.detail:
@@ -471,13 +534,9 @@ class _ImprovedDamageSurveyDialogState
             Expanded(
               child: _buildPhotoBox(
                 '전년도 조사 사진',
-                _previousYearImage,
-                onTap: () {
-                  // TODO: 전년도 사진 선택 기능
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('전년도 사진 불러오기 기능 준비 중')),
-                  );
-                },
+                _previousYearImageUrl,
+                onTap: null, // 자동 로드되므로 탭 불필요
+                isLoading: _loadingPreviousPhoto,
               ),
             ),
             const SizedBox(width: 12),
@@ -850,7 +909,7 @@ class _ImprovedDamageSurveyDialogState
 
   Widget _buildPhotoBox(
     String label,
-    Uint8List? imageBytes, {
+    dynamic imageSource, {  // Uint8List? 또는 String? (URL) 지원
     VoidCallback? onTap,
     bool isLoading = false,
   }) {
@@ -877,7 +936,7 @@ class _ImprovedDamageSurveyDialogState
             ),
             child: Stack(
               children: [
-                if (imageBytes == null)
+                if (imageSource == null)
                   const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -892,11 +951,38 @@ class _ImprovedDamageSurveyDialogState
                       ],
                     ),
                   )
-                else
+                else if (imageSource is String)
+                  // URL인 경우 Image.network 사용
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      imageSource,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red, size: 40),
+                              SizedBox(height: 8),
+                              Text('이미지 로드 실패', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                else if (imageSource is Uint8List)
+                  // Uint8List인 경우 Image.memory 사용
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Image.memory(
-                      imageBytes,
+                      imageSource,
                       fit: BoxFit.cover,
                       width: double.infinity,
                     ),

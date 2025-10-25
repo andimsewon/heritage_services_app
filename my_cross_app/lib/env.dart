@@ -29,16 +29,16 @@ class Env {
       return apiUrl;
     }
 
-    // ✅ 안드로이드 에뮬레이터 → Nginx 프록시 (3001 포트)
+    // ✅ 안드로이드 에뮬레이터 → FastAPI 직접 연결 (8080 포트)
     // 10.0.2.2는 안드로이드 에뮬레이터에서 호스트 머신을 가리킴
     if (defaultTargetPlatform == TargetPlatform.android) {
-      print('🔍 [Env] ✅ Android: http://10.0.2.2:3001/api');
-      return 'http://10.0.2.2:3001/api';
+      print('🔍 [Env] ✅ Android: http://10.0.2.2:8080');
+      return 'http://10.0.2.2:8080';
     }
 
-    // ✅ iOS 시뮬레이터/데스크톱 → Nginx 프록시 (3001 포트)
-    print('🔍 [Env] ✅ iOS/Desktop: http://localhost:3001/api');
-    return 'http://localhost:3001/api';
+    // ✅ iOS 시뮬레이터/데스크톱 → FastAPI 직접 연결 (8080 포트)
+    print('🔍 [Env] ✅ iOS/Desktop: http://localhost:8080');
+    return 'http://localhost:8080';
   }
 
   /// 원격 서버 URL (프로덕션 배포용)
