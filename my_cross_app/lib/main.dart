@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'firebase_options.dart';
 
 import 'screens/login_screen.dart';
@@ -69,8 +70,36 @@ class HeritageApp extends StatelessWidget {
           border: OutlineInputBorder(),
           isDense: true,
         ),
+        // 버튼들을 사각형 형태로 통일
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        chipTheme: const ChipThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(6))),
+        ),
         // 웹 환경에서 시스템 폰트 사용
         fontFamily: kIsWeb ? 'system-ui' : null,
+      ),
+      // 마우스 드래그로도 스크롤 가능하도록 설정 (웹의 가로 스크롤 UX 개선)
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.trackpad,
+        },
       ),
 
       // ✅ 초기 라우트

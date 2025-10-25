@@ -14,9 +14,10 @@ class AssetSelectScreen extends StatefulWidget {
 
 class _AssetSelectScreenState extends State<AssetSelectScreen> {
   final _keyword = TextEditingController();
-  final _scroll = ScrollController();
   late final HeritageApi _api = HeritageApi(Env.proxyBase);
   final _fb = FirebaseService();
+
+  static const int _pageSize = 20;
 
   // 필터 값 (샘플 코드표 — 실제는 서버/상수로 치환 가능)
   String? _kind = '';
@@ -32,32 +33,37 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   final _regionOptions = const <String, String>{
     '': '지역전체',
     '11': '서울',
-    '24': '전북',
+    '21': '부산',
+    '22': '대구',
+    '23': '인천',
+    '24': '광주',
+    '25': '대전',
+    '26': '울산',
+    '31': '경기',
+    '33': '충북',
     '34': '충남',
-    '48': '경남',
+    '35': '전북',
+    '36': '전남',
+    '37': '경북',
+    '38': '경남',
+    '50': '제주',
   };
 
   final List<HeritageRow> _rows = [];
   final List<Map<String, dynamic>> _customRows = [];
   int _page = 1;
-  bool _hasMore = true;
+  int _totalCount = 0;
   bool _loading = false;
   String _curKeyword = '';
-  int _totalCount = 0;
-  int get _totalPages => (_totalCount / 20).ceil();
 
   @override
   void initState() {
     super.initState();
     _fetch(reset: true);
-    // Pagination으로 변경하여 infinite scroll 비활성화
-    // _scroll.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    // _scroll.removeListener(_onScroll);
-    _scroll.dispose();
     _keyword.dispose();
     super.dispose();
   }
@@ -98,15 +104,13 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
-  Future<void> _fetch({bool reset = false}) async {
+  Future<void> _fetch({bool reset = false, int? page}) async {
     if (_loading) return;
+    final targetPage = reset ? 1 : (page ?? _page);
+    if (targetPage < 1) return;
     setState(() => _loading = true);
 
     if (reset) {
-      _page = 1;
-      _rows.clear();
-      _customRows.clear();
-      _hasMore = true;
       _curKeyword = _keyword.text.trim();
     }
 
@@ -115,16 +119,9 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         keyword: _curKeyword.isEmpty ? null : _curKeyword,
         kind: (_kind == null || _kind!.isEmpty) ? null : _kind,
         region: (_region == null || _region!.isEmpty) ? null : _region,
-        page: _page,
-        size: 20,
+        page: targetPage,
+        size: _pageSize,
       );
-      setState(() {
-        _rows.addAll(res.items);
-        _totalCount = res.totalCount;
-        _page += 1;
-        _hasMore = _rows.length < res.totalCount;
-      });
-      // 커스텀 유산도 로드/필터링
       final snap = await _fb.customHeritagesStream().first;
       final all = snap.docs.map((e) => e.data()..['__docId'] = e.id).toList();
       final filtered = all.where((m) {
@@ -143,7 +140,13 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
             (m['addr'] as String? ?? '').contains(_region!);
         return matchKw && matchKind && matchRegion;
       }).toList();
+      if (!mounted) return;
       setState(() {
+        _rows
+          ..clear()
+          ..addAll(res.items);
+        _page = targetPage;
+        _totalCount = res.totalCount;
         _customRows
           ..clear()
           ..addAll(filtered);
@@ -158,32 +161,162 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     }
   }
 
-  void _onScroll() {
-    if (_hasMore &&
-        !_loading &&
-        _scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
-      _fetch();
-    }
-  }
-
   void _onSearch() => _fetch(reset: true);
 
   void _goToPage(int page) {
-    if (page < 1 || page > _totalPages || page == _page - 1) return;
-    setState(() {
-      _page = page;
-      _rows.clear();
-    });
-    _fetch();
+    final totalPages = _totalPages;
+    if (page < 1 || page > totalPages || page == _page) return;
+    _fetch(page: page);
+  }
+
+  int get _totalPages {
+    if (_totalCount <= 0) return 0;
+    return (_totalCount + _pageSize - 1) ~/ _pageSize;
+  }
+
+  String _formatCount(int value) {
+    final s = value.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      buffer.write(s[i]);
+      final remaining = s.length - i - 1;
+      if (remaining > 0 && remaining % 3 == 0) {
+        buffer.write(',');
+      }
+    }
+    return buffer.toString();
+  }
+
+  Widget _buildResultList() {
+    final totalItems = _customRows.length + _rows.length;
+    if (totalItems == 0) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 220,
+            child: Center(
+              child: _loading
+                  ? const CircularProgressIndicator()
+                  : const Text('데이터가 없습니다'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: totalItems,
+      separatorBuilder: (_, __) => const Divider(height: 0),
+      itemBuilder: (context, i) {
+        if (i < _customRows.length) {
+          final m = _customRows[i];
+          return _CustomRow(
+            data: m,
+            onTap: () => _openCustomHeritageDialog(m),
+            onDelete: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('삭제 확인'),
+                  content: const Text('해당 국가 유산을 삭제하시겠습니까?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('취소'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                await _fb.deleteCustomHeritage(m['__docId'] as String);
+                _fetch(reset: true);
+              }
+            },
+          );
+        }
+
+        final r = _rows[i - _customRows.length];
+        return InkWell(
+          onTap: () => _openApiHeritageDialog(r),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                _Cell(r.kindName, flex: 2),
+                _Cell(r.name, flex: 4),
+                _Cell(r.sojaeji, flex: 3),
+                _Cell(r.addr, flex: 3),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPagination() {
+    final totalPages = _totalPages;
+    if (totalPages <= 1) {
+      return const SizedBox.shrink();
+    }
+
+    final current = _page;
+    final startPage = ((current - 1) ~/ 5) * 5 + 1;
+    int endPage = startPage + 4;
+    if (endPage > totalPages) {
+      endPage = totalPages;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          if (startPage > 1)
+            _PaginationButton(
+              label: '≪',
+              onPressed: _loading ? null : () => _goToPage(1),
+            ),
+          if (current > 1)
+            _PaginationButton(
+              label: '이전',
+              onPressed: _loading ? null : () => _goToPage(current - 1),
+            ),
+          for (int i = startPage; i <= endPage; i++)
+            _PaginationButton(
+              label: '$i',
+              selected: i == current,
+              onPressed: i == current || _loading ? null : () => _goToPage(i),
+            ),
+          if (current < totalPages)
+            _PaginationButton(
+              label: '다음',
+              onPressed: _loading
+                  ? null
+                  : () => _goToPage(
+                      endPage < totalPages ? endPage + 1 : totalPages,
+                    ),
+            ),
+          if (endPage < totalPages)
+            _PaginationButton(
+              label: '≫',
+              onPressed: _loading ? null : () => _goToPage(totalPages),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 반응형 설정
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    final horizontalPadding = isMobile ? 12.0 : 24.0;
-
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
@@ -194,40 +327,48 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         children: [
           // ── 필터 바: 종목/지역/조건
           Padding(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.start,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                DropdownButton<String>(
-                  value: _kind ?? '',
-                  items: _kindOptions.entries
-                      .map(
-                        (e) => DropdownMenuItem(
-                          value: e.key,
-                          child: Text(e.value),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() => _kind = v),
-                ),
-                DropdownButton<String>(
-                  value: _region ?? '',
-                  items: _regionOptions.entries
-                      .map(
-                        (e) => DropdownMenuItem(
-                          value: e.key,
-                          child: Text(e.value),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() => _region = v),
-                ),
-                SizedBox(
-                  width: isMobile ? screenWidth - (horizontalPadding * 2) : 300,
-                  child: TextField(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 720;
+
+                Widget buildDropdown({
+                  required String label,
+                  required String? value,
+                  required Map<String, String> options,
+                  required ValueChanged<String?> onChanged,
+                }) {
+                  return InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: label,
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      isDense: true,
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: value ?? '',
+                        isDense: true,
+                        isExpanded: true,
+                        items: options.entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: onChanged,
+                      ),
+                    ),
+                  );
+                }
+
+                Widget buildSearchField({bool expand = false}) {
+                  final field = TextField(
                     controller: _keyword,
                     decoration: const InputDecoration(
                       labelText: '조건(유산명 등)',
@@ -236,18 +377,75 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) => _onSearch(),
+                  );
+                  return expand ? Expanded(child: field) : field;
+                }
+
+                final searchButton = SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _onSearch,
+                    icon: const Icon(Icons.search),
+                    label: const Text('검색'),
                   ),
-                ),
-                FilledButton.icon(
-                  onPressed: _onSearch,
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text('검색'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+                );
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      buildDropdown(
+                        label: '종목',
+                        value: _kind,
+                        options: _kindOptions,
+                        onChanged: (v) => setState(() => _kind = v),
+                      ),
+                      const SizedBox(height: 12),
+                      buildDropdown(
+                        label: '지역',
+                        value: _region,
+                        options: _regionOptions,
+                        onChanged: (v) => setState(() => _region = v),
+                      ),
+                      const SizedBox(height: 12),
+                      buildSearchField(),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: searchButton,
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: 180,
+                      child: buildDropdown(
+                        label: '종목',
+                        value: _kind,
+                        options: _kindOptions,
+                        onChanged: (v) => setState(() => _kind = v),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 180,
+                      child: buildDropdown(
+                        label: '지역',
+                        value: _region,
+                        options: _regionOptions,
+                        onChanged: (v) => setState(() => _region = v),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    buildSearchField(expand: true),
+                    const SizedBox(width: 12),
+                    searchButton,
+                  ],
+                );
+              },
             ),
           ),
           const Divider(height: 0),
@@ -268,94 +466,34 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
             ),
           ),
 
-          // 표 리스트
+          // 표 리스트 + 페이지네이션
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => _fetch(reset: true),
-              child: ListView.separated(
-                controller: _scroll,
-                itemCount: _customRows.length + _rows.length + 1,
-                separatorBuilder: (_, __) => const Divider(height: 0),
-                itemBuilder: (context, i) {
-                  if (i == _customRows.length + _rows.length) {
-                    if (_loading) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    if (_customRows.isEmpty && _rows.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(child: Text('데이터가 없습니다')),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  }
-                  // 커스텀 먼저, 그 다음 API 항목
-                  if (i < _customRows.length) {
-                    final m = _customRows[i];
-                    return _CustomRow(
-                      data: m,
-                      onTap: () => _openCustomHeritageDialog(m),
-                      onDelete: () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('삭제 확인'),
-                            content: const Text('해당 국가 유산을 삭제하시겠습니까?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('취소'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('삭제'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (ok == true) {
-                          await _fb.deleteCustomHeritage(
-                            m['__docId'] as String,
-                          );
-                          _fetch(reset: true);
-                        }
-                      },
-                    );
-                  }
-
-                  final r = _rows[i - _customRows.length];
-                  return InkWell(
-                    onTap: () => _openApiHeritageDialog(r),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          _Cell(r.kindName, flex: 2),
-                          _Cell(r.name, flex: 4),
-                          _Cell(r.sojaeji, flex: 3),
-                          _Cell(r.addr, flex: 3),
-                        ],
-                      ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '총 ${_formatCount(_totalCount)}건',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                if (_loading) const LinearProgressIndicator(minHeight: 2),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () => _fetch(reset: true),
+                    child: _buildResultList(),
+                  ),
+                ),
+                _buildPagination(),
+              ],
             ),
           ),
-
-          // 페이지네이션 버튼
-          if (_totalPages > 1) _buildPagination(isMobile),
         ],
       ),
-      floatingActionButton: FloatingActionButton.small(
-        backgroundColor: const Color(0xFF2563EB),
-        foregroundColor: Colors.white,
+      floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final created = await showDialog<Map<String, String>>(
             context: context,
@@ -383,104 +521,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
             }
           }
         },
+        shape: const CircleBorder(),
         child: const Icon(Icons.add),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-    );
-  }
-
-  Widget _buildPagination(bool isMobile) {
-    final currentPage = _page - 1; // _page is already incremented after fetch
-    final start = ((currentPage - 1) ~/ 5) * 5 + 1;
-    final end = (start + 4).clamp(1, _totalPages);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            // 이전 버튼
-            _PaginationButton(
-              label: isMobile ? '←' : '이전',
-              isActive: false,
-              onPressed: currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
-            ),
-
-            // 페이지 번호 버튼
-            ...List.generate(end - start + 1, (i) {
-              final pageNum = start + i;
-              return _PaginationButton(
-                label: '$pageNum',
-                isActive: pageNum == currentPage,
-                onPressed: () => _goToPage(pageNum),
-              );
-            }),
-
-            // 다음 버튼
-            _PaginationButton(
-              label: isMobile ? '→' : '다음',
-              isActive: false,
-              onPressed: currentPage < _totalPages ? () => _goToPage(currentPage + 1) : null,
-            ),
-            // 마지막 페이지 버튼
-            if (!isMobile)
-              _PaginationButton(
-                label: '≫',
-                isActive: false,
-                onPressed: currentPage < _totalPages ? () => _goToPage(_totalPages) : null,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PaginationButton extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback? onPressed;
-
-  const _PaginationButton({
-    required this.label,
-    required this.isActive,
-    this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: isActive ? Colors.blue.shade50 : Colors.white,
-        foregroundColor: isActive ? Colors.blue : Colors.grey.shade700,
-        side: BorderSide(
-          color: isActive ? Colors.blue : Colors.grey.shade300,
-          width: isActive ? 2 : 1,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: const Size(40, 36),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6),
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          fontSize: 14,
-        ),
       ),
     );
   }
@@ -554,6 +596,91 @@ class _CustomRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PaginationButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+  const _PaginationButton({
+    required this.label,
+    this.selected = false,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const selectedBg = Color(0xFF1F4E79);
+    const defaultBorder = Color(0xFFDCDCDC);
+    const hoverBg = Color(0xFFF2F6FB);
+    const defaultTextColor = Color(0xFF333333);
+    const disabledTextColor = Color(0xFF9CA3AF);
+
+    final buttonStyle = ButtonStyle(
+      minimumSize: const MaterialStatePropertyAll(Size(32, 32)),
+      padding: const MaterialStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      shape: MaterialStateProperty.all(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      backgroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.disabled)) {
+          return Colors.white;
+        }
+        if (selected) {
+          return selectedBg;
+        }
+        if (states.contains(MaterialState.hovered) ||
+            states.contains(MaterialState.pressed)) {
+          return hoverBg;
+        }
+        return Colors.white;
+      }),
+      foregroundColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.disabled)) {
+          return disabledTextColor;
+        }
+        return selected ? Colors.white : defaultTextColor;
+      }),
+      overlayColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.pressed)) {
+          return hoverBg.withOpacity(0.6);
+        }
+        if (states.contains(MaterialState.hovered)) {
+          return hoverBg.withOpacity(0.4);
+        }
+        return null;
+      }),
+      side: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.disabled)) {
+          return const BorderSide(color: defaultBorder);
+        }
+        if (selected ||
+            states.contains(MaterialState.hovered) ||
+            states.contains(MaterialState.focused)) {
+          return const BorderSide(color: selectedBg);
+        }
+        return const BorderSide(color: defaultBorder);
+      }),
+    );
+
+    final textStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      child: TextButton(
+        onPressed: onPressed,
+        style: buttonStyle,
+        child: Text(label, style: textStyle, textAlign: TextAlign.center),
       ),
     );
   }
@@ -652,10 +779,7 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
                     controller: _kindName,
                     requiredField: true,
                   ),
-                  _buildTextField(
-                    label: '종목코드 (예: 11)',
-                    controller: _kindCode,
-                  ),
+                  _buildTextField(label: '종목코드 (예: 11)', controller: _kindCode),
                   _buildTextField(
                     label: '유산명',
                     controller: _name,
@@ -666,36 +790,18 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
                     controller: _sojaeji,
                     requiredField: true,
                   ),
-                  _buildTextField(
-                    label: '주소',
-                    controller: _addr,
-                  ),
+                  _buildTextField(label: '주소', controller: _addr),
                   const SizedBox(height: 24),
                   const Text(
                     '기본 개요 (선택 입력)',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  _buildTextField(
-                    label: '지정(등록)일',
-                    controller: _asdt,
-                  ),
-                  _buildTextField(
-                    label: '소유자',
-                    controller: _owner,
-                  ),
-                  _buildTextField(
-                    label: '관리자',
-                    controller: _admin,
-                  ),
-                  _buildTextField(
-                    label: '소재지',
-                    controller: _lcto,
-                  ),
-                  _buildTextField(
-                    label: '소재지 상세',
-                    controller: _lcad,
-                  ),
+                  _buildTextField(label: '지정(등록)일', controller: _asdt),
+                  _buildTextField(label: '소유자', controller: _owner),
+                  _buildTextField(label: '관리자', controller: _admin),
+                  _buildTextField(label: '소재지', controller: _lcto),
+                  _buildTextField(label: '소재지 상세', controller: _lcad),
                   const SizedBox(height: 28),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -717,7 +823,9 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
                           });
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 48,
@@ -763,9 +871,7 @@ class _CreateCustomDialogState extends State<_CreateCustomDialog> {
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-        ),
+        decoration: InputDecoration(labelText: label),
         validator: (value) {
           if (!requiredField) return null;
           if (value == null || value.trim().isEmpty) {
