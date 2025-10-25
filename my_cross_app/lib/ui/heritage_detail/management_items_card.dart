@@ -45,56 +45,6 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
             ),
             child: Column(
               children: [
-                // 헤더
-                Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8),
-                      topRight: Radius.circular(8),
-                    ),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(
-                    children: const [
-                      SizedBox(
-                        width: 140,
-                        child: Text(
-                          '관리항목',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      SizedBox(
-                        width: 100,
-                        child: Text(
-                          '있음/없음',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '수량',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // 항목들
                 for (int i = 0; i < _items.length; i++) ...[
                   if (i > 0) _dividerLine(),
                   _buildItemRow(_items[i], i),
@@ -156,36 +106,92 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
             ),
           ),
           const SizedBox(width: 12),
-          // 있음/없음 라디오 버튼
+          // 있음/없음 선택
           SizedBox(
-            width: 100,
+            width: 160,
             child: Row(
               children: [
-                Radio<bool>(
-                  value: true,
-                  groupValue: item.hasItem,
-                  onChanged: (value) {
+                InkWell(
+                  onTap: () {
                     setState(() {
-                      _items[index] = item.copyWith(hasItem: value);
+                      _items[index] = item.copyWith(hasItem: true);
                     });
                   },
-                  visualDensity: VisualDensity.compact,
-                  activeColor: const Color(0xFF1E2A44),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: item.hasItem == true
+                                ? const Color(0xFF1E2A44)
+                                : const Color(0xFFD1D5DB),
+                            width: 2,
+                          ),
+                          color: item.hasItem == true
+                              ? const Color(0xFF1E2A44)
+                              : Colors.white,
+                        ),
+                        child: item.hasItem == true
+                            ? const Icon(
+                                Icons.check,
+                                size: 14,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '있음',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
                 ),
-                const Text('있음', style: TextStyle(fontSize: 13)),
-                const SizedBox(width: 4),
-                Radio<bool>(
-                  value: false,
-                  groupValue: item.hasItem,
-                  onChanged: (value) {
+                const SizedBox(width: 12),
+                InkWell(
+                  onTap: () {
                     setState(() {
-                      _items[index] = item.copyWith(hasItem: value);
+                      _items[index] = item.copyWith(hasItem: false);
                     });
                   },
-                  visualDensity: VisualDensity.compact,
-                  activeColor: const Color(0xFF1E2A44),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: item.hasItem == false
+                                ? const Color(0xFF1E2A44)
+                                : const Color(0xFFD1D5DB),
+                            width: 2,
+                          ),
+                          color: item.hasItem == false
+                              ? const Color(0xFF1E2A44)
+                              : Colors.white,
+                        ),
+                        child: item.hasItem == false
+                            ? const Icon(
+                                Icons.check,
+                                size: 14,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '없음',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
                 ),
-                const Text('없음', style: TextStyle(fontSize: 13)),
               ],
             ),
           ),

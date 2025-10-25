@@ -83,6 +83,20 @@ class _ImprovedDamageSurveyDialogState
   String _severityGrade = 'C';
   final Set<String> _selectedDamageTypes = {};
 
+  // 표준 손상 용어 전체 리스트 (문화재청 기준)
+  final List<String> _standardDamageTerms = [
+    // 구조적 손상
+    '이격/이완', '기움', '들림', '축 변형', '침하', '유실',
+    // 물리적 손상
+    '탈락', '들뜸', '부러짐', '분리', '균열', '갈래', '박리/박락',
+    '처짐/휨', '비틀림', '돌아감',
+    // 생물·화학적 손상
+    '공동화', '천공', '변색', '부후', '식물생장', '표면 오염균',
+  ];
+
+  // 사용자 정의 손상 용어 (직접 추가된 것들)
+  final List<String> _customDamageTerms = [];
+
   @override
   void initState() {
     super.initState();
@@ -579,6 +593,12 @@ class _ImprovedDamageSurveyDialogState
         _buildSectionTitle('손상 분류', Icons.category, headerColor),
         const SizedBox(height: 12),
         _buildClassificationSection(),
+        const SizedBox(height: 24),
+
+        // 5-1️⃣ 직접 추가 (표준 손상 용어 전체 선택)
+        _buildSectionTitle('직접 추가 (표준 손상 용어)', Icons.add_circle_outline, headerColor),
+        const SizedBox(height: 12),
+        _buildDirectAddSection(),
         const SizedBox(height: 24),
 
         // 6️⃣ 손상 등급
@@ -1232,11 +1252,15 @@ class _ImprovedDamageSurveyDialogState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildDamageCategory('구조적 손상', ['갈램', '균열', '변형', '파손']),
+          _buildDamageCategory('구조적 손상', ['균열', '이격', '탈락', '기울어짐', '변형']),
           const Divider(height: 24),
-          _buildDamageCategory('물리적 손상', ['탈락', '부식', '박락', '박리']),
+          _buildDamageCategory('물리적 손상', ['부식', '박리', '파손', '변색', '침식']),
           const Divider(height: 24),
-          _buildDamageCategory('생물·화학적 손상', ['변색', '오염균', '백화', '이끼']),
+          _buildDamageCategory('생물·화학적 손상', ['백화', '오염', '곰팡이', '이끼', '생물 부착']),
+          const Divider(height: 24),
+          _buildDamageCategory('재료적 손상', ['재료 분리', '표면 박락', '내부 붕괴']),
+          const Divider(height: 24),
+          _buildDamageCategory('기타 손상', ['낙서', '결손', '외부 충격']),
         ],
       ),
     );
@@ -1275,6 +1299,208 @@ class _ImprovedDamageSurveyDialogState
           }).toList(),
         ),
       ],
+    );
+  }
+
+  // 직접 추가 섹션 - 표준 손상 용어 전체 선택
+  Widget _buildDirectAddSection() {
+    // 표준 용어 + 사용자 정의 용어 합치기
+    final allTerms = [..._standardDamageTerms, ..._customDamageTerms];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 안내 문구
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF1E2A44),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '표준 손상 용어를 직접 선택하거나, 새로운 손상 유형을 추가할 수 있습니다.',
+                    style: TextStyle(
+                      color: const Color(0xFF1E2A44),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 표준 손상 용어 전체 선택
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: allTerms.map((term) {
+              final isSelected = _selectedDamageTypes.contains(term);
+              final isCustom = _customDamageTerms.contains(term);
+
+              return FilterChip(
+                label: Text(term),
+                selected: isSelected,
+                selectedColor: const Color(0xFF2C3E8C).withValues(alpha: 0.15),
+                checkmarkColor: const Color(0xFF2C3E8C),
+                backgroundColor: isCustom
+                    ? const Color(0xFFE8ECF3)
+                    : Colors.white,
+                side: BorderSide(
+                  color: isSelected
+                      ? const Color(0xFF2C3E8C)
+                      : const Color(0xFFD1D5DB),
+                  width: 1,
+                ),
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedDamageTypes.add(term);
+                    } else {
+                      _selectedDamageTypes.remove(term);
+                    }
+                  });
+                },
+                deleteIcon: isCustom
+                    ? const Icon(Icons.close, size: 16)
+                    : null,
+                onDeleted: isCustom
+                    ? () {
+                        setState(() {
+                          _customDamageTerms.remove(term);
+                          _selectedDamageTypes.remove(term);
+                        });
+                      }
+                    : null,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+
+          // 직접 추가 버튼
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: _showCustomDamageAddDialog,
+              icon: const Icon(Icons.add, size: 18, color: Color(0xFF1E2A44)),
+              label: const Text(
+                '새 손상 유형 추가',
+                style: TextStyle(
+                  color: Color(0xFF1E2A44),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF1E2A44), width: 1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 커스텀 손상 유형 추가 다이얼로그
+  void _showCustomDamageAddDialog() {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        title: const Text(
+          '새 손상 유형 추가',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111827),
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '표준 용어에 없는 새로운 손상 유형을 입력하세요.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: '예: 목재 탈색, 균열 확장',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF1E2A44), width: 1.2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              '취소',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newTerm = controller.text.trim();
+              if (newTerm.isNotEmpty) {
+                setState(() {
+                  if (!_customDamageTerms.contains(newTerm) &&
+                      !_standardDamageTerms.contains(newTerm)) {
+                    _customDamageTerms.add(newTerm);
+                    _selectedDamageTypes.add(newTerm);
+                  }
+                });
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1E2A44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('추가'),
+          ),
+        ],
+      ),
     );
   }
 

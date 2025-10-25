@@ -25,6 +25,8 @@ import '../ui/widgets/section_divider.dart';
 import '../viewmodels/heritage_detail_view_model.dart';
 import '../utils/date_formatter.dart';
 import 'improved_damage_survey_dialog.dart';
+import '../ui/heritage_detail/management_items_card.dart';
+import '../ui/heritage_detail/location_status_card.dart';
 
 String _proxyImageUrl(String originalUrl) {
   if (originalUrl.contains('firebasestorage.googleapis.com')) {
@@ -488,25 +490,28 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         ],
       ),
       backgroundColor: const Color(0xFFF5F6FA),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          const maxContentWidth = 960.0;
-          final horizontalPadding = constraints.maxWidth > maxContentWidth
-              ? (constraints.maxWidth - maxContentWidth) / 2
-              : 16.0;
-          return ScrollConfiguration(
-            behavior: const MaterialScrollBehavior(),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: 24,
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: maxContentWidth),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const maxContentWidth = 960.0;
+            final horizontalPadding = constraints.maxWidth > maxContentWidth
+                ? (constraints.maxWidth - maxContentWidth) / 2
+                : 16.0;
+            return SizedBox(
+              height: constraints.maxHeight, // 💡 웹 렌더링 보장: 명시적 높이 지정
+              child: ScrollConfiguration(
+                behavior: const MaterialScrollBehavior(),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: 24,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: maxContentWidth),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                       BasicInfoCard(
                         name: _name.isEmpty ? '미상' : _name,
                         kind: kind,
@@ -517,6 +522,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                         lcad: lcad,
                         managementNumber: _managementNumber,
                       ),
+                      const SizedBox(height: 24),
+                      const LocationStatusCard(),
                       const SizedBox(height: 24),
                       HeritagePhotoSection(
                         photosStream: _fb.photosStream(heritageId),
@@ -578,6 +585,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                                   onChanged: vm.updateInspectionResult,
                                 ),
                                 const SectionDivider(),
+                                const ManagementItemsCard(),
+                                const SectionDivider(),
                                 DamageSummaryTable(
                                   value: vm.damageSummary,
                                   onChanged: vm.updateDamageSummary,
@@ -611,8 +620,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 ),
               ),
             ),
-          );
-        },
+          ),
+        );
+          },
+        ),
       ),
     );
   }
@@ -805,14 +816,22 @@ class HeritagePhotoSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            '문화유산 현황',
+            '현황 사진',
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 16,
               color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 6),
+          const Text(
+            '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
+            style: TextStyle(
+              color: Color(0xFF6B7280),
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             height: 230,
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -925,7 +944,8 @@ class HeritagePhotoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 4 / 3,  // 항상 4:3 비율 유지
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: Stack(

@@ -123,6 +123,23 @@ class _GradePanel extends StatelessWidget {
 
   final GradeClassification value;
 
+  String _getGradeComment(String grade) {
+    switch (grade) {
+      case 'A':
+        return '양호 - 별도 조치 필요 없음';
+      case 'B':
+        return '양호 - 경미한 손상 관찰 필요';
+      case 'C':
+        return '주의 - 관찰 필요, 손상 진행 모니터링';
+      case 'D':
+        return '경고 - 정밀조사 필요, 손상 심화 가능성';
+      case 'E':
+        return '심각 - 즉시 보수 또는 긴급 조치 필요';
+      default:
+        return '등급을 선택해주세요';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -157,6 +174,36 @@ class _GradePanel extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF1E2A44),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _getGradeComment(value.grade),
+                    style: const TextStyle(
+                      color: Color(0xFF1E2A44),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
