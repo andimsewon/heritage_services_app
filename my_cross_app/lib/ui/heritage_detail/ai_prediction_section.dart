@@ -23,59 +23,98 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: AppTheme.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Padding(
-        padding: AppTheme.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SectionTitle(title: 'AI 예측 기능'),
-            const SizedBox(height: 12),
-            SegmentedButton<_PredictionTab>(
-              segments: const [
-                ButtonSegment(
-                  value: _PredictionTab.grade,
-                  label: Text('AI 손상등급 예측'),
-                  icon: Icon(Icons.auto_awesome),
-                ),
-                ButtonSegment(
-                  value: _PredictionTab.map,
-                  label: Text('손상지도 생성'),
-                  icon: Icon(Icons.map_outlined),
-                ),
-                ButtonSegment(
-                  value: _PredictionTab.mitigation,
-                  label: Text('기후변화 적용관리 방안'),
-                  icon: Icon(Icons.eco_outlined),
-                ),
-              ],
-              selected: {_selected},
-              onSelectionChanged: (selection) {
-                if (selection.isEmpty) return;
-                setState(() => _selected = selection.first);
-              },
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'AI 예측 기능',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
             ),
-            const SizedBox(height: 16),
-            if (widget.state.loading)
-              const LinearProgressIndicator(minHeight: 3),
-            if (widget.state.error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                widget.state.error!,
-                style: const TextStyle(color: Colors.redAccent),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _aiButton(
+                context,
+                'AI 손상등급 예측',
+                Icons.auto_awesome,
+                _PredictionTab.grade,
+              ),
+              _aiButton(
+                context,
+                '손상지도 생성',
+                Icons.map_outlined,
+                _PredictionTab.map,
+              ),
+              _aiButton(
+                context,
+                '기후변화 대응',
+                Icons.cloud_queue,
+                _PredictionTab.mitigation,
+              ),
+              _aiButton(
+                context,
+                '보고서 생성',
+                Icons.description_outlined,
+                _PredictionTab.report,
               ),
             ],
-            const SizedBox(height: 16),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _buildContent(context),
+          ),
+          if (widget.state.loading) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(minHeight: 3),
+          ],
+          if (widget.state.error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              widget.state.error!,
+              style: const TextStyle(color: Colors.redAccent),
             ),
           ],
+          const SizedBox(height: 16),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: _buildContent(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aiButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    _PredictionTab tab,
+  ) {
+    final isSelected = _selected == tab;
+    return SizedBox(
+      width: (MediaQuery.of(context).size.width - 80) / 2,
+      child: ElevatedButton.icon(
+        onPressed: () => setState(() => _selected = tab),
+        icon: Icon(icon, size: 20),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isSelected
+              ? const Color(0xFF2956CC)
+              : const Color(0xFFB0B3B9),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       ),
     );
@@ -109,6 +148,17 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
           onGenerate: widget.actions.onSuggest,
           disabled: widget.state.loading,
           child: _buildMitigationContent(context),
+        );
+      case _PredictionTab.report:
+        return _PredictionPane(
+          key: const ValueKey('report'),
+          buttonLabel: '✦ 생성',
+          buttonTooltip: '보고서 생성',
+          onGenerate: () {},
+          disabled: widget.state.loading,
+          child: const _PlaceholderCard(
+            message: '보고서 생성 기능은 준비 중입니다.',
+          ),
         );
     }
   }
@@ -251,7 +301,7 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
   }
 }
 
-enum _PredictionTab { grade, map, mitigation }
+enum _PredictionTab { grade, map, mitigation, report }
 
 class _PredictionPane extends StatelessWidget {
   const _PredictionPane({

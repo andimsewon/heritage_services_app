@@ -325,127 +325,226 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       ),
       body: Column(
         children: [
-          // ── 필터 바: 종목/지역/조건
+          // ── 검색 필터 (컴팩트 디자인)
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isCompact = constraints.maxWidth < 720;
+            padding: const EdgeInsets.all(14.0),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 720;
 
-                Widget buildDropdown({
-                  required String label,
-                  required String? value,
-                  required Map<String, String> options,
-                  required ValueChanged<String?> onChanged,
-                }) {
-                  return InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: label,
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      isDense: true,
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: value ?? '',
-                        isDense: true,
-                        isExpanded: true,
-                        items: options.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
+                  Widget buildCompactDropdown({
+                    required String label,
+                    required String? value,
+                    required Map<String, String> options,
+                    required ValueChanged<String?> onChanged,
+                  }) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFD1D5DB)),
+                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(0xFFF9FAFB),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: value ?? '',
+                              isDense: true,
+                              isExpanded: true,
+                              icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                              items: options.entries
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e.key,
+                                      child: Text(e.value, style: const TextStyle(fontSize: 14)),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: onChanged,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  if (isCompact) {
+                    // 모바일: 세로 레이아웃
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: buildCompactDropdown(
+                                label: '종목',
+                                value: _kind,
+                                options: _kindOptions,
+                                onChanged: (v) => setState(() => _kind = v),
                               ),
-                            )
-                            .toList(),
-                        onChanged: onChanged,
-                      ),
-                    ),
-                  );
-                }
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: buildCompactDropdown(
+                                label: '지역',
+                                value: _region,
+                                options: _regionOptions,
+                                onChanged: (v) => setState(() => _region = v),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _keyword,
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+                                  hintText: '조건 (유산명 등)',
+                                  hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF9FAFB),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                                  ),
+                                ),
+                                onSubmitted: (_) => _onSearch(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              height: 42,
+                              width: 42,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.search, color: Colors.white, size: 20),
+                                onPressed: _onSearch,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  }
 
-                Widget buildSearchField({bool expand = false}) {
-                  final field = TextField(
-                    controller: _keyword,
-                    decoration: const InputDecoration(
-                      labelText: '조건(유산명 등)',
-                      prefixIcon: Icon(Icons.search),
-                      isDense: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => _onSearch(),
-                  );
-                  return expand ? Expanded(child: field) : field;
-                }
-
-                final searchButton = SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: _onSearch,
-                    icon: const Icon(Icons.search),
-                    label: const Text('검색'),
-                  ),
-                );
-
-                if (isCompact) {
+                  // 데스크톱: 가로 레이아웃
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      buildDropdown(
-                        label: '종목',
-                        value: _kind,
-                        options: _kindOptions,
-                        onChanged: (v) => setState(() => _kind = v),
-                      ),
-                      const SizedBox(height: 12),
-                      buildDropdown(
-                        label: '지역',
-                        value: _region,
-                        options: _regionOptions,
-                        onChanged: (v) => setState(() => _region = v),
-                      ),
-                      const SizedBox(height: 12),
-                      buildSearchField(),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: searchButton,
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 160,
+                            child: buildCompactDropdown(
+                              label: '종목',
+                              value: _kind,
+                              options: _kindOptions,
+                              onChanged: (v) => setState(() => _kind = v),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 160,
+                            child: buildCompactDropdown(
+                              label: '지역',
+                              value: _region,
+                              options: _regionOptions,
+                              onChanged: (v) => setState(() => _region = v),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '검색어',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _keyword,
+                                        decoration: InputDecoration(
+                                          prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+                                          hintText: '조건 (유산명 등)',
+                                          hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
+                                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                          filled: true,
+                                          fillColor: const Color(0xFFF9FAFB),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                                          ),
+                                        ),
+                                        onSubmitted: (_) => _onSearch(),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      height: 42,
+                                      width: 42,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF2563EB),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: IconButton(
+                                        icon: const Icon(Icons.search, color: Colors.white, size: 20),
+                                        onPressed: _onSearch,
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );
-                }
-
-                return Row(
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      child: buildDropdown(
-                        label: '종목',
-                        value: _kind,
-                        options: _kindOptions,
-                        onChanged: (v) => setState(() => _kind = v),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 180,
-                      child: buildDropdown(
-                        label: '지역',
-                        value: _region,
-                        options: _regionOptions,
-                        onChanged: (v) => setState(() => _region = v),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    buildSearchField(expand: true),
-                    const SizedBox(width: 12),
-                    searchButton,
-                  ],
-                );
-              },
+                },
+              ),
             ),
           ),
           const Divider(height: 0),
