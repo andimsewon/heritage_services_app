@@ -179,6 +179,11 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 반응형 설정
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final horizontalPadding = isMobile ? 12.0 : 24.0;
+
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
@@ -189,8 +194,12 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         children: [
           // ── 필터 바: 종목/지역/조건
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: Row(
+            padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 DropdownButton<String>(
                   value: _kind ?? '',
@@ -204,7 +213,6 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                       .toList(),
                   onChanged: (v) => setState(() => _kind = v),
                 ),
-                const SizedBox(width: 12),
                 DropdownButton<String>(
                   value: _region ?? '',
                   items: _regionOptions.entries
@@ -217,23 +225,27 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                       .toList(),
                   onChanged: (v) => setState(() => _region = v),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                SizedBox(
+                  width: isMobile ? screenWidth - (horizontalPadding * 2) : 300,
                   child: TextField(
                     controller: _keyword,
                     decoration: const InputDecoration(
                       labelText: '조건(유산명 등)',
                       prefixIcon: Icon(Icons.search),
                       isDense: true,
+                      border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) => _onSearch(),
                   ),
                 ),
-                const SizedBox(width: 8),
                 FilledButton.icon(
                   onPressed: _onSearch,
-                  icon: const Icon(Icons.search),
+                  icon: const Icon(Icons.search, size: 18),
                   label: const Text('검색'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -338,10 +350,12 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           ),
 
           // 페이지네이션 버튼
-          if (_totalPages > 1) _buildPagination(),
+          if (_totalPages > 1) _buildPagination(isMobile),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.small(
+        backgroundColor: const Color(0xFF2563EB),
+        foregroundColor: Colors.white,
         onPressed: () async {
           final created = await showDialog<Map<String, String>>(
             context: context,
@@ -369,13 +383,13 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
             }
           }
         },
-        shape: const CircleBorder(),
         child: const Icon(Icons.add),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  Widget _buildPagination() {
+  Widget _buildPagination(bool isMobile) {
     final currentPage = _page - 1; // _page is already incremented after fetch
     final start = ((currentPage - 1) ~/ 5) * 5 + 1;
     final end = (start + 4).clamp(1, _totalPages);
@@ -388,45 +402,46 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           top: BorderSide(color: Colors.grey.shade300),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 이전 버튼
-          _PaginationButton(
-            label: '이전',
-            isActive: false,
-            onPressed: currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
-          ),
-          const SizedBox(width: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // 이전 버튼
+            _PaginationButton(
+              label: isMobile ? '←' : '이전',
+              isActive: false,
+              onPressed: currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
+            ),
 
-          // 페이지 번호 버튼
-          ...List.generate(end - start + 1, (i) {
-            final pageNum = start + i;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: _PaginationButton(
+            // 페이지 번호 버튼
+            ...List.generate(end - start + 1, (i) {
+              final pageNum = start + i;
+              return _PaginationButton(
                 label: '$pageNum',
                 isActive: pageNum == currentPage,
                 onPressed: () => _goToPage(pageNum),
-              ),
-            );
-          }),
+              );
+            }),
 
-          const SizedBox(width: 8),
-          // 다음 버튼
-          _PaginationButton(
-            label: '다음',
-            isActive: false,
-            onPressed: currentPage < _totalPages ? () => _goToPage(currentPage + 1) : null,
-          ),
-          const SizedBox(width: 8),
-          // 마지막 페이지 버튼
-          _PaginationButton(
-            label: '≫',
-            isActive: false,
-            onPressed: currentPage < _totalPages ? () => _goToPage(_totalPages) : null,
-          ),
-        ],
+            // 다음 버튼
+            _PaginationButton(
+              label: isMobile ? '→' : '다음',
+              isActive: false,
+              onPressed: currentPage < _totalPages ? () => _goToPage(currentPage + 1) : null,
+            ),
+            // 마지막 페이지 버튼
+            if (!isMobile)
+              _PaginationButton(
+                label: '≫',
+                isActive: false,
+                onPressed: currentPage < _totalPages ? () => _goToPage(_totalPages) : null,
+              ),
+          ],
+        ),
       ),
     );
   }

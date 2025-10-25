@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 
+/// 조사 단계 정의
+enum SurveyStep {
+  register,   // ① 조사등록 (부재명/번호/향 선택)
+  detail,     // ② 손상부 조사 (사진, 손상위치, 의견)
+  confirm,    // ③ 감지 결과 확인
+  advanced,   // ④ 심화조사
+}
+
 /// 개선된 손상부 조사 다이얼로그
 ///
 /// 사용자 경험 개선 사항:
@@ -31,6 +39,19 @@ class ImprovedDamageSurveyDialog extends StatefulWidget {
 
 class _ImprovedDamageSurveyDialogState
     extends State<ImprovedDamageSurveyDialog> {
+  // 조사 단계 관리
+  SurveyStep _currentStep = SurveyStep.register;
+
+  // ① 조사등록 단계 - 부재 선택 필드
+  String? _selectedPartName;
+  String? _selectedDirection;
+  String? _selectedPosition;
+  final TextEditingController _partNumberController = TextEditingController();
+
+  final List<String> _partNames = ['기둥', '보', '도리', '창방', '평방', '장혀', '추녀', '서까래'];
+  final List<String> _directions = ['동향', '서향', '남향', '북향'];
+  final List<String> _positions = ['상', '중', '하'];
+
   // 이미지 데이터
   Uint8List? _imageBytes;
   Uint8List? _previousYearImage; // TODO: 전년도 사진 로딩
@@ -68,6 +89,7 @@ class _ImprovedDamageSurveyDialogState
 
   @override
   void dispose() {
+    _partNumberController.dispose();
     _locationController.dispose();
     _partController.dispose();
     _opinionController.dispose();
@@ -161,13 +183,52 @@ class _ImprovedDamageSurveyDialogState
   }
 
   Future<void> _handleSave() async {
-    if (_imageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')),
-      );
-      return;
+    // 단계별 처리
+    switch (_currentStep) {
+      case SurveyStep.register:
+        // ① 조사등록 → ② 손상부 조사
+        // 부재 선택 완료 확인
+        if (_selectedPartName == null || _selectedDirection == null || _selectedPosition == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('부재명, 향, 부재 내 위치를 모두 선택하세요.')),
+          );
+          return;
+        }
+        // 다음 단계로 이동
+        setState(() {
+          _currentStep = SurveyStep.detail;
+          // 부재 정보를 prefilled로 설정
+          _applyInitialPart({
+            'partName': _selectedPartName,
+            'partNumber': _partNumberController.text.trim(),
+            'direction': _selectedDirection,
+            'position': _selectedPosition,
+          }, notify: false);
+        });
+        return;
+
+      case SurveyStep.detail:
+        // ② 손상부 조사 → ③ 감지 결과 확인
+        if (_imageBytes == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')),
+          );
+          return;
+        }
+        setState(() => _currentStep = SurveyStep.confirm);
+        return;
+
+      case SurveyStep.confirm:
+        // ③ 감지 결과 확인 → ④ 심화조사
+        setState(() => _currentStep = SurveyStep.advanced);
+        return;
+
+      case SurveyStep.advanced:
+        // ④ 심화조사 → 최종 저장
+        break; // 아래 저장 로직으로 계속
     }
 
+    // 최종 저장 확인
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -232,6 +293,425 @@ class _ImprovedDamageSurveyDialogState
     }).toList();
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // 단계 관리 헬퍼 메서드
+  // ═══════════════════════════════════════════════════════════════
+
+  String _getStepTitle() {
+    switch (_currentStep) {
+      case SurveyStep.register:
+        return '① 조사 등록';
+      case SurveyStep.detail:
+        return '② 손상부 조사';
+      case SurveyStep.confirm:
+        return '③ 감지 결과 확인';
+      case SurveyStep.advanced:
+        return '④ 심화조사';
+    }
+  }
+
+  String _getButtonText() {
+    switch (_currentStep) {
+      case SurveyStep.register:
+        return '다음';
+      case SurveyStep.detail:
+        return '감지 결과 확인';
+      case SurveyStep.confirm:
+        return '심화조사 진행';
+      case SurveyStep.advanced:
+        return '저장';
+    }
+  }
+
+  void _goBack() {
+    setState(() {
+      switch (_currentStep) {
+        case SurveyStep.register:
+          Navigator.pop(context);
+          return;
+        case SurveyStep.detail:
+          _currentStep = SurveyStep.register;
+          return;
+        case SurveyStep.confirm:
+          _currentStep = SurveyStep.detail;
+          return;
+        case SurveyStep.advanced:
+          _currentStep = SurveyStep.confirm;
+          return;
+      }
+    });
+  }
+
+  Widget _buildStepContent(Color headerColor, Color accentBlue, Color grayBg) {
+    switch (_currentStep) {
+      case SurveyStep.register:
+        return _buildRegisterStep(headerColor);
+      case SurveyStep.detail:
+        return _buildDetailStep(headerColor, accentBlue);
+      case SurveyStep.confirm:
+        return _buildConfirmStep(headerColor, accentBlue);
+      case SurveyStep.advanced:
+        return _buildAdvancedStep(headerColor);
+    }
+  }
+
+  // ① 조사등록 단계 - 부재 선택
+  Widget _buildRegisterStep(Color headerColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.architecture, color: headerColor, size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    '손상 조사할 부재를 선택하세요',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: headerColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 부재명 선택
+              DropdownButtonFormField<String>(
+                value: _selectedPartName,
+                decoration: const InputDecoration(
+                  labelText: '부재명',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                items: _partNames.map((name) {
+                  return DropdownMenuItem(value: name, child: Text(name));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _selectedPartName = value);
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // 부재번호 입력
+              TextFormField(
+                controller: _partNumberController,
+                decoration: const InputDecoration(
+                  labelText: '부재번호',
+                  hintText: '예: 1, 2, 3...',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 향 선택
+              DropdownButtonFormField<String>(
+                value: _selectedDirection,
+                decoration: const InputDecoration(
+                  labelText: '향',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                items: _directions.map((dir) {
+                  return DropdownMenuItem(value: dir, child: Text(dir));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _selectedDirection = value);
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // 부재 내 위치 선택
+              DropdownButtonFormField<String>(
+                value: _selectedPosition,
+                decoration: const InputDecoration(
+                  labelText: '부재 내 위치',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                items: _positions.map((pos) {
+                  return DropdownMenuItem(value: pos, child: Text(pos));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _selectedPosition = value);
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ② 손상부 조사 단계 - 기존 UI
+  Widget _buildDetailStep(Color headerColor, Color accentBlue) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1️⃣ 사진 비교
+        _buildSectionTitle('사진 비교', Icons.photo_library, headerColor),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildPhotoBox(
+                '전년도 조사 사진',
+                _previousYearImage,
+                onTap: () {
+                  // TODO: 전년도 사진 선택 기능
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('전년도 사진 불러오기 기능 준비 중')),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildPhotoBox(
+                '이번 조사 사진 등록',
+                _imageBytes,
+                onTap: _loading ? null : _pickImageAndDetect,
+                isLoading: _loading,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // 2️⃣ 감지 결과
+        if (_imageBytes != null) ...[
+          _buildSectionTitle('손상 감지 결과', Icons.auto_graph, headerColor),
+          const SizedBox(height: 12),
+          _buildDetectionResult(accentBlue),
+          const SizedBox(height: 24),
+        ],
+
+        // 3️⃣ 부재 정보 (있는 경우)
+        if (_prefilledPart != null) ...[
+          _buildPrefilledPartSummary(headerColor),
+          const SizedBox(height: 24),
+        ],
+
+        // 4️⃣ 손상 정보 입력
+        _buildSectionTitle('손상 정보 입력', Icons.edit_note, headerColor),
+        const SizedBox(height: 12),
+        _buildInfoSection(),
+        const SizedBox(height: 24),
+
+        // 5️⃣ 손상 분류
+        _buildSectionTitle('손상 분류', Icons.category, headerColor),
+        const SizedBox(height: 12),
+        _buildClassificationSection(),
+        const SizedBox(height: 24),
+
+        // 6️⃣ 손상 등급
+        _buildSectionTitle('손상 등급', Icons.priority_high, headerColor),
+        const SizedBox(height: 12),
+        _buildGradeSection(accentBlue),
+        const SizedBox(height: 24),
+
+        // 7️⃣ 조사자 의견
+        _buildSectionTitle('조사자 의견', Icons.comment, headerColor),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _opinionController,
+          decoration: InputDecoration(
+            hintText: '조사자의 의견을 입력하세요',
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+          maxLines: 4,
+        ),
+      ],
+    );
+  }
+
+  // ③ 감지 결과 확인 단계
+  Widget _buildConfirmStep(Color headerColor, Color accentBlue) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accentBlue.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle_outline, color: accentBlue, size: 32),
+                  const SizedBox(width: 12),
+                  const Text(
+                    '감지 결과를 확인하세요',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // 선택된 부재 정보
+              if (_prefilledPart != null) ...[
+                _buildPrefilledPartSummary(headerColor),
+                const SizedBox(height: 20),
+              ],
+
+              // 촬영 이미지
+              if (_imageBytes != null) ...[
+                const Text(
+                  '촬영 이미지',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(_imageBytes!, fit: BoxFit.contain),
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // 감지 결과
+              _buildSectionTitle('AI 감지 결과', Icons.auto_graph, headerColor),
+              const SizedBox(height: 12),
+              _buildDetectionResult(accentBlue),
+              const SizedBox(height: 20),
+
+              // 손상 등급
+              if (_autoGrade != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: accentBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: accentBlue),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.assessment, color: accentBlue, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'AI 판정 등급',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$_autoGrade 등급 - ${_getGradeDescription(_autoGrade!)}',
+                              style: TextStyle(
+                                color: accentBlue,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ④ 심화조사 단계
+  Widget _buildAdvancedStep(Color headerColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.science, color: headerColor, size: 24),
+                  const SizedBox(width: 12),
+                  Text(
+                    '심화 조사',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: headerColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '추가 조사 사항이 있으면 입력하세요.',
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: '심화 조사 내용',
+                  hintText: '상세한 조사 내용을 입력하세요...',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 6,
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: '조치 권고사항',
+                  hintText: '필요한 조치나 권고사항을 입력하세요...',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 4,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final headerColor = const Color(0xFF2F3E46); // 짙은 청회색 (따뜻하고 전문적)
@@ -274,9 +754,9 @@ class _ImprovedDamageSurveyDialogState
                 children: [
                   const Icon(Icons.assessment, color: Colors.white, size: 24),
                   const SizedBox(width: 12),
-                  const Text(
-                    '손상부 조사',
-                    style: TextStyle(
+                  Text(
+                    _getStepTitle(),
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -295,92 +775,9 @@ class _ImprovedDamageSurveyDialogState
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 1️⃣ 사진 비교
-                    _buildSectionTitle('사진 비교', Icons.photo_library, headerColor),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildPhotoBox(
-                            '전년도 조사 사진',
-                            _previousYearImage,
-                            onTap: () {
-                              // TODO: 전년도 사진 선택 기능
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('전년도 사진 불러오기 기능 준비 중')),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildPhotoBox(
-                            '이번 조사 사진 등록',
-                            _imageBytes,
-                            onTap: _loading ? null : _pickImageAndDetect,
-                            isLoading: _loading,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // 2️⃣ 감지 결과
-                    if (_imageBytes != null) ...[
-                      _buildSectionTitle('손상 감지 결과', Icons.auto_graph, headerColor),
-                      const SizedBox(height: 12),
-                      _buildDetectionResult(accentBlue),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // 3️⃣ 부재 정보 (있는 경우)
-                    if (_prefilledPart != null) ...[
-                      _buildPrefilledPartSummary(headerColor),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // 4️⃣ 손상 정보 입력
-                    _buildSectionTitle('손상 정보 입력', Icons.edit_note, headerColor),
-                    const SizedBox(height: 12),
-                    _buildInfoSection(),
-                    const SizedBox(height: 24),
-
-                    // 5️⃣ 손상 분류
-                    _buildSectionTitle('손상 분류', Icons.category, headerColor),
-                    const SizedBox(height: 12),
-                    _buildClassificationSection(),
-                    const SizedBox(height: 24),
-
-                    // 6️⃣ 손상 등급
-                    _buildSectionTitle('손상 등급', Icons.priority_high, headerColor),
-                    const SizedBox(height: 12),
-                    _buildGradeSection(accentBlue),
-                    const SizedBox(height: 24),
-
-                    // 7️⃣ 조사자 의견
-                    _buildSectionTitle('조사자 의견', Icons.comment, headerColor),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _opinionController,
-                      decoration: InputDecoration(
-                        hintText: '조사자의 의견을 입력하세요',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                      ),
-                      maxLines: 4,
-                    ),
-                  ],
-                  ),
-                ),
+                child: _buildStepContent(headerColor, accentBlue, grayBg),
               ),
+            ),
 
             // ═══════════════ 하단 고정 버튼 ═══════════════
             Container(
@@ -403,13 +800,13 @@ class _ImprovedDamageSurveyDialogState
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _goBack,
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: headerColor),
                       foregroundColor: headerColor,
                       minimumSize: const Size(100, 44),
                     ),
-                    child: const Text('취소'),
+                    child: Text(_currentStep == SurveyStep.register ? '취소' : '이전'),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
@@ -419,7 +816,7 @@ class _ImprovedDamageSurveyDialogState
                       foregroundColor: Colors.white,
                       minimumSize: const Size(100, 44),
                     ),
-                    child: const Text('저장'),
+                    child: Text(_getButtonText()),
                   ),
                 ],
               ),

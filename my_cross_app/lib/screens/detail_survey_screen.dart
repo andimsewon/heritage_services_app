@@ -87,24 +87,30 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 반응형 설정
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final crossAxisCount = isMobile ? 1 : 2;
+    final horizontalPadding = isMobile ? 12.0 : 24.0;
+
     return Scaffold(
       appBar: AppBar(title: const Text('상세 조사')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(horizontalPadding),
             child: ListView(
               children: [
                 // (1) 기록개요
                 Section(
                   title: '기록개요',
                   child: GridView.count(
-                    crossAxisCount: 2,
+                    crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                     shrinkWrap: true,
-                    childAspectRatio: 3.5,
+                    childAspectRatio: isMobile ? 4.0 : 3.5,
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
                       TextField(
@@ -139,21 +145,27 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('추가'),
                   ),
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('일자')),
-                      DataColumn(label: Text('내용')),
-                    ],
-                    rows: _history
-                        .map(
-                          (h) => DataRow(
-                        cells: [
-                          DataCell(Text(h['date']!)),
-                          DataCell(Text(h['desc']!)),
-                        ],
-                      ),
-                    )
-                        .toList(),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: isMobile ? 12 : 24,
+                      headingRowHeight: 40,
+                      dataRowHeight: 48,
+                      columns: const [
+                        DataColumn(label: Text('일자')),
+                        DataColumn(label: Text('내용')),
+                      ],
+                      rows: _history
+                          .map(
+                            (h) => DataRow(
+                          cells: [
+                            DataCell(Text(h['date']!)),
+                            DataCell(Text(h['desc']!)),
+                          ],
+                        ),
+                      )
+                          .toList(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
