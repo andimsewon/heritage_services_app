@@ -23,6 +23,7 @@ import '../ui/heritage_detail/inspection_result_card.dart';
 import '../ui/heritage_detail/investigator_opinion_field.dart';
 import '../ui/widgets/section_divider.dart';
 import '../viewmodels/heritage_detail_view_model.dart';
+import '../utils/date_formatter.dart';
 
 String _proxyImageUrl(String originalUrl) {
   if (originalUrl.contains('firebasestorage.googleapis.com')) {
@@ -436,22 +437,27 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         title: Text(_name.isEmpty ? '기본개요' : _name),
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
-          child: FilledButton.icon(
+          child: OutlinedButton.icon(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.menu, size: 20),
             label: const Text('목록보기'),
-            style: FilledButton.styleFrom(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.white),
+              foregroundColor: Colors.white,
               minimumSize: const Size(0, 40),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               textStyle: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
         ),
         actions: [
-          FilledButton.icon(
+          ElevatedButton.icon(
             onPressed: () {
               showDialog(
                 context: context,
@@ -464,17 +470,23 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             },
             icon: const Icon(Icons.history, size: 20),
             label: const Text('기존이력 확인'),
-            style: FilledButton.styleFrom(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3E66FB),
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               textStyle: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
           ),
           const SizedBox(width: 8),
         ],
       ),
+      backgroundColor: const Color(0xFFF6F7FB),
       body: LayoutBuilder(
         builder: (context, constraints) {
           const maxContentWidth = 960.0;
@@ -670,50 +682,63 @@ class BasicInfoCard extends StatelessWidget {
     // 정기조사 지침 기준: 소재지는 lcad 우선, 없으면 lcto
     final location = lcad.trim().isNotEmpty ? lcad : lcto;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(title: '개요'),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFDDDDDD), width: 1.5),
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.white,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 유산명
-                  _buildOverviewRow('유산명', name.isEmpty ? '미상' : name),
-                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
-
-                  // 지정연월
-                  _buildOverviewRow('지정연월', asdt.isEmpty ? '-' : asdt),
-                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
-
-                  // 종목
-                  _buildOverviewRow('종목', kind.isEmpty ? '-' : kind),
-                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
-
-                  // 소재지
-                  _buildOverviewRow('소재지', location.isEmpty ? '-' : location),
-                  const Divider(height: 20, color: Color(0xFFE5E7EB)),
-
-                  // 관리번호
-                  _buildOverviewRow('관리번호', managementNumber.isEmpty ? '-' : managementNumber),
-                ],
-              ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '개요',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: Color(0xFF222222),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE0E0E0)),
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 유산명
+                _buildOverviewRow('유산명', name.isEmpty ? '미상' : name),
+                const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                // 지정연월
+                _buildOverviewRow('지정연월', formatDate(asdt)),
+                const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                // 종목
+                _buildOverviewRow('종목', kind.isEmpty ? '-' : kind),
+                const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                // 소재지
+                _buildOverviewRow('소재지', location.isEmpty ? '-' : location),
+                const Divider(height: 20, color: Color(0xFFE5E7EB)),
+
+                // 관리번호
+                _buildOverviewRow('관리번호', managementNumber.isEmpty ? '-' : managementNumber),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -730,7 +755,7 @@ class BasicInfoCard extends StatelessWidget {
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 15,
-              color: Color(0xFF374151),
+              color: Color(0xFF444444),
             ),
           ),
           const SizedBox(width: 16),
@@ -740,7 +765,7 @@ class BasicInfoCard extends StatelessWidget {
               textAlign: TextAlign.right,
               style: const TextStyle(
                 fontSize: 14,
-                color: Color(0xFF1F2937),
+                color: Color(0xFF666666),
               ),
             ),
           ),
@@ -768,75 +793,98 @@ class HeritagePhotoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(
-              title: '문화유산 현황',
-              trailing: FilledButton.icon(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '문화유산 현황',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  color: Color(0xFF222222),
+                ),
+              ),
+              ElevatedButton.icon(
                 onPressed: onAddPhoto,
-                icon: const Icon(Icons.add_a_photo),
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
                 label: const Text('사진 등록'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3E66FB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 230,
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: photosStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('등록된 사진이 없습니다'));
+                }
+                final docs = snapshot.data!.docs
+                    .where(
+                      (doc) =>
+                          ((doc.data())['url'] as String?)?.isNotEmpty ??
+                          false,
+                    )
+                    .toList();
+                if (docs.isEmpty) {
+                  return const Center(child: Text('등록된 사진이 없습니다'));
+                }
+                return ScrollConfiguration(
+                  behavior: const MaterialScrollBehavior(),
+                  child: ListView.separated(
+                    primary: false,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (_, index) {
+                      final data = docs[index].data();
+                      final title = (data['title'] as String?) ?? '';
+                      final url = (data['url'] as String?) ?? '';
+                      final meta =
+                          '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
+                      return _PhotoCard(
+                        title: title,
+                        url: url,
+                        meta: meta,
+                        onPreview: () => onPreview(url, title),
+                        onDelete: () => onDelete(docs[index].id, url),
+                      );
+                    },
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 230,
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: photosStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text('등록된 사진이 없습니다'));
-                  }
-                  final docs = snapshot.data!.docs
-                      .where(
-                        (doc) =>
-                            ((doc.data())['url'] as String?)?.isNotEmpty ??
-                            false,
-                      )
-                      .toList();
-                  if (docs.isEmpty) {
-                    return const Center(child: Text('등록된 사진이 없습니다'));
-                  }
-                  return ScrollConfiguration(
-                    behavior: const MaterialScrollBehavior(),
-                    child: ListView.separated(
-                      primary: false,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (_, index) {
-                        final data = docs[index].data();
-                        final title = (data['title'] as String?) ?? '';
-                        final url = (data['url'] as String?) ?? '';
-                        final meta =
-                            '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
-                        return _PhotoCard(
-                          title: title,
-                          url: url,
-                          meta: meta,
-                          onPreview: () => onPreview(url, title),
-                          onDelete: () => onDelete(docs[index].id, url),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -916,10 +964,15 @@ class HeritagePhotoSection extends StatelessWidget {
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
+                  child: ElevatedButton(
                     onPressed: onPreview,
-                    style: FilledButton.styleFrom(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3E66FB),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: const Text('미리보기', style: TextStyle(fontSize: 12)),
                   ),
@@ -949,93 +1002,120 @@ class DamageSurveySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(
-              title: '손상부 조사',
-              trailing: Wrap(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '손상부 조사',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  color: Color(0xFF222222),
+                ),
+              ),
+              Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  FilledButton.icon(
+                  OutlinedButton.icon(
                     onPressed: onAddSurvey,
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Icons.add, size: 18),
                     label: const Text('조사 등록'),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF3E66FB)),
+                      foregroundColor: const Color(0xFF3E66FB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                  FilledButton.icon(
+                  ElevatedButton.icon(
                     onPressed: onDeepInspection,
-                    icon: const Icon(Icons.assignment),
+                    icon: const Icon(Icons.article_outlined, size: 18),
                     label: const Text('심화조사'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.deepPurple.shade600,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7B5AF5),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ],
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 240,
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: damageStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('등록된 손상부 조사가 없습니다'));
+                }
+                final docs = snapshot.data!.docs
+                    .where(
+                      (doc) =>
+                          ((doc.data())['imageUrl'] as String?)?.isNotEmpty ??
+                          false,
+                    )
+                    .toList();
+                if (docs.isEmpty) {
+                  return const Center(child: Text('등록된 손상부 조사가 없습니다'));
+                }
+                return ScrollConfiguration(
+                  behavior: const MaterialScrollBehavior(),
+                  child: ListView.separated(
+                    primary: false,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (_, index) {
+                      final doc = docs[index];
+                      final data = doc.data();
+                      final url = data['imageUrl'] as String? ?? '';
+                      final detections = (data['detections'] as List? ?? [])
+                          .cast<Map<String, dynamic>>();
+                      final grade = data['severityGrade'] as String?;
+                      final location = data['location'] as String?;
+                      final phenomenon = data['phenomenon'] as String?;
+                      return _DamageCard(
+                        url: url,
+                        detections: detections,
+                        severityGrade: grade,
+                        location: location,
+                        phenomenon: phenomenon,
+                        onDelete: () => onDelete(doc.id, url),
+                      );
+                    },
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 240,
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: damageStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text('등록된 손상부 조사가 없습니다'));
-                  }
-                  final docs = snapshot.data!.docs
-                      .where(
-                        (doc) =>
-                            ((doc.data())['imageUrl'] as String?)?.isNotEmpty ??
-                            false,
-                      )
-                      .toList();
-                  if (docs.isEmpty) {
-                    return const Center(child: Text('등록된 손상부 조사가 없습니다'));
-                  }
-                  return ScrollConfiguration(
-                    behavior: const MaterialScrollBehavior(),
-                    child: ListView.separated(
-                      primary: false,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (_, index) {
-                        final doc = docs[index];
-                        final data = doc.data();
-                        final url = data['imageUrl'] as String? ?? '';
-                        final detections = (data['detections'] as List? ?? [])
-                            .cast<Map<String, dynamic>>();
-                        final grade = data['severityGrade'] as String?;
-                        final location = data['location'] as String?;
-                        final phenomenon = data['phenomenon'] as String?;
-                        return _DamageCard(
-                          url: url,
-                          detections: detections,
-                          severityGrade: grade,
-                          location: location,
-                          phenomenon: phenomenon,
-                          onDelete: () => onDelete(doc.id, url),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
