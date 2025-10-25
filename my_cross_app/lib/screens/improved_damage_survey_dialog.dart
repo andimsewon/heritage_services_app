@@ -776,9 +776,9 @@ class _ImprovedDamageSurveyDialogState
 
   @override
   Widget build(BuildContext context) {
-    final headerColor = const Color(0xFF2F3E46); // 짙은 청회색 (따뜻하고 전문적)
-    final accentBlue = const Color(0xFF4C8BF5); // 포인트 블루 (부드러운 블루)
-    final grayBg = const Color(0xFFF8F9FB); // 은은한 회색톤 배경
+    final headerColor = const Color(0xFF3B82F6); // 부드러운 파란색 (공공앱 스타일)
+    final accentBlue = const Color(0xFF3B82F6); // 포인트 블루 (통일)
+    final grayBg = const Color(0xFFF8FAFC); // 밝은 회색톤 배경
 
     // 화면 크기 가져오기
     final screenWidth = MediaQuery.of(context).size.width;
@@ -867,6 +867,9 @@ class _ImprovedDamageSurveyDialogState
                       side: BorderSide(color: headerColor),
                       foregroundColor: headerColor,
                       minimumSize: const Size(100, 44),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: Text(_currentStep == SurveyStep.register ? '취소' : '이전'),
                   ),
@@ -877,6 +880,9 @@ class _ImprovedDamageSurveyDialogState
                       backgroundColor: accentBlue,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(100, 44),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: Text(_getButtonText()),
                   ),

@@ -435,26 +435,26 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E3A5F),
-        elevation: 1,
+        backgroundColor: Colors.white,
+        elevation: 0.5,
         centerTitle: false,
         title: Text(
           _name.isEmpty ? '기본개요' : _name,
           style: const TextStyle(
-            color: Colors.white,
+            color: Colors.black87,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             overflow: TextOverflow.ellipsis,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: ElevatedButton.icon(
+            child: OutlinedButton.icon(
               onPressed: () {
                 showDialog(
                   context: context,
@@ -465,24 +465,23 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                   ),
                 );
               },
-              icon: const Icon(Icons.history, size: 16, color: Colors.white),
+              icon: const Icon(Icons.history, size: 16, color: Color(0xFF2563EB)),
               label: const Text(
-                '기존이력 확인',
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                '기존이력',
+                style: TextStyle(color: Color(0xFF2563EB), fontSize: 13),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                elevation: 0,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF2563EB)),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               ),
             ),
           ),
         ],
       ),
-      backgroundColor: const Color(0xFFF7F8FB),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: LayoutBuilder(
         builder: (context, constraints) {
           const maxContentWidth = 960.0;
@@ -1014,10 +1013,16 @@ class DamageSurveySection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1034,14 +1039,15 @@ class DamageSurveySection extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onAddSurvey,
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(Icons.add, color: Color(0xFF2563EB)),
                   label: const Text('조사 등록'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2956CC),
-                    side: const BorderSide(color: Color(0xFF2956CC)),
+                    foregroundColor: const Color(0xFF2563EB),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   ),
                 ),
               ),
@@ -1049,13 +1055,15 @@ class DamageSurveySection extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: onDeepInspection,
-                  icon: const Icon(Icons.article_outlined),
+                  icon: const Icon(Icons.article_outlined, color: Colors.white),
                   label: const Text('심화조사'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7B5AF5),
+                    backgroundColor: const Color(0xFF7C3AED),
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   ),
                 ),
               ),
