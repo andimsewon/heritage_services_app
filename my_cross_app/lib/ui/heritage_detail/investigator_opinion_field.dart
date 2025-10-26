@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/heritage_detail_models.dart';
 import '../../theme.dart';
-import '../widgets/section_title.dart';
+import '../components/section_card.dart';
+import '../components/section_button.dart';
 
 class InvestigatorOpinionField extends StatefulWidget {
   const InvestigatorOpinionField({
@@ -74,80 +75,64 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: AppTheme.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+    return SectionCard(
+      title: '조사자 의견',
+      action: SectionButton.filled(
+        label: '저장',
+        onPressed: () {
+          // TODO: Hook up persistence to repository implementation.
+        },
+        icon: Icons.save_outlined,
       ),
-      child: Padding(
-        padding: AppTheme.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionTitle(
-              title: '조사자 의견',
-              trailing: FilledButton.icon(
-                onPressed: () {
-                  // TODO: Hook up persistence to repository implementation.
-                },
-                icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('저장'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 920;
+          final content = [
+            Expanded(
+              flex: 3,
+              child: _TotalOpinionSection(
+                structuralController: _structuralController,
+                othersController: _othersController,
+                notesController: _notesController,
+                opinionController: _opinionController,
               ),
             ),
-            const SizedBox(height: 16),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 920;
-                final content = [
-                  Expanded(
-                    flex: 3,
-                    child: _TotalOpinionSection(
-                      structuralController: _structuralController,
-                      othersController: _othersController,
-                      notesController: _notesController,
-                      opinionController: _opinionController,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    flex: 2,
-                    child: _MetaPanel(
-                      dateController: _dateController,
-                      organizationController: _organizationController,
-                      authorController: _authorController,
-                    ),
-                  ),
-                ];
-
-                if (isWide) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: content,
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _TotalOpinionSection(
-                      structuralController: _structuralController,
-                      othersController: _othersController,
-                      notesController: _notesController,
-                      opinionController: _opinionController,
-                    ),
-                    const SizedBox(height: 16),
-                    _MetaPanel(
-                      dateController: _dateController,
-                      organizationController: _organizationController,
-                      authorController: _authorController,
-                    ),
-                  ],
-                );
-              },
+            const SizedBox(width: 20),
+            Expanded(
+              flex: 2,
+              child: _MetaPanel(
+                dateController: _dateController,
+                organizationController: _organizationController,
+                authorController: _authorController,
+              ),
             ),
-          ],
-        ),
+          ];
+
+          if (isWide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: content,
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TotalOpinionSection(
+                structuralController: _structuralController,
+                othersController: _othersController,
+                notesController: _notesController,
+                opinionController: _opinionController,
+              ),
+              const SizedBox(height: 16),
+              _MetaPanel(
+                dateController: _dateController,
+                organizationController: _organizationController,
+                authorController: _authorController,
+              ),
+            ],
+          );
+        },
       ),
     );
   }

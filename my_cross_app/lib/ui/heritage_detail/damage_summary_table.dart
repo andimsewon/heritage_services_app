@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../models/heritage_detail_models.dart';
 import '../../theme.dart';
 import '../widgets/ox_toggle.dart';
-import '../widgets/section_title.dart';
+import '../components/section_card.dart';
+import '../components/section_button.dart';
 
 class DamageSummaryTable extends StatefulWidget {
   const DamageSummaryTable({
@@ -57,72 +58,61 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   Widget build(BuildContext context) {
     final columns = _buildColumns();
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: AppTheme.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+    return SectionCard(
+      title: '손상부 종합',
+      action: SectionButtonGroup(
+        spacing: 8,
+        buttons: [
+          SectionButton.outlined(
+            label: '행 삭제',
+            onPressed: widget.value.rows.isEmpty
+                ? () {} // Disabled state
+                : () {
+                    final rows = List<DamageRow>.from(widget.value.rows)
+                      ..removeLast();
+                    widget.onChanged(widget.value.copyWith(rows: rows));
+                  },
+            icon: Icons.delete_forever_outlined,
+            color: widget.value.rows.isEmpty ? Colors.grey : null,
+          ),
+          SectionButton.filled(
+            label: '행 추가',
+            onPressed: _addRow,
+            icon: Icons.add,
+          ),
+        ],
       ),
-      child: Padding(
-        padding: AppTheme.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionTitle(
-              title: '손상부 종합',
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: widget.value.rows.isEmpty
-                        ? null
-                        : () {
-                            final rows = List<DamageRow>.from(widget.value.rows)
-                              ..removeLast();
-                            widget.onChanged(widget.value.copyWith(rows: rows));
-                          },
-                    icon: const Icon(Icons.delete_forever_outlined, size: 18),
-                    label: const Text('행 삭제'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: _addRow,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('행 추가'),
-                  ),
-                ],
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '* 손상이 탐지된 경우 O / 아닌 경우 X 로 표기',
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 12),
-            const Text(
-              '* 손상이 탐지된 경우 O / 아닌 경우 X 로 표기',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: ScrollConfiguration(
-                behavior: const MaterialScrollBehavior(),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowHeight: 64,
-                    dataRowMinHeight: 56,
-                    dataRowMaxHeight: 64,
-                    columnSpacing: 18,
-                    border: TableBorder.all(color: AppTheme.tableDivider),
-                    columns: columns,
-                    rows: _buildRows(columns),
-                  ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: ScrollConfiguration(
+              behavior: const MaterialScrollBehavior(),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowHeight: 64,
+                  dataRowMinHeight: 56,
+                  dataRowMaxHeight: 64,
+                  columnSpacing: 18,
+                  border: TableBorder.all(color: AppTheme.tableDivider),
+                  columns: columns,
+                  rows: _buildRows(columns),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

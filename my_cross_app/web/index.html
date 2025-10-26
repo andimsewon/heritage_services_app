@@ -19,21 +19,65 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
-  
+
+  <!-- 🔥 캐시 완전 무효화 (브라우저 강제 리로드) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <!-- 웹에서 파일 업로드를 위한 추가 메타 태그 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- ✅ 뷰포트 고정 (Flutter Web 리사이즈 버그 방지) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta http-equiv="Content-Security-Policy" content="default-src *; img-src * data: blob:; media-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; script-src-elem * 'unsafe-inline' 'unsafe-eval';">
   
   <!-- 시스템 폰트 사용으로 폰트 로딩 오류 방지 -->
   <style>
-    /* 폰트 로딩 오류 방지를 위해 시스템 폰트만 사용 */
+    /* 🔥 화면 크기 100% 강제 적용 */
+    html {
+      height: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      height: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: auto !important;
+      background-color: #f5f7fa !important;
+      position: relative !important;
     }
-    
+
     /* Flutter 웹에서 폰트 로딩 오류 방지 */
     * {
       font-family: inherit;
+    }
+
+    /* ✅ Flutter 루트 요소들 100% 크기 강제 */
+    flt-glass-pane, flt-scene-host, flt-platform-view, flutter-view {
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      overflow: visible !important;
+    }
+
+    /* Flutter 앱 컨테이너 */
+    #flutter-container {
+      width: 100% !important;
+      height: 100% !important;
     }
   </style>
 
@@ -71,22 +115,91 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
   </script>
-  <!-- ✅ 기존 Flutter 서비스 워커가 이전 배포를 캐시하지 않도록 강제로 해제 -->
+  <!-- ✅ Service Worker 완전 비활성화 (HTTP 환경 지원) -->
   <script>
+    console.log('🔥 캐시 클리어 시작...');
+
+    // 1. 기존 Service Worker 모두 제거
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations()
         .then((registrations) => {
+          if (registrations.length > 0) {
+            console.log(`🗑️ ${registrations.length}개 Service Worker 삭제 중...`);
+          }
           registrations.forEach((registration) => {
-            registration.unregister().catch((err) => {
-              console.warn('Service worker unregister failed:', err);
-            });
+            registration.unregister()
+              .then(() => console.log('✅ Service Worker 삭제됨'))
+              .catch((err) => console.warn('⚠️ Service worker unregister failed:', err));
           });
         })
         .catch((err) => console.warn('Service worker lookup failed:', err));
     }
+
+    // 1-1. 모든 캐시 스토리지 삭제 (CanvasKit wasm 캐시 포함)
+    if ('caches' in window) {
+      caches.keys().then(cacheNames => {
+        if (cacheNames.length > 0) {
+          console.log(`🗑️ ${cacheNames.length}개 캐시 삭제 중...`);
+          return Promise.all(
+            cacheNames.map(cacheName => {
+              console.log(`  - 삭제: ${cacheName}`);
+              return caches.delete(cacheName);
+            })
+          );
+        }
+      }).then(() => {
+        console.log('✅ 모든 캐시 삭제 완료');
+      }).catch(err => console.warn('⚠️ 캐시 삭제 실패:', err));
+    }
+
+    // 2. Service Worker API 자체를 무력화 (강제 비활성화)
+    if ('serviceWorker' in navigator) {
+      Object.defineProperty(navigator, 'serviceWorker', {
+        get: function() {
+          console.log('Service Worker API blocked for HTTP environment');
+          return undefined;
+        }
+      });
+    }
+
+    // 3. Flutter 설정으로 Service Worker 비활성화 + HTML 렌더러 강제
+    window.flutterConfiguration = {
+      serviceWorkerVersion: null,
+      // ✅ CanvasKit 대신 HTML 렌더러 사용 (HTTP 환경 호환)
+      renderer: "html",
+    };
+
+    // 4. ✅ 윈도우 리사이즈 감지 후 강제 재빌드 (Flutter Web viewport 버그 방지)
+    window.addEventListener('resize', function() {
+      const html = document.documentElement;
+      html.style.height = window.innerHeight + 'px';
+      html.style.width = window.innerWidth + 'px';
+      console.log(`📐 Window resized: ${window.innerWidth}x${window.innerHeight}`);
+      window.dispatchEvent(new Event('flutter-resize'));
+    });
+
+    // 초기 로드 시에도 한 번 실행
+    window.addEventListener('load', function() {
+      const html = document.documentElement;
+      html.style.height = window.innerHeight + 'px';
+      html.style.width = window.innerWidth + 'px';
+      console.log(`📐 Initial size: ${window.innerWidth}x${window.innerHeight}`);
+      window.dispatchEvent(new Event('flutter-resize'));
+    });
   </script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <!-- ✅ HTML 렌더러 강제 설정 (flutter_bootstrap.js 로드 전에 실행) -->
+  <script>
+    // 🔥 CanvasKit 완전 차단 - HTML 렌더러만 사용
+    if (!window.flutterConfiguration) {
+      window.flutterConfiguration = {};
+    }
+    window.flutterConfiguration.renderer = "html";
+    window.flutterConfiguration.canvasKitBaseUrl = null;  // CanvasKit 로드 차단
+    console.log('🔒 Forced HTML renderer, CanvasKit blocked');
+  </script>
+  <!-- ✅ HTML 렌더러 명시적 지정 (CanvasKit WebGL 충돌 방지) -->
+  <script src="flutter_bootstrap.js" data-renderer="html"></script>
 </body>
 </html>

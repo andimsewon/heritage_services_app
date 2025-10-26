@@ -88,8 +88,24 @@ class ImageAcquire {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('이미지 선택 실패: $e')));
+        // Secure Context 오류인 경우 특별 처리
+        final errorMsg = e.toString();
+        if (kIsWeb &&
+            (errorMsg.contains('Service Worker') ||
+                errorMsg.contains('Secure Context') ||
+                errorMsg.contains('not secure'))) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  '이미지 선택 실패: HTTPS 환경에서만 사용 가능합니다.\n'
+                  'Firebase Hosting에 배포하거나 HTTPS 환경에서 실행해주세요.'),
+              duration: Duration(seconds: 5),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('이미지 선택 실패: $e')));
+        }
       }
       return null;
     }

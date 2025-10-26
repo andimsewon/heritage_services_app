@@ -497,9 +497,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             final horizontalPadding = constraints.maxWidth > maxContentWidth
                 ? (constraints.maxWidth - maxContentWidth) / 2
                 : 16.0;
-            return SizedBox(
-              height: constraints.maxHeight, // 💡 웹 렌더링 보장: 명시적 높이 지정
-              child: ScrollConfiguration(
+            return ScrollConfiguration(
                 behavior: const MaterialScrollBehavior(),
                 child: SingleChildScrollView(
                   padding: EdgeInsets.symmetric(
@@ -523,7 +521,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                         managementNumber: _managementNumber,
                       ),
                       const SizedBox(height: 24),
-                      const LocationStatusCard(),
+                      LocationStatusCard(
+                        heritageId: heritageId,
+                        heritageName: _name.isEmpty ? '미상' : _name,
+                      ),
                       const SizedBox(height: 24),
                       HeritagePhotoSection(
                         photosStream: _fb.photosStream(heritageId),
@@ -620,8 +621,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 ),
               ),
             ),
-          ),
-        );
+          );
           },
         ),
       ),
