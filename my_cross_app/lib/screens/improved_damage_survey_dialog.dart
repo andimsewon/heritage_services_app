@@ -805,8 +805,8 @@ class _ImprovedDamageSurveyDialogState
 
   @override
   Widget build(BuildContext context) {
-    final headerColor = const Color(0xFF1E2A44); // 짙은 네이비 (공공기관 스타일)
-    final accentBlue = const Color(0xFF1E2A44); // 포인트 네이비 (통일)
+    final headerColor = const Color(0xFF1C3763); // ✅ 진한 네이비 (명확한 대비)
+    final accentBlue = const Color(0xFF1C3763);  // ✅ 포인트 네이비 (통일)
     final grayBg = const Color(0xFFF8FAFC); // 밝은 회색톤 배경
 
     // 화면 크기 가져오기
@@ -906,14 +906,24 @@ class _ImprovedDamageSurveyDialogState
                   ElevatedButton(
                     onPressed: _loading ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: accentBlue,
-                      foregroundColor: Colors.white,
+                      backgroundColor: accentBlue,              // ✅ #1C3763 (진한 네이비)
+                      foregroundColor: Colors.white,            // ✅ #FFFFFF (흰색 텍스트)
+                      disabledBackgroundColor: const Color(0xFFE6E9EF), // ✅ 비활성: 밝은 회색
+                      disabledForegroundColor: const Color(0xFF8A93A3), // ✅ 비활성: 회색 텍스트
+                      elevation: 0,
                       minimumSize: const Size(100, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: Text(_getButtonText()),
+                    child: Text(
+                      _getButtonText(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
                   ),
                 ],
               ),

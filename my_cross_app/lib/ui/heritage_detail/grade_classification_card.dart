@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/heritage_detail_models.dart';
 import '../../theme.dart';
 import '../widgets/grade_badge.dart';
-import '../widgets/section_title.dart';
+import '../components/section_card.dart';
 
 class GradeClassificationCard extends StatelessWidget {
   const GradeClassificationCard({
@@ -20,68 +20,52 @@ class GradeClassificationCard extends StatelessWidget {
     final theme = Theme.of(context);
     final description = value.summary ?? '조사자 의견을 입력하면 자동으로 요약됩니다.';
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: AppTheme.cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-      ),
-      child: Padding(
-        padding: AppTheme.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionTitle(
-              title: '등급 분류',
-              trailing: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: value.grade,
-                  items: const [
-                    DropdownMenuItem(value: 'A', child: Text('A')),
-                    DropdownMenuItem(value: 'B', child: Text('B')),
-                    DropdownMenuItem(value: 'C', child: Text('C')),
-                    DropdownMenuItem(value: 'D', child: Text('D')),
-                    DropdownMenuItem(value: 'E', child: Text('E')),
-                  ],
-                  onChanged: (newGrade) {
-                    if (newGrade == null) return;
-                    onChanged(value.copyWith(grade: newGrade));
-                  },
-                  icon: const Icon(Icons.arrow_drop_down),
-                  style: theme.textTheme.titleMedium,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 720;
-                final content = [
-                  Expanded(
-                    flex: 3,
-                    child: _SummaryPanel(description: description),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(flex: 2, child: _GradePanel(value: value)),
-                ];
-                if (isWide) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: content,
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _GradePanel(value: value),
-                    const SizedBox(height: 16),
-                    _SummaryPanel(description: description),
-                  ],
-                );
-              },
-            ),
+    return SectionCard(
+      title: '등급 분류',
+      action: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value.grade,
+          items: const [
+            DropdownMenuItem(value: 'A', child: Text('A')),
+            DropdownMenuItem(value: 'B', child: Text('B')),
+            DropdownMenuItem(value: 'C', child: Text('C')),
+            DropdownMenuItem(value: 'D', child: Text('D')),
+            DropdownMenuItem(value: 'E', child: Text('E')),
           ],
+          onChanged: (newGrade) {
+            if (newGrade == null) return;
+            onChanged(value.copyWith(grade: newGrade));
+          },
+          icon: const Icon(Icons.arrow_drop_down),
+          style: theme.textTheme.titleMedium,
         ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 720;
+          final content = [
+            Expanded(
+              flex: 3,
+              child: _SummaryPanel(description: description),
+            ),
+            const SizedBox(width: 24),
+            Expanded(flex: 2, child: _GradePanel(value: value)),
+          ];
+          if (isWide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: content,
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _GradePanel(value: value),
+              const SizedBox(height: 16),
+              _SummaryPanel(description: description),
+            ],
+          );
+        },
       ),
     );
   }

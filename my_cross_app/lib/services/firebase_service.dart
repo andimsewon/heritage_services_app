@@ -1,9 +1,18 @@
 // lib/services/firebase_service.dart
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+
+/// Firebase Storage 업로드 오류 (Secure Context 문제)
+class SecureContextException implements Exception {
+  final String message;
+  SecureContextException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 class FirebaseService {
   final _fs = FirebaseFirestore.instance;
@@ -17,6 +26,11 @@ class FirebaseService {
     required Uint8List bytes,
   }) async {
     try {
+      // HTTP 환경에서의 Service Worker 오류 처리
+      if (kIsWeb) {
+        debugPrint('🌐 웹 환경에서 이미지 업로드 시도...');
+      }
+
       final id = const Uuid().v4();
       final ref = _st.ref().child('heritages/$heritageId/$folder/$id.jpg');
 
@@ -32,16 +46,33 @@ class FirebaseService {
       );
 
       final uploadTask = await ref.putData(bytes, metadata);
-      
+
       if (uploadTask.state == TaskState.success) {
         final downloadUrl = await ref.getDownloadURL();
-        print('✅ 이미지 업로드 성공: $downloadUrl');
+        debugPrint('✅ 이미지 업로드 성공: $downloadUrl');
         return downloadUrl;
       } else {
         throw Exception('Upload failed with state: ${uploadTask.state}');
       }
     } catch (e) {
-      print('❌ Firebase Storage 업로드 실패: $e');
+      debugPrint('❌ Firebase Storage 업로드 실패: $e');
+
+      // HTTP 환경에서의 Service Worker 오류인 경우 특별 처리
+      if (kIsWeb &&
+          (e.toString().contains('Service Worker') ||
+              e.toString().contains('Secure Context') ||
+              e.toString().contains('not secure'))) {
+        debugPrint('⚠️ Secure Context 오류 감지 - HTTP 환경에서 실행 중입니다.');
+        debugPrint('💡 해결 방법:');
+        debugPrint('   1. HTTPS 환경에서 실행');
+        debugPrint('   2. Firebase Hosting에 배포');
+        debugPrint('   3. localhost에서 실행');
+
+        throw SecureContextException(
+            '이미지 업로드 실패: HTTPS 환경에서만 사용 가능합니다.\n'
+            'Firebase Hosting에 배포하거나 HTTPS 환경에서 실행해주세요.');
+      }
+
       throw Exception('Firebase Storage upload failed: $e');
     }
   }
@@ -306,7 +337,7 @@ class FirebaseService {
           .get();
 
       if (snapshot.docs.isEmpty) {
-        print('🔍 전년도 조사 사진 없음 (heritageId: $heritageId, location: $location)');
+        debugPrint('🔍 전년도 조사 사진 없음 (heritageId: $heritageId, location: $location)');
         return null;
       }
 
@@ -315,13 +346,13 @@ class FirebaseService {
       final imageUrl = data['imageUrl'] as String?;
 
       if (imageUrl != null && imageUrl.isNotEmpty) {
-        print('✅ 전년도 조사 사진 로드 성공: $imageUrl');
+        debugPrint('✅ 전년도 조사 사진 로드 성공: $imageUrl');
         return imageUrl;
       }
 
       return null;
     } catch (e) {
-      print('❌ 전년도 사진 로드 실패: $e');
+      debugPrint('❌ 전년도 사진 로드 실패: $e');
       return null;
     }
   }
