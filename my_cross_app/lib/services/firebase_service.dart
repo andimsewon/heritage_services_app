@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+import '../models/section_form_models.dart';
 
 /// Firebase Storage 업로드 오류 (Secure Context 문제)
 class SecureContextException implements Exception {
@@ -17,6 +18,11 @@ class SecureContextException implements Exception {
 class FirebaseService {
   final _fs = FirebaseFirestore.instance;
   final _st = FirebaseStorage.instance;
+
+  FirebaseService() {
+    // Firestore 설정은 Flutter에서 자동으로 처리됨
+    debugPrint('🔥 FirebaseService 초기화 완료');
+  }
 
   /// 문화유산 사진 업로드 (현황/조사 공용)
   /// folder: 'photos' | 'damage_surveys'
@@ -218,6 +224,10 @@ class FirebaseService {
     debugPrint('🚨 FirebaseService.addDetailSurvey 호출됨!');
     
     try {
+      // Firebase 연결 상태 확인
+      await _fs.enableNetwork();
+      print('✅ Firestore 네트워크 연결 확인됨');
+      
       print('🔥 Firebase 저장 시작...');
       debugPrint('🔥 Firebase 저장 시작...');
       print('  - HeritageId: $heritageId');
@@ -295,12 +305,22 @@ class FirebaseService {
         debugPrint('🚨 권한 오류: Firestore 보안 규칙을 확인하세요!');
         debugPrint('   Firebase Console → Firestore Database → 규칙');
         debugPrint('   현재 규칙: allow read, write: if true;');
-      } else if (e.toString().contains('network')) {
+      } else if (e.toString().contains('network') || e.toString().contains('transport')) {
         debugPrint('🌐 네트워크 오류: 인터넷 연결을 확인하세요!');
+        debugPrint('   WebChannelConnection 오류 - 네트워크 연결 문제');
+        // 네트워크 재연결 시도
+        try {
+          await _fs.enableNetwork();
+          debugPrint('🔄 네트워크 재연결 시도 중...');
+        } catch (retryError) {
+          debugPrint('❌ 네트워크 재연결 실패: $retryError');
+        }
       } else if (e.toString().contains('quota')) {
         debugPrint('📊 할당량 초과: Firebase 할당량을 확인하세요!');
       } else if (e.toString().contains('unavailable')) {
         debugPrint('🔧 서비스 불가: Firebase 서비스 상태를 확인하세요!');
+      } else if (e.toString().contains('timeout')) {
+        debugPrint('⏰ 타임아웃: 요청 시간이 초과되었습니다!');
       }
       
       rethrow;
@@ -328,6 +348,10 @@ class FirebaseService {
       print('🚨 섹션 폼 저장 시작!');
       debugPrint('🚨 섹션 폼 저장 시작!');
       
+      // Firebase 연결 상태 확인
+      await _fs.enableNetwork();
+      print('✅ Firestore 네트워크 연결 확인됨');
+      
       final col = _fs
           .collection('heritages')
           .doc(heritageId)
@@ -335,19 +359,64 @@ class FirebaseService {
           .doc(sectionType);
       
       debugPrint('  - 컬렉션 경로: heritages/$heritageId/section_forms/$sectionType');
+      debugPrint('  - HeritageId: $heritageId');
+      debugPrint('  - SectionType: $sectionType');
+      
+      // formData를 Map으로 변환
+      Map<String, dynamic> formDataMap;
+      if (formData is SectionFormData) {
+        formDataMap = formData.toMap();
+        debugPrint('  - SectionFormData 변환 완료');
+      } else {
+        debugPrint('  - formData 타입: ${formData.runtimeType}');
+        formDataMap = formData.toMap();
+      }
       
       final dataToSave = <String, dynamic>{
         'heritageId': heritageId,
         'sectionType': sectionType,
-        ...formData.toMap(),
+        ...formDataMap,
         'timestamp': DateTime.now().toIso8601String(),
+        'version': 1,
       };
       
-      await col.collection('items').add(dataToSave);
+      debugPrint('  - 저장할 데이터 키들: ${dataToSave.keys.toList()}');
+      debugPrint('  - 제목: ${dataToSave['title']}');
+      debugPrint('  - 내용 길이: ${dataToSave['content']?.toString().length ?? 0}');
+      
+      // 데이터 저장
+      final docRef = await col.collection('items').add(dataToSave);
+      final docId = docRef.id;
       
       debugPrint('✅ 섹션 폼 저장 완료!');
+      debugPrint('  - 저장된 문서 ID: $docId');
+      
+      // 저장 확인
+      final savedDoc = await col.collection('items').doc(docId).get();
+      if (savedDoc.exists) {
+        debugPrint('✅ 저장 확인 성공 - 문서가 실제로 존재합니다!');
+        debugPrint('  - 문서 데이터 키들: ${savedDoc.data()?.keys.toList()}');
+      } else {
+        debugPrint('❌ 저장 확인 실패 - 문서가 존재하지 않습니다!');
+        throw Exception('문서 저장 후 확인 실패');
+      }
+      
     } catch (e) {
       debugPrint('❌ 섹션 폼 저장 실패: $e');
+      debugPrint('  - 오류 타입: ${e.runtimeType}');
+      debugPrint('  - 오류 메시지: ${e.toString()}');
+      
+      // 구체적인 오류 분석
+      if (e.toString().contains('permission-denied')) {
+        debugPrint('🚨 권한 오류: Firestore 보안 규칙을 확인하세요!');
+      } else if (e.toString().contains('network') || e.toString().contains('transport')) {
+        debugPrint('🌐 네트워크 오류: 인터넷 연결을 확인하세요!');
+      } else if (e.toString().contains('quota')) {
+        debugPrint('📊 할당량 초과: Firebase 할당량을 확인하세요!');
+      } else if (e.toString().contains('unavailable')) {
+        debugPrint('🔧 서비스 불가: Firebase 서비스 상태를 확인하세요!');
+      }
+      
       rethrow;
     }
   }

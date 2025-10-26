@@ -48,6 +48,8 @@
       bottom: 0 !important;
       min-height: 100vh !important;
       min-width: 100vw !important;
+      max-width: none !important;
+      max-height: none !important;
     }
 
     body {
@@ -83,6 +85,8 @@
       overflow: visible !important;
       min-height: 100vh !important;
       min-width: 100vw !important;
+      max-width: none !important;
+      max-height: none !important;
     }
 
     /* Flutter 앱 컨테이너 (최대한 강력한 설정) */
@@ -91,11 +95,37 @@
       height: 100vh !important;
       min-height: 100vh !important;
       min-width: 100vw !important;
+      max-width: none !important;
+      max-height: none !important;
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
       bottom: 0 !important;
+    }
+
+    /* 🔥 추가 강력한 반응형 규칙 */
+    html[style*="width"],
+    html[style*="height"] {
+      width: 100vw !important;
+      height: 100vh !important;
+    }
+
+    flutter-view[style*="width"],
+    flutter-view[style*="height"] {
+      width: 100vw !important;
+      height: 100vh !important;
+    }
+
+    /* 모든 Flutter 관련 요소 강제 반응형 */
+    flt-glass-pane[style*="width"],
+    flt-glass-pane[style*="height"],
+    flt-scene-host[style*="width"],
+    flt-scene-host[style*="height"],
+    flt-platform-view[style*="width"],
+    flt-platform-view[style*="height"] {
+      width: 100vw !important;
+      height: 100vh !important;
     }
   </style>
 
@@ -115,7 +145,7 @@
   <script type="module">
     // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+    import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
     import { getStorage } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-storage.js";
 
     // Your web app's Firebase configuration
@@ -132,6 +162,21 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const storage = getStorage(app);
+
+    // Firebase 연결 설정 개선
+    console.log('🔥 Firebase 초기화 완료');
+
+    // 연결 상태 모니터링
+    db.enableNetwork().then(() => {
+      console.log('✅ Firestore 네트워크 연결 활성화');
+    }).catch((error) => {
+      console.error('❌ Firestore 네트워크 연결 실패:', error);
+    });
+
+    // 전역 변수로 설정 (Flutter에서 접근 가능)
+    window.firebaseApp = app;
+    window.firebaseDb = db;
+    window.firebaseStorage = storage;
   </script>
   <!-- ✅ Service Worker 완전 비활성화 (HTTP 환경 지원) -->
   <script>
@@ -189,20 +234,79 @@
 
     // 4. ✅ 윈도우 리사이즈 감지 후 강제 재빌드 (Flutter Web viewport 버그 방지)
     window.addEventListener('resize', function () {
+      // 인라인 스타일 제거하고 CSS 규칙이 적용되도록 함
       const html = document.documentElement;
-      html.style.height = window.innerHeight + 'px';
-      html.style.width = window.innerWidth + 'px';
+      const flutterView = document.querySelector('flutter-view');
+
+      // HTML과 Flutter 뷰의 인라인 스타일 제거
+      html.style.removeProperty('height');
+      html.style.removeProperty('width');
+      if (flutterView) {
+        flutterView.style.removeProperty('height');
+        flutterView.style.removeProperty('width');
+      }
+
       console.log(`📐 Window resized: ${window.innerWidth}x${window.innerHeight}`);
       window.dispatchEvent(new Event('flutter-resize'));
     });
 
     // 초기 로드 시에도 한 번 실행
     window.addEventListener('load', function () {
+      // 인라인 스타일 제거하고 CSS 규칙이 적용되도록 함
       const html = document.documentElement;
-      html.style.height = window.innerHeight + 'px';
-      html.style.width = window.innerWidth + 'px';
+      const flutterView = document.querySelector('flutter-view');
+
+      // HTML과 Flutter 뷰의 인라인 스타일 제거
+      html.style.removeProperty('height');
+      html.style.removeProperty('width');
+      if (flutterView) {
+        flutterView.style.removeProperty('height');
+        flutterView.style.removeProperty('width');
+      }
+
       console.log(`📐 Initial size: ${window.innerWidth}x${window.innerHeight}`);
       window.dispatchEvent(new Event('flutter-resize'));
+    });
+
+    // 5. ✅ 주기적으로 인라인 스타일 제거 (Flutter가 다시 설정하는 경우 대비)
+    setInterval(function () {
+      const html = document.documentElement;
+      const flutterView = document.querySelector('flutter-view');
+
+      if (html.style.height || html.style.width) {
+        console.log('🔧 Removing HTML inline styles');
+        html.style.removeProperty('height');
+        html.style.removeProperty('width');
+      }
+
+      if (flutterView && (flutterView.style.height || flutterView.style.width)) {
+        console.log('🔧 Removing Flutter view inline styles');
+        flutterView.style.removeProperty('height');
+        flutterView.style.removeProperty('width');
+      }
+    }, 100); // 0.1초마다 체크 (더 자주)
+
+    // 6. ✅ Flutter 로드 완료 후 강제 스타일 적용
+    window.addEventListener('flutter-first-frame', function () {
+      console.log('🎬 Flutter first frame loaded, applying responsive styles');
+      const html = document.documentElement;
+      const flutterView = document.querySelector('flutter-view');
+
+      // 모든 인라인 스타일 제거
+      html.style.removeProperty('height');
+      html.style.removeProperty('width');
+      if (flutterView) {
+        flutterView.style.removeProperty('height');
+        flutterView.style.removeProperty('width');
+      }
+
+      // CSS 규칙 강제 적용
+      html.style.setProperty('width', '100vw', 'important');
+      html.style.setProperty('height', '100vh', 'important');
+      if (flutterView) {
+        flutterView.style.setProperty('width', '100vw', 'important');
+        flutterView.style.setProperty('height', '100vh', 'important');
+      }
     });
   </script>
 </head>

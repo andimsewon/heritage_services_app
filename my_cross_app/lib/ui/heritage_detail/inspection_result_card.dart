@@ -385,7 +385,12 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   }
 
   Future<void> _saveInspectionResult() async {
+    print('🚨 _saveInspectionResult 호출됨!');
+    debugPrint('🚨 _saveInspectionResult 호출됨!');
+    
     if (widget.heritageId.isEmpty) {
+      print('❌ HeritageId가 비어있음');
+      debugPrint('❌ HeritageId가 비어있음');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('문화유산 정보가 없습니다.'),
@@ -394,6 +399,9 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       );
       return;
     }
+
+    print('✅ HeritageId 확인됨: ${widget.heritageId}');
+    debugPrint('✅ HeritageId 확인됨: ${widget.heritageId}');
 
     setState(() => _isSaving = true);
 
@@ -461,6 +469,9 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
         return;
       }
 
+      print('📝 SectionFormData 생성 중...');
+      debugPrint('📝 SectionFormData 생성 중...');
+      
       final formData = SectionFormData(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         sectionType: SectionType.inspection,
@@ -470,11 +481,25 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
         author: '현재 사용자',
       );
 
+      print('✅ SectionFormData 생성 완료');
+      debugPrint('✅ SectionFormData 생성 완료');
+      debugPrint('  - ID: ${formData.id}');
+      debugPrint('  - SectionType: ${formData.sectionType}');
+      debugPrint('  - Title: ${formData.title}');
+      debugPrint('  - Content 길이: ${formData.content.length}');
+      debugPrint('  - Author: ${formData.author}');
+
+      print('🔥 Firebase 저장 시작...');
+      debugPrint('🔥 Firebase 저장 시작...');
+      
       await _fb.saveSectionForm(
         heritageId: widget.heritageId,
         sectionType: SectionType.inspection,
         formData: formData,
       );
+      
+      print('✅ Firebase 저장 완료!');
+      debugPrint('✅ Firebase 저장 완료!');
 
       // 입력 필드 초기화
       _foundationController.clear();
