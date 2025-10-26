@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-
-import '../../services/survey_repository.dart';
+import '../../models/survey_models.dart';
+import '../../widgets/kv_row.dart';
 import 'detail_sections_strings_ko.dart';
 
 class Section11Investigation extends StatefulWidget {
+  final Section11Data data;
+  final ValueChanged<Section11Data> onChanged;
+  final bool enabled;
+
   const Section11Investigation({
     super.key,
     required this.data,
@@ -11,241 +15,325 @@ class Section11Investigation extends StatefulWidget {
     this.enabled = true,
   });
 
-  final Section11Data data;
-  final ValueChanged<Section11Data> onChanged;
-  final bool enabled;
-
   @override
   State<Section11Investigation> createState() => _Section11InvestigationState();
 }
 
 class _Section11InvestigationState extends State<Section11Investigation> {
-  late final TextEditingController _foundation;
-  late final TextEditingController _wall;
-  late final TextEditingController _roof;
-  late final TextEditingController _paint;
-  late final TextEditingController _etc;
-  late final TextEditingController _safety;
-  late final TextEditingController _pestNote;
-  late final TextEditingController _opinion;
-  late final TextEditingController _gradeNote;
+  late Section11Data _data;
 
   @override
   void initState() {
     super.initState();
-    _foundation = TextEditingController();
-    _wall = TextEditingController();
-    _roof = TextEditingController();
-    _paint = TextEditingController();
-    _etc = TextEditingController();
-    _safety = TextEditingController();
-    _pestNote = TextEditingController();
-    _opinion = TextEditingController();
-    _gradeNote = TextEditingController();
-    _syncControllers();
+    _data = widget.data;
   }
 
   @override
-  void didUpdateWidget(covariant Section11Investigation oldWidget) {
+  void didUpdateWidget(Section11Investigation oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.data != widget.data) {
-      _syncControllers();
+    if (widget.data != oldWidget.data) {
+      _data = widget.data;
     }
   }
 
-  @override
-  void dispose() {
-    _foundation.dispose();
-    _wall.dispose();
-    _roof.dispose();
-    _paint.dispose();
-    _etc.dispose();
-    _safety.dispose();
-    _pestNote.dispose();
-    _opinion.dispose();
-    _gradeNote.dispose();
-    super.dispose();
+  void _updateData(Section11Data newData) {
+    setState(() {
+      _data = newData;
+    });
+    widget.onChanged(newData);
   }
-
-  void _syncControllers() {
-    _sync(_foundation, widget.data.foundation);
-    _sync(_wall, widget.data.wall);
-    _sync(_roof, widget.data.roof);
-    _sync(_paint, widget.data.paint);
-    _sync(_etc, widget.data.etc);
-    _sync(_safety, widget.data.safetyNotes);
-    if (_pestNote.text != widget.data.pest.note) {
-      _pestNote.text = widget.data.pest.note;
-    }
-    if (_opinion.text != widget.data.investigatorOpinion) {
-      _opinion.text = widget.data.investigatorOpinion;
-    }
-    if (_gradeNote.text != widget.data.grade.note) {
-      _gradeNote.text = widget.data.grade.note;
-    }
-  }
-
-  void _sync(TextEditingController controller, List<String> values) {
-    final joined = values.join('\n');
-    if (controller.text != joined) {
-      controller.text = joined;
-    }
-  }
-
-  List<String> _split(String value) => value
-      .split('\n')
-      .map((line) => line.trim())
-      .where((line) => line.isNotEmpty)
-      .toList();
-
-  void _emit(Section11Data data) => widget.onChanged(data);
 
   @override
   Widget build(BuildContext context) {
-    final card = Card(
-      margin: EdgeInsets.zero,
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               stringsKo['sec_11']!,
               style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            _buildMultiline(stringsKo['foundation']!, _foundation, (value) {
-              _emit(widget.data.copyWith(foundation: _split(value)));
-            }),
-            _buildMultiline(stringsKo['wall']!, _wall, (value) {
-              _emit(widget.data.copyWith(wall: _split(value)));
-            }),
-            _buildMultiline(stringsKo['roof']!, _roof, (value) {
-              _emit(widget.data.copyWith(roof: _split(value)));
-            }),
-            _buildMultiline(stringsKo['paint']!, _paint, (value) {
-              _emit(widget.data.copyWith(paint: _split(value)));
-            }),
-            const SizedBox(height: 12),
-            SwitchListTile.adaptive(
-              title: Text(stringsKo['pest']!),
-              value: widget.data.pest.hasPest,
-              onChanged: widget.enabled
-                  ? (value) => _emit(
-                        widget.data
-                            .copyWith(pest: widget.data.pest.copyWith(hasPest: value)),
-                      )
-                  : null,
+            
+            // Foundation section
+            _buildTextListSection(
+              stringsKo['foundation']!,
+              _data.foundation,
+              (value) => _updateData(_data.copyWith(foundation: value)),
             ),
-            _buildTextField(
-              hint: '충해가 있는 경우 상세 내용을 작성하세요.',
-              controller: _pestNote,
-              label: '${stringsKo['pest']} 메모',
-              onChanged: (value) => _emit(
-                widget.data.copyWith(
-                  pest: widget.data.pest.copyWith(note: value),
-                ),
-              ),
-            ),
-            _buildMultiline(stringsKo['etc']!, _etc, (value) {
-              _emit(widget.data.copyWith(etc: _split(value)));
-            }),
-            _buildMultiline(stringsKo['safetyNotes']!, _safety, (value) {
-              _emit(widget.data.copyWith(safetyNotes: _split(value)));
-            }),
-            const SizedBox(height: 12),
-            Text(stringsKo['grade']!),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: widget.data.grade.value.isEmpty
-                  ? null
-                  : widget.data.grade.value,
-              items: const [
-                DropdownMenuItem(value: 'A', child: Text('A')),
-                DropdownMenuItem(value: 'B', child: Text('B')),
-                DropdownMenuItem(value: 'C', child: Text('C')),
-                DropdownMenuItem(value: 'D', child: Text('D')),
-                DropdownMenuItem(value: 'E', child: Text('E')),
-                DropdownMenuItem(value: 'F', child: Text('F')),
-              ],
-              onChanged: widget.enabled
-                  ? (value) {
-                      if (value == null) return;
-                      _emit(
-                        widget.data.copyWith(
-                          grade: widget.data.grade.copyWith(value: value),
-                        ),
-                      );
-                    }
-                  : null,
-              decoration: const InputDecoration(
-                labelText: '등급',
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildTextField(
-              controller: _gradeNote,
-              label: '등급 설명',
-              onChanged: (value) => _emit(
-                widget.data.copyWith(
-                  grade: widget.data.grade.copyWith(note: value),
-                ),
-              ),
-            ),
+            
             const SizedBox(height: 16),
-            _buildMultiline(stringsKo['investigatorOpinion']!, _opinion, (value) {
-              _emit(widget.data.copyWith(investigatorOpinion: value));
-            }, minLines: 4),
+            
+            // Wall section
+            _buildTextListSection(
+              stringsKo['wall']!,
+              _data.wall,
+              (value) => _updateData(_data.copyWith(wall: value)),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Roof section
+            _buildTextListSection(
+              stringsKo['roof']!,
+              _data.roof,
+              (value) => _updateData(_data.copyWith(roof: value)),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Paint section
+            _buildTextListSection(
+              stringsKo['paint']!,
+              _data.paint,
+              (value) => _updateData(_data.copyWith(paint: value)),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Pest section
+            _buildPestSection(),
+            
+            const SizedBox(height: 16),
+            
+            // Etc section
+            _buildTextListSection(
+              stringsKo['etc']!,
+              _data.etc,
+              (value) => _updateData(_data.copyWith(etc: value)),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Safety notes section
+            _buildTextListSection(
+              stringsKo['safetyNotes']!,
+              _data.safetyNotes,
+              (value) => _updateData(_data.copyWith(safetyNotes: value)),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Investigator opinion
+            KeyValueRow(
+              title: stringsKo['investigatorOpinion']!,
+              enabled: widget.enabled,
+              value: TextFormField(
+                initialValue: _data.investigatorOpinion,
+                enabled: widget.enabled,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: '조사자의 종합적인 의견을 입력하세요',
+                ),
+                onChanged: (value) => _updateData(_data.copyWith(investigatorOpinion: value)),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Grade section
+            _buildGradeSection(),
           ],
         ),
       ),
     );
-
-    return Opacity(
-      opacity: widget.enabled ? 1 : 0.7,
-      child: card,
-    );
   }
 
-  Widget _buildMultiline(
-    String label,
-    TextEditingController controller,
-    ValueChanged<String> onChanged, {
-    int minLines = 3,
-  }) {
-    return _buildTextField(
-      controller: controller,
-      label: label,
-      onChanged: (value) => onChanged(value),
-      minLines: minLines,
-      maxLines: minLines + 2,
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required ValueChanged<String> onChanged,
-    String? hint,
-    int minLines = 1,
-    int maxLines = 4,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: TextFormField(
-        controller: controller,
-        enabled: widget.enabled,
-        minLines: minLines,
-        maxLines: maxLines,
-        onChanged: widget.enabled ? onChanged : null,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
+  Widget _buildTextListSection(
+    String title,
+    Map<String, List<Map<String, String>>> data,
+    ValueChanged<Map<String, List<Map<String, String>>>> onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        ...data.entries.map((entry) => _buildTextListEntry(
+          entry.key,
+          entry.value,
+          (value) {
+            final newData = Map<String, List<Map<String, String>>>.from(data);
+            newData[entry.key] = value;
+            onChanged(newData);
+          },
+        )),
+        if (widget.enabled)
+          TextButton.icon(
+            onPressed: () {
+              final newData = Map<String, List<Map<String, String>>>.from(data);
+              newData['새 항목'] = [{'text': ''}];
+              onChanged(newData);
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('항목 추가'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTextListEntry(
+    String key,
+    List<Map<String, String>> items,
+    ValueChanged<List<Map<String, String>>> onChanged,
+  ) {
+    return Column(
+      children: [
+        Text(
+          key,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          return Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: item['text'] ?? '',
+                  enabled: widget.enabled,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onChanged: (value) {
+                    final newItems = List<Map<String, String>>.from(items);
+                    newItems[index] = {'text': value};
+                    onChanged(newItems);
+                  },
+                ),
+              ),
+              if (widget.enabled)
+                IconButton(
+                  onPressed: () {
+                    final newItems = List<Map<String, String>>.from(items);
+                    newItems.removeAt(index);
+                    onChanged(newItems);
+                  },
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildPestSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          stringsKo['pest']!,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Checkbox(
+              value: _data.pest['hasPest'] == true,
+              onChanged: widget.enabled
+                  ? (value) {
+                      final newPest = Map<String, dynamic>.from(_data.pest);
+                      newPest['hasPest'] = value ?? false;
+                      _updateData(_data.copyWith(pest: newPest));
+                    }
+                  : null,
+            ),
+            const Text('충해 발견'),
+          ],
+        ),
+        if (_data.pest['hasPest'] == true)
+          TextFormField(
+            initialValue: _data.pest['note'] ?? '',
+            enabled: widget.enabled,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: '충해 상세 내용을 입력하세요',
+            ),
+            onChanged: (value) {
+              final newPest = Map<String, dynamic>.from(_data.pest);
+              newPest['note'] = value;
+              _updateData(_data.copyWith(pest: newPest));
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGradeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          stringsKo['grade']!,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _data.grade['value'] ?? '',
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: '등급',
+                ),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('선택하세요')),
+                  DropdownMenuItem(value: 'A', child: Text('A')),
+                  DropdownMenuItem(value: 'B', child: Text('B')),
+                  DropdownMenuItem(value: 'C', child: Text('C')),
+                  DropdownMenuItem(value: 'D', child: Text('D')),
+                  DropdownMenuItem(value: 'E', child: Text('E')),
+                  DropdownMenuItem(value: 'F', child: Text('F')),
+                ],
+                onChanged: widget.enabled
+                    ? (value) {
+                        final newGrade = Map<String, dynamic>.from(_data.grade);
+                        newGrade['value'] = value ?? '';
+                        _updateData(_data.copyWith(grade: newGrade));
+                      }
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextFormField(
+                initialValue: _data.grade['note'] ?? '',
+                enabled: widget.enabled,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: '비고',
+                ),
+                onChanged: (value) {
+                  final newGrade = Map<String, dynamic>.from(_data.grade);
+                  newGrade['note'] = value;
+                  _updateData(_data.copyWith(grade: newGrade));
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

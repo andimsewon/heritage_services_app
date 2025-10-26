@@ -1,102 +1,231 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
-import '../../env.dart';
+import 'package:flutter/foundation.dart';
+import '../../models/survey_models.dart';
 import '../../services/survey_repository.dart';
 import '../../widgets/year_history_sheet.dart';
-import 'detail_sections_strings_ko.dart';
 import 'section11_investigation.dart';
 import 'section12_conservation.dart';
 import 'section13_management.dart';
+import 'detail_sections_strings_ko.dart';
 
-class HeritageSurveySections extends StatefulWidget {
-  const HeritageSurveySections({
+class SurveySectionsPanel extends StatefulWidget {
+  final String assetId;
+  final String currentYear;
+  final String editorUid;
+
+  const SurveySectionsPanel({
     super.key,
-    required this.heritageId,
-    required this.heritageName,
-    this.onNavigateList,
+    required this.assetId,
+    required this.currentYear,
+    required this.editorUid,
   });
 
-  final String heritageId;
-  final String heritageName;
-  final VoidCallback? onNavigateList;
-
   @override
-  State<HeritageSurveySections> createState() => _HeritageSurveySectionsState();
+  State<SurveySectionsPanel> createState() => _SurveySectionsPanelState();
 }
 
-class _HeritageSurveySectionsState extends State<HeritageSurveySections> {
+class _SurveySectionsPanelState extends State<SurveySectionsPanel> {
   final SurveyRepository _repository = SurveyRepository();
-  late final String _currentYear = DateTime.now().year.toString();
-  String _activeYear = DateTime.now().year.toString();
+  
   SurveyModel? _model;
-  bool _loading = true;
-  bool _saving = false;
-  bool _importing = false;
-  bool _editing = false;
+  List<String> _availableYears = [];
+  String _activeYear = '';
+  bool _isLoading = false;
+  bool _isSaving = false;
+  bool _isReadOnly = false;
   bool _hasChanges = false;
-  bool _adminOverrideGate = false;
-  List<SurveyYearEntry> _years = const [];
-
-  bool get _isCurrentYear => _activeYear == _currentYear;
-  bool get _allowOverride => Env.adminOverrideEnabled;
-  bool get _canEdit => _editing && (_isCurrentYear || _adminOverrideGate);
-  bool get _canSave => _canEdit && _hasChanges && !_saving;
-  bool get _importEnabled =>
-      _isCurrentYear && !_importing && _years.any((y) => y.year != _currentYear);
 
   @override
   void initState() {
     super.initState();
+    _activeYear = widget.currentYear;
     _load();
   }
 
   Future<void> _load({String? year}) async {
-    final targetYear = year ?? _activeYear;
+    if (kDebugMode) {
+      print('[SurveySectionsPanel] Loading survey for asset: ${widget.assetId}, year: ${year ?? _activeYear}');
+    }
+
     setState(() {
-      _loading = true;
-      _activeYear = targetYear;
-      _editing = false;
-      _hasChanges = false;
-      _adminOverrideGate = false;
+      _isLoading = true;
+      _activeYear = year ?? _activeYear;
+      _isReadOnly = _activeYear != widget.currentYear;
     });
+
     try {
-      final result = await Future.wait([
-        _repository.loadSurvey(widget.heritageId, targetYear),
-        _repository.fetchAvailableYears(widget.heritageId),
-      ]);
-      final model = result[0] as SurveyModel?;
-      final years = result[1] as List<SurveyYearEntry>;
-      if (kDebugMode) {
-        print('[HeritageSurveySections] loaded $targetYear '
-            'rows=${model?.section12.length ?? 0}');
+      // Load available years
+      _availableYears = await _repository.getAvailableYears(widget.assetId);
+      
+      // Load survey data
+      _model = await _repository.loadSurvey(widget.assetId, _activeYear);
+      
+      if (_model == null && _activeYear == widget.currentYear) {
+        // Create empty model for current year
+        _model = SurveyModel(
+          year: _activeYear,
+          section11: Section11Data.empty(),
+          section12: [],
+          section13: Section13Data.empty(),
+        );
       }
-      setState(() {
-        _model = model ?? SurveyModel.empty(targetYear);
-        _years = _mergeYears(years, targetYear);
-        _loading = false;
-        _hasChanges = false;
-      });
+
+      if (kDebugMode) {
+        print('[SurveySectionsPanel] Loaded model: ${_model != null}');
+        print('[SurveySectionsPanel] Available years: $_availableYears');
+        print('[SurveySectionsPanel] Is read-only: $_isReadOnly');
+      }
     } catch (e) {
       if (kDebugMode) {
-        print('[HeritageSurveySections] load error: $e');
+        print('[SurveySectionsPanel] Error loading survey: $e');
       }
-      if (!mounted) return;
-      setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('조사 데이터 로드 실패: $e')),
+        SnackBar(content: Text('데이터 로드 실패: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  List<SurveyYearEntry> _mergeYears(List<SurveyYearEntry> remote, String active) {
-    final seen = {for (final item in remote) item.year: item};
-    if (!seen.containsKey(active)) {
-      seen[active] = SurveyYearEntry(year: active, hasData: _model != null);
+  Future<void> _save() async {
+    if (_model == null || _isReadOnly) return;
+
+    if (kDebugMode) {
+      print('[SurveySectionsPanel] Saving survey for asset: ${widget.assetId}, year: $_activeYear');
     }
-    final list = seen.values.toList()
-      ..sort((a, b) => int.parse(b.year).compareTo(int.parse(a.year)));
-    return list;
+
+    setState(() => _isSaving = true);
+
+    try {
+      await _repository.saveSurvey(
+        widget.assetId,
+        _activeYear,
+        _model!,
+        editorUid: widget.editorUid,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('조사 결과를 저장했습니다.')),
+        );
+        setState(() {
+          _hasChanges = false;
+        });
+        await _load(); // Reload to get updated data
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[SurveySectionsPanel] Error saving survey: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _importFromYear() async {
+    if (_activeYear != widget.currentYear) return;
+
+    final availablePastYears = _availableYears
+        .where((year) => year != widget.currentYear)
+        .toList();
+
+    if (availablePastYears.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('불러올 수 있는 과거 데이터가 없습니다.')),
+      );
+      return;
+    }
+
+    final sourceYear = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(stringsKo['import_confirm_title']!),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(stringsKo['import_confirm_body']!),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: availablePastYears.first,
+              decoration: const InputDecoration(
+                labelText: '불러올 연도 선택',
+                border: OutlineInputBorder(),
+              ),
+              items: availablePastYears.map((year) {
+                return DropdownMenuItem(
+                  value: year,
+                  child: Text(year),
+                );
+              }).toList(),
+              onChanged: (value) {
+                Navigator.pop(context, value);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, availablePastYears.first),
+            child: const Text('불러오기'),
+          ),
+        ],
+      ),
+    );
+
+    if (sourceYear == null) return;
+
+    try {
+      await _repository.importFromYear(
+        widget.assetId,
+        sourceYear,
+        widget.currentYear,
+        editorUid: widget.editorUid,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이전 연도 데이터를 불러왔습니다.')),
+        );
+        await _load();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[SurveySectionsPanel] Error importing survey: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('불러오기 실패: $e')),
+        );
+      }
+    }
+  }
+
+  void _showYearHistory() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => YearHistorySheet(
+        availableYears: _availableYears,
+        currentYear: widget.currentYear,
+        onYearSelected: (year) {
+          _load(year: year);
+        },
+      ),
+    );
   }
 
   void _onSection11Changed(Section11Data value) {
@@ -107,10 +236,10 @@ class _HeritageSurveySectionsState extends State<HeritageSurveySections> {
     });
   }
 
-  void _onSection12Changed(List<Section12Row> rows) {
+  void _onSection12Changed(List<Section12Row> value) {
     if (_model == null) return;
     setState(() {
-      _model = _model!.copyWith(section12: rows);
+      _model = _model!.copyWith(section12: value);
       _hasChanges = true;
     });
   }
@@ -123,265 +252,137 @@ class _HeritageSurveySectionsState extends State<HeritageSurveySections> {
     });
   }
 
-  Future<void> _handleSave() async {
-    if (_model == null || !_canSave) return;
-    setState(() => _saving = true);
-    try {
-      await _repository.saveSurvey(
-        widget.heritageId,
-        _activeYear,
-        _model!,
-        editorUid: Env.defaultEditorUid,
-        adminOverride: !_isCurrentYear && _adminOverrideGate,
-      );
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _editing = false;
-        _hasChanges = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('조사 결과를 저장했습니다.')),
-      );
-      await _load(year: _activeYear);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('저장 실패: $e')));
-    }
-  }
-
-  Future<void> _handleImport() async {
-    final pastYears = _years.where((y) => y.year != _currentYear).toList();
-    if (pastYears.isEmpty || !_importEnabled) return;
-    var selected = pastYears.first.year;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(stringsKo['import_confirm_title']!),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(stringsKo['import_confirm_body']!),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: selected,
-                    items: pastYears
-                        .map(
-                          (item) => DropdownMenuItem(
-                            value: item.year,
-                            child: Text('${item.year}년'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => selected = value);
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('불러오기'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true) return;
-    setState(() => _importing = true);
-    try {
-      await _repository.importFromYear(
-        widget.heritageId,
-        selected,
-        _activeYear,
-        editorUid: Env.defaultEditorUid,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$selected년 데이터를 적용했습니다.')),
-      );
-      setState(() {
-        _importing = false;
-        _editing = true;
-      });
-      await _load(year: _activeYear);
-      setState(() {
-        _editing = true;
-        _hasChanges = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _importing = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('불러오기 실패: $e')));
-    }
-  }
-
-  Future<void> _openHistory() async {
-    final items = _years
-        .map(
-          (entry) => YearHistoryItem(
-            year: entry.year,
-            hasData: entry.hasData,
-            updatedAt: entry.updatedAt,
-            isCurrentYear: entry.year == _currentYear,
-          ),
-        )
-        .toList();
-    final selected = await showYearHistoryPicker(
-      context: context,
-      items: items,
-      activeYear: _activeYear,
-    );
-    if (selected != null && selected != _activeYear) {
-      await _load(year: selected);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
       );
     }
+
     if (_model == null) {
-      return const SizedBox.shrink();
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '데이터를 불러올 수 없습니다.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => _load(),
+              child: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      );
     }
 
-    final sections = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
       children: [
-        Row(
-          children: [
-            Chip(label: Text('$_activeYear년 조사')),
-            const SizedBox(width: 8),
-            if (!_isCurrentYear)
-              Chip(
-                backgroundColor: const Color(0xFFFFF4E5),
-                label: Text(stringsKo['read_only_banner']!),
+        // Action bar
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            border: Border(
+              bottom: BorderSide(color: Colors.grey[300]!),
+            ),
+          ),
+          child: Row(
+            children: [
+              if (_isReadOnly)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    stringsKo['read_only_banner']!,
+                    style: TextStyle(
+                      color: Colors.orange[800],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              Text(
+                '현재 연도: $_activeYear',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-          ],
+              const SizedBox(width: 16),
+              OutlinedButton.icon(
+                onPressed: _showYearHistory,
+                icon: const Icon(Icons.history),
+                label: Text(stringsKo['history']!),
+              ),
+              const SizedBox(width: 8),
+              if (_activeYear == widget.currentYear)
+                OutlinedButton.icon(
+                  onPressed: _importFromYear,
+                  icon: const Icon(Icons.download),
+                  label: Text(stringsKo['import_prev']!),
+                ),
+              const SizedBox(width: 8),
+              if (!_isReadOnly)
+                FilledButton.icon(
+                  onPressed: _hasChanges ? _save : null,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(stringsKo['save']!),
+                ),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-        if (!_isCurrentYear)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF4E5),
-              borderRadius: BorderRadius.circular(8),
+        
+        // Sections
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Section11Investigation(
+                  data: _model!.section11,
+                  onChanged: _onSection11Changed,
+                  enabled: !_isReadOnly,
+                ),
+                const SizedBox(height: 16),
+                Section12Conservation(
+                  rows: _model!.section12,
+                  onChanged: _onSection12Changed,
+                  enabled: !_isReadOnly,
+                ),
+                const SizedBox(height: 16),
+                Section13Management(
+                  data: _model!.section13,
+                  onChanged: _onSection13Changed,
+                  enabled: !_isReadOnly,
+                ),
+                const SizedBox(height: 32),
+              ],
             ),
-            child: Text(stringsKo['read_only_banner']!),
           ),
-        if (!_isCurrentYear && _allowOverride)
-          SwitchListTile.adaptive(
-            title: const Text('관리자 수정 허용'),
-            subtitle: const Text('필요 시 과거 연도도 편집하며 감사 로그가 상세 기록됩니다.'),
-            value: _adminOverrideGate,
-            onChanged: (value) {
-              setState(() {
-                _adminOverrideGate = value;
-                if (!value) {
-                  _editing = false;
-                }
-              });
-            },
-          ),
-        Section11Investigation(
-          data: _model!.section11,
-          enabled: _canEdit,
-          onChanged: _onSection11Changed,
         ),
-        const SizedBox(height: 16),
-        Section12Conservation(
-          rows: _model!.section12,
-          enabled: _canEdit,
-          onChanged: _onSection12Changed,
-        ),
-        const SizedBox(height: 16),
-        Section13Management(
-          data: _model!.section13,
-          enabled: _canEdit,
-          onChanged: _onSection13Changed,
-        ),
-        const SizedBox(height: 16),
-        _buildActions(),
       ],
-    );
-
-    return sections;
-  }
-
-  Widget _buildActions() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _openHistory,
-              icon: const Icon(Icons.history),
-              label: Text(stringsKo['history']!),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: _importEnabled ? _handleImport : null,
-              icon: _importing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.download),
-              label: Text(stringsKo['import_prev']!),
-            ),
-            const SizedBox(width: 24),
-            FilledButton.icon(
-              onPressed: _canSave ? _handleSave : null,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(stringsKo['save']!),
-            ),
-            OutlinedButton(
-              onPressed:
-                  !_canEdit && (_isCurrentYear || _adminOverrideGate)
-                      ? () => setState(() {
-                            _editing = true;
-                            _hasChanges = false;
-                          })
-                      : null,
-              child: Text(stringsKo['edit']!),
-            ),
-            TextButton.icon(
-              onPressed: widget.onNavigateList,
-              icon: const Icon(Icons.list_alt),
-              label: Text(stringsKo['list']!),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

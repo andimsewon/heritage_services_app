@@ -115,13 +115,13 @@ class DamageSummary {
       bioChemical: {
         for (final column in bioChemicalColumns) column: const DamageCell(),
       },
-      visualGrade: 'E',
-      labGrade: 'E',
-      finalGrade: 'E',
+      visualGrade: '', // 사전 예시 데이터 제거
+      labGrade: '', // 사전 예시 데이터 제거
+      finalGrade: '', // 사전 예시 데이터 제거
     );
 
     return DamageSummary(
-      rows: [makeRow('기둥 02번(서)'), makeRow('기둥 18번(남)')],
+      rows: [], // 사전 예시 데이터 제거 - 사용자가 직접 입력
       columnsStructural: structuralColumns,
       columnsPhysical: physicalColumns,
       columnsBioChemical: bioChemicalColumns,

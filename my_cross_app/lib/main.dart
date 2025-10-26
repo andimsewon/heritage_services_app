@@ -142,7 +142,13 @@ class HeritageApp extends StatelessWidget {
           HomeScreen.route: (_) => const HomeScreen(),
           AssetSelectScreen.route: (_) => const AssetSelectScreen(),
           BasicInfoScreen.route: (_) => const BasicInfoScreen(),
-          DetailSurveyScreen.route: (_) => const DetailSurveyScreen(),
+          DetailSurveyScreen.route: (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+            return DetailSurveyScreen(
+              heritageId: args?['heritageId'],
+              heritageName: args?['heritageName'],
+            );
+          },
           DamageModelScreen.route: (_) => const DamageModelScreen(),
           DamageMapPreviewScreen.route: (_) => const DamageMapPreviewScreen(),
         },

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -26,35 +27,40 @@
   <meta http-equiv="Expires" content="0">
 
   <!-- 웹에서 파일 업로드를 위한 추가 메타 태그 -->
-  <!-- ✅ 뷰포트 고정 (Flutter Web 리사이즈 버그 방지) -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src *; img-src * data: blob:; media-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; script-src-elem * 'unsafe-inline' 'unsafe-eval';">
-  
+  <!-- ✅ 뷰포트 설정 (화면 배율 100% 지원) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src *; img-src * data: blob:; media-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; script-src-elem * 'unsafe-inline' 'unsafe-eval';">
+
   <!-- 시스템 폰트 사용으로 폰트 로딩 오류 방지 -->
   <style>
-    /* 🔥 화면 크기 100% 강제 적용 */
+    /* 🔥 화면 크기 100% 강제 적용 - 스크롤 허용 (최대한 강력한 설정) */
     html {
-      height: 100% !important;
-      width: 100% !important;
+      height: 100vh !important;
+      width: 100vw !important;
       margin: 0 !important;
       padding: 0 !important;
-      overflow: hidden !important;
-      position: fixed !important;
+      overflow: auto !important;
+      position: relative !important;
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
       bottom: 0 !important;
+      min-height: 100vh !important;
+      min-width: 100vw !important;
     }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-      height: 100% !important;
-      width: 100% !important;
+      height: 100vh !important;
+      width: 100vw !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: auto !important;
       background-color: #f5f7fa !important;
       position: relative !important;
+      min-height: 100vh !important;
+      min-width: 100vw !important;
     }
 
     /* Flutter 웹에서 폰트 로딩 오류 방지 */
@@ -62,22 +68,34 @@
       font-family: inherit;
     }
 
-    /* ✅ Flutter 루트 요소들 100% 크기 강제 */
-    flt-glass-pane, flt-scene-host, flt-platform-view, flutter-view {
-      width: 100% !important;
-      height: 100% !important;
+    /* ✅ Flutter 루트 요소들 100% 크기 강제 (더 강력한 설정) */
+    flt-glass-pane,
+    flt-scene-host,
+    flt-platform-view,
+    flutter-view {
+      width: 100vw !important;
+      height: 100vh !important;
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
       right: 0 !important;
       bottom: 0 !important;
       overflow: visible !important;
+      min-height: 100vh !important;
+      min-width: 100vw !important;
     }
 
-    /* Flutter 앱 컨테이너 */
+    /* Flutter 앱 컨테이너 (최대한 강력한 설정) */
     #flutter-container {
-      width: 100% !important;
-      height: 100% !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
+      min-width: 100vw !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
     }
   </style>
 
@@ -88,11 +106,11 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>Heritage Services App</title>
   <link rel="manifest" href="manifest.json">
-  
+
   <!-- Firebase SDK (Analytics 제거) -->
   <script type="module">
     // Import the functions you need from the SDKs you need
@@ -155,7 +173,7 @@
     // 2. Service Worker API 자체를 무력화 (강제 비활성화)
     if ('serviceWorker' in navigator) {
       Object.defineProperty(navigator, 'serviceWorker', {
-        get: function() {
+        get: function () {
           console.log('Service Worker API blocked for HTTP environment');
           return undefined;
         }
@@ -170,7 +188,7 @@
     };
 
     // 4. ✅ 윈도우 리사이즈 감지 후 강제 재빌드 (Flutter Web viewport 버그 방지)
-    window.addEventListener('resize', function() {
+    window.addEventListener('resize', function () {
       const html = document.documentElement;
       html.style.height = window.innerHeight + 'px';
       html.style.width = window.innerWidth + 'px';
@@ -179,7 +197,7 @@
     });
 
     // 초기 로드 시에도 한 번 실행
-    window.addEventListener('load', function() {
+    window.addEventListener('load', function () {
       const html = document.documentElement;
       html.style.height = window.innerHeight + 'px';
       html.style.width = window.innerWidth + 'px';
@@ -188,6 +206,7 @@
     });
   </script>
 </head>
+
 <body>
   <!-- ✅ HTML 렌더러 강제 설정 (flutter_bootstrap.js 로드 전에 실행) -->
   <script>
@@ -202,4 +221,5 @@
   <!-- ✅ HTML 렌더러 명시적 지정 (CanvasKit WebGL 충돌 방지) -->
   <script src="flutter_bootstrap.js" data-renderer="html"></script>
 </body>
+
 </html>

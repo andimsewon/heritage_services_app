@@ -1,73 +1,68 @@
 import 'package:flutter/material.dart';
 
+/// Switch + numeric count input row widget
 class BoolCountRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final int count;
+  final bool enabled;
+  final ValueChanged<bool>? onChanged;
+  final ValueChanged<int>? onCountChanged;
+  final EdgeInsets? padding;
+
   const BoolCountRow({
     super.key,
     required this.label,
     required this.value,
     required this.count,
     this.enabled = true,
-    this.countLabel = '수량',
     this.onChanged,
     this.onCountChanged,
+    this.padding,
   });
-
-  final String label;
-  final bool value;
-  final int count;
-  final bool enabled;
-  final String countLabel;
-  final ValueChanged<bool>? onChanged;
-  final ValueChanged<int>? onCountChanged;
 
   @override
   Widget build(BuildContext context) {
-    final canToggle = enabled && onChanged != null;
-    final canEditCount = enabled && value && onCountChanged != null;
-
-    return Opacity(
-      opacity: enabled ? 1 : 0.6,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF111827),
-                ),
+    return Padding(
+      padding: padding ?? const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: enabled ? null : Colors.grey,
               ),
             ),
-            Switch.adaptive(
-              value: value,
-              onChanged: canToggle ? onChanged : null,
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 90,
-              child: TextFormField(
-                key: ValueKey('count-$label-$count-$enabled'),
-                enabled: canEditCount,
-                initialValue: count.toString(),
-                onChanged: canEditCount
-                    ? (raw) {
-                        final parsed = int.tryParse(raw.trim());
-                        if (parsed != null) {
-                          onCountChanged?.call(parsed);
-                        }
-                      }
-                    : null,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: countLabel,
-                  isDense: true,
-                ),
+          ),
+          const SizedBox(width: 16),
+          Switch(
+            value: value,
+            onChanged: enabled ? onChanged : null,
+            activeColor: Theme.of(context).primaryColor,
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 80,
+            child: TextFormField(
+              initialValue: count.toString(),
+              enabled: enabled && value,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               ),
+              onChanged: enabled && value
+                  ? (value) {
+                      final newCount = int.tryParse(value) ?? 0;
+                      onCountChanged?.call(newCount);
+                    }
+                  : null,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -1,89 +1,77 @@
 import 'package:flutter/material.dart';
+import '../screens/detail_sections/detail_sections_strings_ko.dart';
 
-class YearHistoryItem {
-  const YearHistoryItem({
-    required this.year,
-    required this.hasData,
-    this.updatedAt,
-    this.isCurrentYear = false,
-  });
-
-  final String year;
-  final bool hasData;
-  final DateTime? updatedAt;
-  final bool isCurrentYear;
-
-  String get formattedTimestamp {
-    if (updatedAt == null) return '기록 없음';
-    final dt = updatedAt!.toLocal();
-    final mm = dt.month.toString().padLeft(2, '0');
-    final dd = dt.day.toString().padLeft(2, '0');
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final min = dt.minute.toString().padLeft(2, '0');
-    return '${dt.year}-$mm-$dd $hh:$min';
-  }
-}
-
+/// Modal sheet for selecting past years
 class YearHistorySheet extends StatelessWidget {
+  final List<String> availableYears;
+  final String currentYear;
+  final Function(String) onYearSelected;
+
   const YearHistorySheet({
     super.key,
-    required this.items,
-    required this.activeYear,
+    required this.availableYears,
+    required this.currentYear,
+    required this.onYearSelected,
   });
-
-  final List<YearHistoryItem> items;
-  final String activeYear;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.6,
+      padding: const EdgeInsets.all(16),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  '기존 이력',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                stringsKo['history']!,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
-                SizedBox(height: 4),
-                Text(
-                  '연도를 선택하면 해당 조사 내용을 읽기 전용으로 확인합니다.',
-                  style: TextStyle(color: Colors.black54, fontSize: 13),
-                ),
-              ],
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '현재 연도: $currentYear',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
             ),
           ),
-          const Divider(height: 1),
-          Flexible(
+          const SizedBox(height: 16),
+          Expanded(
             child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: items.length,
+              itemCount: availableYears.length,
               itemBuilder: (context, index) {
-                final item = items[index];
-                final isActive = item.year == activeYear;
-                final badge = item.isCurrentYear ? ' (현재)' : '';
+                final year = availableYears[index];
+                final isCurrentYear = year == currentYear;
+                
                 return ListTile(
-                  leading: Icon(
-                    item.hasData
-                        ? Icons.history
-                        : Icons.history_toggle_off,
-                    color: item.hasData ? const Color(0xFF2563EB) : Colors.grey,
+                  title: Text(
+                    year,
+                    style: TextStyle(
+                      fontWeight: isCurrentYear ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrentYear ? Theme.of(context).primaryColor : null,
+                    ),
                   ),
-                  title: Text('${item.year}년$badge'),
-                  subtitle: Text(
-                    item.hasData
-                        ? '최종 갱신: ${item.formattedTimestamp}'
-                        : '데이터 없음',
-                  ),
-                  trailing: isActive
-                      ? const Icon(Icons.check_circle, color: Color(0xFF2563EB))
-                      : const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => Navigator.of(context).pop(item.year),
+                  subtitle: isCurrentYear 
+                      ? const Text('현재 연도 (편집 가능)')
+                      : Text('과거 이력 (읽기 전용)'),
+                  trailing: isCurrentYear 
+                      ? const Icon(Icons.edit, color: Colors.blue)
+                      : const Icon(Icons.visibility, color: Colors.grey),
+                  onTap: () {
+                    onYearSelected(year);
+                    Navigator.pop(context);
+                  },
                 );
               },
             ),
@@ -92,19 +80,4 @@ class YearHistorySheet extends StatelessWidget {
       ),
     );
   }
-}
-
-Future<String?> showYearHistoryPicker({
-  required BuildContext context,
-  required List<YearHistoryItem> items,
-  required String activeYear,
-}) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) => YearHistorySheet(
-      items: items,
-      activeYear: activeYear,
-    ),
-  );
 }

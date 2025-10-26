@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../models/heritage_detail_models.dart';
+import '../../models/section_form_models.dart';
+import '../../services/firebase_service.dart';
 import '../../theme.dart';
 import '../components/section_card.dart';
 import '../components/section_button.dart';
+import '../section_form/section_data_list.dart';
 
 class InvestigatorOpinionField extends StatefulWidget {
   const InvestigatorOpinionField({
     super.key,
     required this.value,
     required this.onChanged,
+    this.heritageId = '',
+    this.heritageName = '',
   });
 
   final InvestigatorOpinion value;
   final ValueChanged<InvestigatorOpinion> onChanged;
+  final String heritageId;
+  final String heritageName;
 
   @override
   State<InvestigatorOpinionField> createState() =>
@@ -28,6 +36,9 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
   late final TextEditingController _dateController;
   late final TextEditingController _organizationController;
   late final TextEditingController _authorController;
+
+  final _fb = FirebaseService();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -75,16 +86,17 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      title: '조사자 의견',
-      action: SectionButton.filled(
-        label: '저장',
-        onPressed: () {
-          // TODO: Hook up persistence to repository implementation.
-        },
-        icon: Icons.save_outlined,
-      ),
-      child: LayoutBuilder(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionCard(
+          title: '조사자 의견',
+          action: SectionButton.filled(
+            label: _isSaving ? '저장 중...' : '저장',
+            onPressed: _isSaving ? () {} : () => _handleSave(),
+            icon: Icons.save_outlined,
+          ),
+          child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 920;
           final content = [
@@ -133,8 +145,113 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
             ],
           );
         },
-      ),
+          ),
+        ),
+        // 저장된 데이터 리스트 표시 추가
+        if (widget.heritageId.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SectionDataList(
+              heritageId: widget.heritageId,
+              sectionType: SectionType.opinion,
+              sectionTitle: '조사자 의견',
+            ),
+          ),
+      ],
     );
+  }
+
+  Future<void> _handleSave() async {
+    if (widget.heritageId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('문화유산 정보가 없습니다.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      // 조사자 의견 데이터를 하나의 제목과 내용으로 결합
+      final title = '조사자 의견 - ${DateTime.now().toString().substring(0, 16)}';
+      final content = StringBuffer();
+      
+      if (_structuralController.text.trim().isNotEmpty) {
+        content.writeln('구조부: ${_structuralController.text.trim()}');
+      }
+      if (_othersController.text.trim().isNotEmpty) {
+        content.writeln('기타부: ${_othersController.text.trim()}');
+      }
+      if (_notesController.text.trim().isNotEmpty) {
+        content.writeln('특기사항: ${_notesController.text.trim()}');
+      }
+      if (_opinionController.text.trim().isNotEmpty) {
+        content.writeln('조사자 종합의견: ${_opinionController.text.trim()}');
+      }
+      
+      content.writeln('');
+      if (_dateController.text.trim().isNotEmpty) {
+        content.writeln('조사일: ${_dateController.text.trim()}');
+      }
+      if (_organizationController.text.trim().isNotEmpty) {
+        content.writeln('소속기관: ${_organizationController.text.trim()}');
+      }
+      if (_authorController.text.trim().isNotEmpty) {
+        content.writeln('조사자: ${_authorController.text.trim()}');
+      }
+
+      if (content.toString().trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('입력된 내용이 없습니다.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final formData = SectionFormData(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        sectionType: SectionType.opinion,
+        title: title,
+        content: content.toString().trim(),
+        createdAt: DateTime.now(),
+        author: _authorController.text.trim().isNotEmpty 
+            ? _authorController.text.trim() 
+            : '현재 사용자',
+      );
+
+      await _fb.saveSectionForm(
+        heritageId: widget.heritageId,
+        sectionType: SectionType.opinion,
+        formData: formData,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 조사자 의견이 저장되었습니다'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('저장 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   void _handleFieldChanged() {

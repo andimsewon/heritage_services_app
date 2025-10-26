@@ -148,11 +148,11 @@ class FirebaseService {
   }
 
   /// 현황 사진 스트림
-  Stream<QuerySnapshot<Map<String, dynamic>>> photosStream(String heritageId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> photosStream(String heritageId, {String folder = 'photos'}) {
     return _fs
         .collection('heritages')
         .doc(heritageId)
-        .collection('photos')
+        .collection(folder)
         .orderBy('timestamp', descending: true)
         .snapshots();
   }
@@ -205,6 +205,287 @@ class FirebaseService {
       try {
         await _st.refFromURL(imageUrl).delete();
       } catch (_) {}
+    }
+  }
+
+  /// 상세 조사 데이터 저장 (문화유산별 구조)
+  Future<void> addDetailSurvey({
+    required String heritageId,
+    required String heritageName,
+    required Map<String, dynamic> surveyData,
+  }) async {
+    print('🚨 FirebaseService.addDetailSurvey 호출됨!');
+    debugPrint('🚨 FirebaseService.addDetailSurvey 호출됨!');
+    
+    try {
+      print('🔥 Firebase 저장 시작...');
+      debugPrint('🔥 Firebase 저장 시작...');
+      print('  - HeritageId: $heritageId');
+      print('  - HeritageName: $heritageName');
+      debugPrint('  - HeritageId: $heritageId');
+      debugPrint('  - HeritageName: $heritageName');
+      debugPrint('  - Firestore 앱: ${_fs.app.name}');
+      debugPrint('  - 프로젝트 ID: ${_fs.app.options.projectId}');
+      
+      // 문화유산별 컬렉션 구조 사용 (사진과 동일한 방식)
+      final col = _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('detail_surveys');
+      final id = const Uuid().v4();
+      
+      debugPrint('  - 컬렉션 경로: heritages/$heritageId/detail_surveys');
+      debugPrint('  - 문서 ID: $id');
+      
+      // 저장할 데이터 준비 (사진과 동일한 구조)
+      final dataToSave = {
+        'heritageId': heritageId,
+        'heritageName': heritageName,
+        ...surveyData,
+        'timestamp': DateTime.now().toIso8601String(),
+        'version': 1, // 버전 추가
+      };
+
+      debugPrint('  - 저장할 데이터 키들: ${dataToSave.keys.toList()}');
+      debugPrint('  - 데이터 크기: ${dataToSave.toString().length} 문자');
+      
+      // 1단계: set() 메서드로 저장 (사진과 동일한 방식)
+      debugPrint('  - 1단계: set() 메서드로 저장 시도...');
+      await col.doc(id).set(dataToSave);
+      final docId = id;
+      
+      debugPrint('✅ Firebase 저장 완료!');
+      debugPrint('  - 저장된 문서 ID: $docId');
+      debugPrint('  - 저장된 시간: ${DateTime.now().toIso8601String()}');
+      debugPrint('  - 컬렉션 경로: heritages/$heritageId/detail_surveys/$docId');
+      
+      // 2단계: 저장 후 즉시 확인
+      debugPrint('  - 2단계: 저장 확인 중...');
+      final savedDoc = await col.doc(docId).get();
+      if (savedDoc.exists) {
+        debugPrint('✅ 저장 확인 성공 - 문서가 실제로 존재합니다!');
+        debugPrint('  - 문서 데이터 키들: ${savedDoc.data()?.keys.toList()}');
+        
+        // 3단계: 쿼리로 재확인 (사진과 동일한 방식)
+        debugPrint('  - 3단계: 쿼리로 재확인 중...');
+        final querySnapshot = await col
+            .orderBy('timestamp', descending: true)
+            .limit(1)
+            .get();
+            
+        if (querySnapshot.docs.isNotEmpty) {
+          debugPrint('✅ 쿼리 확인 성공 - 쿼리로도 문서를 찾을 수 있습니다!');
+          debugPrint('  - 쿼리 결과 문서 수: ${querySnapshot.docs.length}');
+        } else {
+          debugPrint('⚠️ 쿼리 확인 실패 - 쿼리로 문서를 찾을 수 없습니다.');
+        }
+        
+      } else {
+        debugPrint('❌ 저장 확인 실패 - 문서가 존재하지 않습니다!');
+        throw Exception('문서 저장 후 확인 실패');
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Firebase 저장 실패: $e');
+      debugPrint('  - 오류 타입: ${e.runtimeType}');
+      debugPrint('  - 오류 메시지: ${e.toString()}');
+      
+      // 구체적인 오류 분석
+      if (e.toString().contains('permission-denied')) {
+        debugPrint('🚨 권한 오류: Firestore 보안 규칙을 확인하세요!');
+        debugPrint('   Firebase Console → Firestore Database → 규칙');
+        debugPrint('   현재 규칙: allow read, write: if true;');
+      } else if (e.toString().contains('network')) {
+        debugPrint('🌐 네트워크 오류: 인터넷 연결을 확인하세요!');
+      } else if (e.toString().contains('quota')) {
+        debugPrint('📊 할당량 초과: Firebase 할당량을 확인하세요!');
+      } else if (e.toString().contains('unavailable')) {
+        debugPrint('🔧 서비스 불가: Firebase 서비스 상태를 확인하세요!');
+      }
+      
+      rethrow;
+    }
+  }
+
+  /// 상세 조사 데이터 조회 (문화유산별 구조)
+  Future<QuerySnapshot<Map<String, dynamic>>> getDetailSurveys(String heritageId) async {
+    return await _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('detail_surveys')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+  }
+
+  /// 섹션 폼 데이터 저장
+  Future<void> saveSectionForm({
+    required String heritageId,
+    required String sectionType,
+    required dynamic formData,
+  }) async {
+    try {
+      print('🚨 섹션 폼 저장 시작!');
+      debugPrint('🚨 섹션 폼 저장 시작!');
+      
+      final col = _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('section_forms')
+          .doc(sectionType);
+      
+      debugPrint('  - 컬렉션 경로: heritages/$heritageId/section_forms/$sectionType');
+      
+      final dataToSave = <String, dynamic>{
+        'heritageId': heritageId,
+        'sectionType': sectionType,
+        ...formData.toMap(),
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      
+      await col.collection('items').add(dataToSave);
+      
+      debugPrint('✅ 섹션 폼 저장 완료!');
+    } catch (e) {
+      debugPrint('❌ 섹션 폼 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 섹션 폼 데이터 스트림 조회
+  Stream<QuerySnapshot<Map<String, dynamic>>> getSectionFormsStream(
+    String heritageId,
+    String sectionType,
+  ) {
+    return _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('section_forms')
+        .doc(sectionType)
+        .collection('items')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+  }
+
+  /// 섹션 폼 데이터 삭제
+  Future<void> deleteSectionForm(
+    String heritageId,
+    String sectionType,
+    String docId,
+  ) async {
+    try {
+      await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('section_forms')
+          .doc(sectionType)
+          .collection('items')
+          .doc(docId)
+          .delete();
+      
+      debugPrint('✅ 섹션 폼 삭제 완료!');
+    } catch (e) {
+      debugPrint('❌ 섹션 폼 삭제 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// Firebase 연결 테스트
+  Future<bool> testFirebaseConnection() async {
+    try {
+      debugPrint('🧪 Firebase 연결 테스트 시작...');
+      debugPrint('  - Firestore 인스턴스: ${_fs.app.name}');
+      debugPrint('  - 프로젝트 ID: ${_fs.app.options.projectId}');
+      
+      // 1. Firestore 연결 테스트
+      final testCol = _fs.collection('_test_connection');
+      final testDoc = testCol.doc('test_${DateTime.now().millisecondsSinceEpoch}');
+      
+      debugPrint('  - 테스트 컬렉션: _test_connection');
+      debugPrint('  - 테스트 문서 ID: ${testDoc.id}');
+      
+      final testData = {
+        'test': true,
+        'timestamp': DateTime.now().toIso8601String(),
+        'message': 'Firebase 연결 테스트 성공!',
+        'heritageId': 'test_heritage',
+        'heritageName': '테스트 문화유산',
+      };
+      
+      debugPrint('  - 저장할 테스트 데이터: $testData');
+      
+      await testDoc.set(testData);
+      debugPrint('✅ Firestore 쓰기 테스트 성공');
+      
+      // 2. 읽기 테스트
+      final snapshot = await testDoc.get();
+      if (snapshot.exists) {
+        debugPrint('✅ Firestore 읽기 테스트 성공');
+        debugPrint('  - 테스트 데이터: ${snapshot.data()}');
+        
+        // 3. 실제 detail_surveys 컬렉션 테스트 (문화유산별 구조)
+        debugPrint('  - detail_surveys 컬렉션 테스트 시작...');
+        final detailCol = _fs
+            .collection('heritages')
+            .doc('test_heritage')
+            .collection('detail_surveys');
+        final detailDoc = detailCol.doc('test_detail_${DateTime.now().millisecondsSinceEpoch}');
+        
+        final detailData = {
+          'heritageId': 'test_heritage',
+          'heritageName': '테스트 문화유산',
+          'inspectionResult': '테스트 점검 결과',
+          'section11': {
+            'foundation': '테스트 기단부',
+            'wall': '테스트 축부',
+            'roof': '테스트 지붕부',
+          },
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+        
+        await detailDoc.set(detailData);
+        debugPrint('✅ detail_surveys 컬렉션 쓰기 테스트 성공');
+        
+        final detailSnapshot = await detailDoc.get();
+        if (detailSnapshot.exists) {
+          debugPrint('✅ detail_surveys 컬렉션 읽기 테스트 성공');
+          debugPrint('  - 저장된 데이터: ${detailSnapshot.data()}');
+        } else {
+          debugPrint('❌ detail_surveys 컬렉션 읽기 테스트 실패');
+          return false;
+        }
+        
+        // 테스트 데이터 정리
+        await detailDoc.delete();
+        debugPrint('✅ detail_surveys 테스트 데이터 정리 완료');
+        
+      } else {
+        debugPrint('❌ Firestore 읽기 테스트 실패 - 문서가 존재하지 않음');
+        return false;
+      }
+      
+      // 4. 테스트 데이터 삭제
+      await testDoc.delete();
+      debugPrint('✅ 테스트 데이터 정리 완료');
+      
+      debugPrint('🎉 Firebase 연결 테스트 완전 성공!');
+      return true;
+      
+    } catch (e) {
+      debugPrint('❌ Firebase 연결 테스트 실패: $e');
+      debugPrint('  - 오류 타입: ${e.runtimeType}');
+      debugPrint('  - 오류 메시지: ${e.toString()}');
+      
+      // 구체적인 오류 분석
+      if (e.toString().contains('permission-denied')) {
+        debugPrint('🚨 권한 오류: Firestore 보안 규칙을 확인하세요!');
+      } else if (e.toString().contains('network')) {
+        debugPrint('🌐 네트워크 오류: 인터넷 연결을 확인하세요!');
+      } else if (e.toString().contains('quota')) {
+        debugPrint('📊 할당량 초과: Firebase 할당량을 확인하세요!');
+      }
+      
+      return false;
     }
   }
 
@@ -297,6 +578,7 @@ class FirebaseService {
   Future<void> deleteCustomHeritage(String id) async {
     await _fs.collection('custom_heritages').doc(id).delete();
   }
+
 
   /// 전년도 손상부 조사 사진 로드
   /// 부재명, 방향, 번호, 위치로 검색하여 가장 최근 전년도 데이터 반환

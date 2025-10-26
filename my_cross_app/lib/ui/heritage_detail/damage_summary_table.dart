@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../models/heritage_detail_models.dart';
+import '../../models/section_form_models.dart';
+import '../../services/firebase_service.dart';
 import '../../theme.dart';
 import '../widgets/ox_toggle.dart';
 import '../components/section_card.dart';
 import '../components/section_button.dart';
+import '../section_form/section_data_list.dart';
 
 class DamageSummaryTable extends StatefulWidget {
   const DamageSummaryTable({
     super.key,
     required this.value,
     required this.onChanged,
+    this.heritageId = '',
+    this.heritageName = '',
   });
 
   final DamageSummary value;
   final ValueChanged<DamageSummary> onChanged;
+  final String heritageId;
+  final String heritageName;
 
   @override
   State<DamageSummaryTable> createState() => _DamageSummaryTableState();
@@ -23,6 +31,9 @@ class DamageSummaryTable extends StatefulWidget {
 class _DamageSummaryTableState extends State<DamageSummaryTable> {
   final List<TextEditingController> _labelControllers = [];
   static const List<String> _gradeOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  final _fb = FirebaseService();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -80,6 +91,11 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             onPressed: _addRow,
             icon: Icons.add,
           ),
+          SectionButton.filled(
+            label: _isSaving ? '저장 중...' : '저장',
+            onPressed: _isSaving ? () {} : () => _saveDamageSummary(),
+            icon: Icons.save,
+          ),
         ],
       ),
       child: Column(
@@ -112,6 +128,13 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
               ),
             ),
           ),
+          // 저장된 데이터 리스트 표시
+          if (widget.heritageId.isNotEmpty)
+            SectionDataList(
+              heritageId: widget.heritageId,
+              sectionType: SectionType.damage,
+              sectionTitle: '손상부 종합',
+            ),
         ],
       ),
     );
@@ -333,6 +356,116 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             .map((row) => TextEditingController(text: row.label))
             .toList(),
       );
+  }
+
+  Future<void> _saveDamageSummary() async {
+    if (widget.heritageId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('문화유산 정보가 없습니다.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      // 손상부 종합 데이터를 하나의 제목과 내용으로 결합
+      final title = '손상부 종합 - ${DateTime.now().toString().substring(0, 16)}';
+      final content = StringBuffer();
+      
+      for (int i = 0; i < widget.value.rows.length; i++) {
+        final row = widget.value.rows[i];
+        content.writeln('${i + 1}. ${row.label}');
+        content.writeln('  - 육안등급: ${row.visualGrade}');
+        content.writeln('  - 실험실등급: ${row.labGrade}');
+        content.writeln('  - 최종등급: ${row.finalGrade}');
+        
+        // 구조부 손상
+        final structuralDamages = <String>[];
+        for (final entry in row.structural.entries) {
+          if (entry.value.present) {
+            structuralDamages.add(entry.key);
+          }
+        }
+        if (structuralDamages.isNotEmpty) {
+          content.writeln('  - 구조부 손상: ${structuralDamages.join(', ')}');
+        }
+        
+        // 물리적 손상
+        final physicalDamages = <String>[];
+        for (final entry in row.physical.entries) {
+          if (entry.value.present) {
+            physicalDamages.add(entry.key);
+          }
+        }
+        if (physicalDamages.isNotEmpty) {
+          content.writeln('  - 물리적 손상: ${physicalDamages.join(', ')}');
+        }
+        
+        // 생화학적 손상
+        final bioChemicalDamages = <String>[];
+        for (final entry in row.bioChemical.entries) {
+          if (entry.value.present) {
+            bioChemicalDamages.add(entry.key);
+          }
+        }
+        if (bioChemicalDamages.isNotEmpty) {
+          content.writeln('  - 생화학적 손상: ${bioChemicalDamages.join(', ')}');
+        }
+        
+        content.writeln('');
+      }
+
+      if (content.toString().trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('입력된 손상부 데이터가 없습니다.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      final formData = SectionFormData(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        sectionType: SectionType.damage,
+        title: title,
+        content: content.toString().trim(),
+        createdAt: DateTime.now(),
+        author: '현재 사용자',
+      );
+
+      await _fb.saveSectionForm(
+        heritageId: widget.heritageId,
+        sectionType: SectionType.damage,
+        formData: formData,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 손상부 종합이 저장되었습니다'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('저장 실패: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 }
 
