@@ -38,28 +38,36 @@ class DamageRow {
     required this.structural,
     required this.physical,
     required this.bioChemical,
-    required this.grade,
+    required this.visualGrade,
+    required this.labGrade,
+    required this.finalGrade,
   });
 
   final String label;
   final Map<String, DamageCell> structural;
   final Map<String, DamageCell> physical;
   final Map<String, DamageCell> bioChemical;
-  final String grade;
+  final String visualGrade;
+  final String labGrade;
+  final String finalGrade;
 
   DamageRow copyWith({
     String? label,
     Map<String, DamageCell>? structural,
     Map<String, DamageCell>? physical,
     Map<String, DamageCell>? bioChemical,
-    String? grade,
+    String? visualGrade,
+    String? labGrade,
+    String? finalGrade,
   }) {
     return DamageRow(
       label: label ?? this.label,
       structural: structural ?? this.structural,
       physical: physical ?? this.physical,
       bioChemical: bioChemical ?? this.bioChemical,
-      grade: grade ?? this.grade,
+      visualGrade: visualGrade ?? this.visualGrade,
+      labGrade: labGrade ?? this.labGrade,
+      finalGrade: finalGrade ?? this.finalGrade,
     );
   }
 }
@@ -107,7 +115,9 @@ class DamageSummary {
       bioChemical: {
         for (final column in bioChemicalColumns) column: const DamageCell(),
       },
-      grade: 'E',
+      visualGrade: 'E',
+      labGrade: 'E',
+      finalGrade: 'E',
     );
 
     return DamageSummary(

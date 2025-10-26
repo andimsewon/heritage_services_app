@@ -50,4 +50,12 @@ class Env {
   static String get actualServerUrl {
     return proxyBase;
   }
+
+  /// 관리자 전용 수정 기능 허용 여부 (빌드 타임 플래그)
+  static const bool adminOverrideEnabled =
+      bool.fromEnvironment('ADMIN_OVERRIDE', defaultValue: false);
+
+  /// 감사 로깅에 사용할 기본 편집자 식별자
+  static const String defaultEditorUid =
+      String.fromEnvironment('EDITOR_UID', defaultValue: 'local-admin');
 }

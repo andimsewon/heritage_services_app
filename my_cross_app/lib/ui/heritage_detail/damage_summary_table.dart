@@ -21,6 +21,7 @@ class DamageSummaryTable extends StatefulWidget {
 
 class _DamageSummaryTableState extends State<DamageSummaryTable> {
   final List<TextEditingController> _labelControllers = [];
+  static const List<String> _gradeOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
 
   @override
   void initState() {
@@ -147,7 +148,13 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         ),
       ),
       const DataColumn(
-        label: _ColumnHeader(group: '손상등급', column: '등급'),
+        label: _ColumnHeader(group: '육안 등급', column: '육안'),
+      ),
+      const DataColumn(
+        label: _ColumnHeader(group: '실험실 등급', column: '실험실'),
+      ),
+      const DataColumn(
+        label: _ColumnHeader(group: '최종 등급', column: '최종'),
       ),
     ];
   }
@@ -227,35 +234,65 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         addToggleCell(row.bioChemical, label, '생물·화학적 손상 $label');
       }
 
-      cells.add(
+      cells.addAll([
         DataCell(
           SizedBox(
             width: 120,
-            child: DropdownButtonFormField<String>(
-              value: row.grade,
-              items: const [
-                DropdownMenuItem(value: 'A', child: Text('A')),
-                DropdownMenuItem(value: 'B', child: Text('B')),
-                DropdownMenuItem(value: 'C', child: Text('C')),
-                DropdownMenuItem(value: 'D', child: Text('D')),
-                DropdownMenuItem(value: 'E', child: Text('E')),
-              ],
+            child: _gradeDropdown(
+              value: row.visualGrade,
               onChanged: (value) {
                 if (value == null) return;
-                _replaceRow(index, row.copyWith(grade: value));
+                _replaceRow(index, row.copyWith(visualGrade: value));
               },
-              decoration: const InputDecoration(
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
             ),
           ),
         ),
-      );
+        DataCell(
+          SizedBox(
+            width: 120,
+            child: _gradeDropdown(
+              value: row.labGrade,
+              onChanged: (value) {
+                if (value == null) return;
+                _replaceRow(index, row.copyWith(labGrade: value));
+              },
+            ),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 120,
+            child: _gradeDropdown(
+              value: row.finalGrade,
+              onChanged: (value) {
+                if (value == null) return;
+                _replaceRow(index, row.copyWith(finalGrade: value));
+              },
+            ),
+          ),
+        ),
+      ]);
 
       rows.add(DataRow(cells: cells));
     }
     return rows;
+  }
+
+  Widget _gradeDropdown({
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      items: _gradeOptions
+          .map((grade) => DropdownMenuItem(value: grade, child: Text(grade)))
+          .toList(),
+      onChanged: onChanged,
+      decoration: const InputDecoration(
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
+    );
   }
 
   Map<String, DamageCell> _updateMap(
@@ -287,7 +324,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       structural: makeMap(widget.value.columnsStructural),
       physical: makeMap(widget.value.columnsPhysical),
       bioChemical: makeMap(widget.value.columnsBioChemical),
-      grade: 'E',
+      visualGrade: 'E',
+      labGrade: 'E',
+      finalGrade: 'E',
     );
     final rows = List<DamageRow>.from(widget.value.rows)..add(row);
     widget.onChanged(widget.value.copyWith(rows: rows));
