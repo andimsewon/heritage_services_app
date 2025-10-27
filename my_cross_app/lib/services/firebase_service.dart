@@ -772,4 +772,29 @@ class FirebaseService {
       return [];
     }
   }
+
+  /// 손상부 조사 데이터 저장
+  Future<void> saveDamageSurvey({
+    required String heritageId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      debugPrint('🔍 손상부 조사 데이터 저장 시작: $heritageId');
+      
+      final docRef = _fs.collection('heritages').doc(heritageId).collection('damage_surveys').doc();
+      
+      await docRef.set({
+        ...data,
+        'heritageId': heritageId,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      debugPrint('✅ 손상부 조사 데이터 저장 완료: ${docRef.id}');
+    } catch (e) {
+      debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
+      rethrow;
+    }
+  }
+
 }

@@ -225,36 +225,110 @@ class _ImprovedDamageSurveyDialogState
       _autoExplanation = null;
     });
 
-    final detectionResult = await widget.aiService.detect(bytes);
-    if (!mounted) return;
-
-    final sorted = List<Map<String, dynamic>>.from(detectionResult.detections)
-      ..sort(
-        (a, b) =>
-            ((b['score'] as num?) ?? 0).compareTo(((a['score'] as num?) ?? 0)),
+    try {
+      // 1. Firebase에 사진 저장
+      final String imageUrl = await _fb.uploadImage(
+        heritageId: widget.heritageId,
+        folder: 'damage_surveys',
+        bytes: bytes,
       );
-    final normalized = _normalizeDetections(sorted);
 
-    setState(() {
-      _loading = false;
-      _detections = normalized;
-      if (_detections.isNotEmpty) {
-        _selectedLabel = _detections.first['label'] as String?;
-        _selectedConfidence = (_detections.first['score'] as num?)?.toDouble();
-        // 감지된 손상을 자동으로 선택
-        final label = _selectedLabel;
-        if (label != null) {
-          _selectedDamageTypes.add(label);
+      // 2. AI 모델로 손상 탐지
+      final detectionResult = await widget.aiService.detect(bytes);
+      if (!mounted) return;
+
+      final sorted = List<Map<String, dynamic>>.from(detectionResult.detections)
+        ..sort(
+          (a, b) =>
+              ((b['score'] as num?) ?? 0).compareTo(((a['score'] as num?) ?? 0)),
+        );
+      final normalized = _normalizeDetections(sorted);
+
+      // 3. 손상부 조사 데이터를 Firebase에 저장
+      await _saveDamageSurveyData(imageUrl, normalized);
+
+      setState(() {
+        _loading = false;
+        _detections = normalized;
+        if (_detections.isNotEmpty) {
+          _selectedLabel = _detections.first['label'] as String?;
+          _selectedConfidence = (_detections.first['score'] as num?)?.toDouble();
+          // 감지된 손상을 자동으로 선택
+          final label = _selectedLabel;
+          if (label != null) {
+            _selectedDamageTypes.add(label);
+          }
         }
+        final normalizedGrade = detectionResult.grade?.toUpperCase();
+        _autoGrade = normalizedGrade;
+        _autoExplanation = detectionResult.explanation;
+        if (normalizedGrade != null &&
+            ['A', 'B', 'C', 'D', 'E', 'F'].contains(normalizedGrade)) {
+          _severityGrade = normalizedGrade;
+        }
+      });
+
+      // 4. 성공 메시지 표시
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('사진이 저장되었고 AI 손상 탐지가 완료되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
-      final normalizedGrade = detectionResult.grade?.toUpperCase();
-      _autoGrade = normalizedGrade;
-      _autoExplanation = detectionResult.explanation;
-      if (normalizedGrade != null &&
-          ['A', 'B', 'C', 'D', 'E', 'F'].contains(normalizedGrade)) {
-        _severityGrade = normalizedGrade;
+    } catch (e) {
+      setState(() {
+        _loading = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('사진 저장 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    });
+    }
+  }
+
+  // 손상부 조사 데이터를 Firebase에 저장
+  Future<void> _saveDamageSurveyData(String imageUrl, List<Map<String, dynamic>> detections) async {
+    try {
+      final damageSurveyData = {
+        'heritageId': widget.heritageId,
+        'imageUrl': imageUrl,
+        'partName': _selectedPartName ?? '',
+        'direction': _selectedDirection ?? '',
+        'position': _selectedPosition ?? '',
+        'partNumber': _partNumberController.text.trim(),
+        'location': _locationController.text.trim(),
+        'damagePart': _partController.text.trim(),
+        'opinion': _opinionController.text.trim(),
+        'temperature': _temperatureController.text.trim(),
+        'humidity': _humidityController.text.trim(),
+        'severityGrade': _severityGrade,
+        'damageTypes': _selectedDamageTypes.toList(),
+        'detections': detections,
+        'selectedLabel': _selectedLabel,
+        'selectedConfidence': _selectedConfidence,
+        'autoGrade': _autoGrade,
+        'autoExplanation': _autoExplanation,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _fb.saveDamageSurvey(
+        heritageId: widget.heritageId,
+        data: damageSurveyData,
+      );
+
+      debugPrint('✅ 손상부 조사 데이터 저장 완료: $imageUrl');
+    } catch (e) {
+      debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
+      rethrow;
+    }
   }
 
   Future<void> _handleSave() async {

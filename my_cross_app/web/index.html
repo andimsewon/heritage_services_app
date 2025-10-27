@@ -27,8 +27,9 @@
   <meta http-equiv="Expires" content="0">
 
   <!-- 웹에서 파일 업로드를 위한 추가 메타 태그 -->
-  <!-- ✅ 뷰포트 설정 (화면 배율 100% 지원) -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <!-- ✅ 뷰포트 설정 (CanvasKit 렌더러용) -->
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy"
     content="default-src *; img-src * data: blob:; media-src * data: blob:; connect-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; script-src-elem * 'unsafe-inline' 'unsafe-eval';">
 
@@ -70,7 +71,7 @@
       font-family: inherit;
     }
 
-    /* ✅ Flutter 루트 요소들 100% 크기 강제 (더 강력한 설정) */
+    /* ✅ CanvasKit 렌더러용 Flutter 루트 요소들 크기 설정 */
     flt-glass-pane,
     flt-scene-host,
     flt-platform-view,
@@ -87,6 +88,13 @@
       min-width: 100vw !important;
       max-width: none !important;
       max-height: none !important;
+    }
+
+    /* CanvasKit 캔버스 요소 최적화 */
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block !important;
     }
 
     /* Flutter 앱 컨테이너 (최대한 강력한 설정) */
@@ -126,6 +134,177 @@
     flt-platform-view[style*="height"] {
       width: 100vw !important;
       height: 100vh !important;
+    }
+
+    /* 🔥 화면 배율 문제 완전 해결을 위한 강력한 CSS */
+    * {
+      box-sizing: border-box !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* 루트 요소 강제 설정 */
+    html,
+    body {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-width: 100vw !important;
+      min-height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      overflow: hidden !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* Flutter 컨테이너 강제 설정 */
+    #flutter-container {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-width: 100vw !important;
+      min-height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      overflow: hidden !important;
+      z-index: 1 !important;
+    }
+
+    /* 모든 Flutter 요소 강제 설정 */
+    flutter-view,
+    flt-glass-pane,
+    flt-scene-host,
+    flt-platform-view {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-width: 100vw !important;
+      min-height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      overflow: hidden !important;
+      transform: scale(1) !important;
+      transform-origin: top left !important;
+    }
+
+    /* CanvasKit 캔버스 강제 설정 */
+    canvas {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-width: 100vw !important;
+      min-height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      display: block !important;
+      outline: none !important;
+      border: none !important;
+    }
+
+    /* 모든 화면 크기와 배율에서 작동하도록 강제 */
+    @media screen {
+
+      html,
+      body,
+      #flutter-container,
+      flutter-view,
+      flt-glass-pane,
+      flt-scene-host,
+      flt-platform-view,
+      canvas {
+        width: 100vw !important;
+        height: 100vh !important;
+        min-width: 100vw !important;
+        min-height: 100vh !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+      }
+    }
+
+    /* 화면 배율 100%에서도 정상 작동하도록 강제 설정 */
+    @media screen and (min-resolution: 96dpi) {
+
+      html,
+      body,
+      #flutter-container,
+      flutter-view,
+      flt-glass-pane,
+      flt-scene-host,
+      flt-platform-view,
+      canvas {
+        width: 100vw !important;
+        height: 100vh !important;
+        transform: scale(1) !important;
+        transform-origin: top left !important;
+      }
+    }
+
+    /* 고해상도 화면 대응 */
+    @media screen and (min-resolution: 192dpi) {
+
+      html,
+      body,
+      #flutter-container,
+      flutter-view,
+      flt-glass-pane,
+      flt-scene-host,
+      flt-platform-view,
+      canvas {
+        width: 100vw !important;
+        height: 100vh !important;
+        transform: scale(1) !important;
+        transform-origin: top left !important;
+      }
+    }
+
+    /* 모든 가능한 Flutter 요소에 반응형 적용 */
+    flutter-view>*,
+    flt-glass-pane>*,
+    flt-scene-host>*,
+    flt-platform-view>* {
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+    }
+
+    /* 스크롤바 완전 제거 */
+    ::-webkit-scrollbar {
+      width: 0px !important;
+      height: 0px !important;
+      background: transparent !important;
+    }
+
+    /* 모든 요소의 스크롤 제거 */
+    * {
+      overflow: hidden !important;
+    }
+
+    /* Flutter 앱만 스크롤 허용 */
+    #flutter-container,
+    flutter-view,
+    flt-glass-pane,
+    flt-scene-host,
+    flt-platform-view {
+      overflow: auto !important;
     }
   </style>
 
@@ -225,105 +404,146 @@
       });
     }
 
-    // 3. Flutter 설정으로 Service Worker 비활성화 + HTML 렌더러 강제
+    // 3. Flutter 설정으로 Service Worker 비활성화 + CanvasKit 렌더러 사용
     window.flutterConfiguration = {
       serviceWorkerVersion: null,
-      // ✅ CanvasKit 대신 HTML 렌더러 사용 (HTTP 환경 호환)
-      renderer: "html",
+      // ✅ CanvasKit 렌더러 사용 (더 안정적인 렌더링)
+      renderer: "canvaskit",
     };
 
-    // 4. ✅ 윈도우 리사이즈 감지 후 강제 재빌드 (Flutter Web viewport 버그 방지)
-    window.addEventListener('resize', function () {
-      // 인라인 스타일 제거하고 CSS 규칙이 적용되도록 함
-      const html = document.documentElement;
-      const flutterView = document.querySelector('flutter-view');
+    // 4. ✅ 기존 리사이즈 이벤트는 새로운 강력한 시스템으로 대체됨
 
-      // HTML과 Flutter 뷰의 인라인 스타일 제거
-      html.style.removeProperty('height');
-      html.style.removeProperty('width');
-      if (flutterView) {
-        flutterView.style.removeProperty('height');
-        flutterView.style.removeProperty('width');
+    // 🔥 반응형 웹 문제 완전 해결을 위한 강력한 함수
+    function forceResponsiveSize() {
+      const html = document.documentElement;
+      const body = document.body;
+      const flutterContainer = document.getElementById('flutter-container');
+      const flutterView = document.querySelector('flutter-view');
+      const glassPane = document.querySelector('flt-glass-pane');
+      const sceneHost = document.querySelector('flt-scene-host');
+      const platformView = document.querySelector('flt-platform-view');
+      const canvas = document.querySelector('canvas');
+
+      // 모든 요소에 강제로 100% 크기 적용
+      const elements = [html, body, flutterContainer, flutterView, glassPane, sceneHost, platformView, canvas];
+
+      elements.forEach(element => {
+        if (element) {
+          // 기본 크기 설정
+          element.style.setProperty('width', '100vw', 'important');
+          element.style.setProperty('height', '100vh', 'important');
+          element.style.setProperty('min-width', '100vw', 'important');
+          element.style.setProperty('min-height', '100vh', 'important');
+          element.style.setProperty('max-width', '100vw', 'important');
+          element.style.setProperty('max-height', '100vh', 'important');
+
+          // 위치 설정
+          element.style.setProperty('position', 'absolute', 'important');
+          element.style.setProperty('top', '0', 'important');
+          element.style.setProperty('left', '0', 'important');
+          element.style.setProperty('right', '0', 'important');
+          element.style.setProperty('bottom', '0', 'important');
+
+          // 변환 설정
+          element.style.setProperty('transform', 'scale(1)', 'important');
+          element.style.setProperty('transform-origin', 'top left', 'important');
+
+          // 오버플로우 설정
+          element.style.setProperty('overflow', 'hidden', 'important');
+
+          // 마진/패딩 제거
+          element.style.setProperty('margin', '0', 'important');
+          element.style.setProperty('padding', '0', 'important');
+        }
+      });
+
+      // CanvasKit 캔버스 특별 처리
+      if (canvas) {
+        canvas.style.setProperty('display', 'block', 'important');
+        canvas.style.setProperty('outline', 'none', 'important');
+        canvas.style.setProperty('border', 'none', 'important');
+        canvas.style.setProperty('background', 'transparent', 'important');
       }
 
-      console.log(`📐 Window resized: ${window.innerWidth}x${window.innerHeight}`);
-      window.dispatchEvent(new Event('flutter-resize'));
-    });
-
-    // 초기 로드 시에도 한 번 실행
-    window.addEventListener('load', function () {
-      // 인라인 스타일 제거하고 CSS 규칙이 적용되도록 함
-      const html = document.documentElement;
-      const flutterView = document.querySelector('flutter-view');
-
-      // HTML과 Flutter 뷰의 인라인 스타일 제거
-      html.style.removeProperty('height');
-      html.style.removeProperty('width');
-      if (flutterView) {
-        flutterView.style.removeProperty('height');
-        flutterView.style.removeProperty('width');
+      // Flutter 컨테이너 특별 처리
+      if (flutterContainer) {
+        flutterContainer.style.setProperty('position', 'fixed', 'important');
+        flutterContainer.style.setProperty('z-index', '1', 'important');
       }
 
-      console.log(`📐 Initial size: ${window.innerWidth}x${window.innerHeight}`);
-      window.dispatchEvent(new Event('flutter-resize'));
-    });
+      console.log('🔧 강력한 반응형 크기 적용 완료');
+    }
 
-    // 5. ✅ 주기적으로 인라인 스타일 제거 (Flutter가 다시 설정하는 경우 대비)
+    // 🔥 화면 크기 변경 감지 및 강제 수정
+    function handleResize() {
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      console.log(`📐 화면 크기 변경: ${viewportWidth}x${viewportHeight}`);
+
+      // 즉시 크기 수정
+      forceResponsiveSize();
+
+      // Flutter 리사이즈 이벤트 발생
+      window.dispatchEvent(new Event('flutter-resize'));
+
+      // 추가 지연 후 한 번 더 수정 (Flutter가 다시 설정하는 경우 대비)
+      setTimeout(() => {
+        forceResponsiveSize();
+      }, 100);
+    }
+
+    // 🔥 모든 가능한 이벤트에 리사이즈 핸들러 연결
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    window.addEventListener('load', handleResize);
+    window.addEventListener('DOMContentLoaded', handleResize);
+
+    // 🔥 Flutter 관련 이벤트에도 연결
+    window.addEventListener('flutter-first-frame', handleResize);
+    window.addEventListener('flutter-resize', handleResize);
+
+    // 초기 로드는 새로운 강력한 시스템에서 자동 처리됨
+
+    // 5. ✅ 주기적으로 강제 크기 수정 (Flutter가 다시 설정하는 경우 대비)
     setInterval(function () {
+      // 인라인 스타일 제거
       const html = document.documentElement;
       const flutterView = document.querySelector('flutter-view');
 
       if (html.style.height || html.style.width) {
-        console.log('🔧 Removing HTML inline styles');
+        console.log('🔧 HTML 인라인 스타일 제거');
         html.style.removeProperty('height');
         html.style.removeProperty('width');
       }
 
       if (flutterView && (flutterView.style.height || flutterView.style.width)) {
-        console.log('🔧 Removing Flutter view inline styles');
-        flutterView.style.removeProperty('height');
-        flutterView.style.removeProperty('width');
-      }
-    }, 100); // 0.1초마다 체크 (더 자주)
-
-    // 6. ✅ Flutter 로드 완료 후 강제 스타일 적용
-    window.addEventListener('flutter-first-frame', function () {
-      console.log('🎬 Flutter first frame loaded, applying responsive styles');
-      const html = document.documentElement;
-      const flutterView = document.querySelector('flutter-view');
-
-      // 모든 인라인 스타일 제거
-      html.style.removeProperty('height');
-      html.style.removeProperty('width');
-      if (flutterView) {
+        console.log('🔧 Flutter 뷰 인라인 스타일 제거');
         flutterView.style.removeProperty('height');
         flutterView.style.removeProperty('width');
       }
 
-      // CSS 규칙 강제 적용
-      html.style.setProperty('width', '100vw', 'important');
-      html.style.setProperty('height', '100vh', 'important');
-      if (flutterView) {
-        flutterView.style.setProperty('width', '100vw', 'important');
-        flutterView.style.setProperty('height', '100vh', 'important');
-      }
-    });
+      // 강제 크기 수정
+      forceResponsiveSize();
+    }, 50); // 0.05초마다 체크 (더 자주)
+
+    // 6. ✅ Flutter 로드 완료는 새로운 강력한 시스템에서 자동 처리됨
   </script>
 </head>
 
 <body>
-  <!-- ✅ HTML 렌더러 강제 설정 (flutter_bootstrap.js 로드 전에 실행) -->
+  <!-- ✅ CanvasKit 렌더러 설정 (flutter_bootstrap.js 로드 전에 실행) -->
   <script>
-    // 🔥 CanvasKit 완전 차단 - HTML 렌더러만 사용
+    // 🔥 CanvasKit 렌더러 사용 - 더 안정적인 렌더링
     if (!window.flutterConfiguration) {
       window.flutterConfiguration = {};
     }
-    window.flutterConfiguration.renderer = "html";
-    window.flutterConfiguration.canvasKitBaseUrl = null;  // CanvasKit 로드 차단
-    console.log('🔒 Forced HTML renderer, CanvasKit blocked');
+    window.flutterConfiguration.renderer = "canvaskit";
+    window.flutterConfiguration.canvasKitBaseUrl = "https://unpkg.com/canvaskit-wasm@0.39.0/bin/";
+    console.log('🔒 Using CanvasKit renderer for better performance');
   </script>
-  <!-- ✅ HTML 렌더러 명시적 지정 (CanvasKit WebGL 충돌 방지) -->
-  <script src="flutter_bootstrap.js" data-renderer="html"></script>
+  <!-- ✅ CanvasKit 렌더러 명시적 지정 (더 안정적인 렌더링) -->
+  <script src="flutter_bootstrap.js" data-renderer="canvaskit"></script>
 </body>
 
 </html>

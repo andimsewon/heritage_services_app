@@ -525,6 +525,10 @@ _MockAIPredictionRepository();
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF1E2A44),
+              foregroundColor: Colors.white,
+            ),
             child: const Text('등록'),
           ),
         ],
@@ -588,6 +592,10 @@ _MockAIPredictionRepository();
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
             child: const Text('삭제'),
           ),
         ],
@@ -635,35 +643,36 @@ _MockAIPredictionRepository();
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFFE8ECF3),
-        elevation: 1,
-        shadowColor: Colors.black.withValues(alpha: 0.12),
+        backgroundColor: const Color(0xFF1E2A44),
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.1),
         centerTitle: true,
         title: Text(
           _name.isEmpty ? '기본개요' : _name,
           style: const TextStyle(
-            color: Color(0xFF111827),
+            color: Colors.white,
             fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.3,
             overflow: TextOverflow.ellipsis,
           ),
         ),
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
-            color: Color(0xFF1E2A44),
+            color: Colors.white,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: OutlinedButton.icon(
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            child: ElevatedButton.icon(
               onPressed: () {
                 showDialog(
                   context: context,
-                  barrierColor: Colors.black.withValues(alpha: 0.5),
+                  barrierColor: Colors.black.withOpacity(0.5),
                   builder: (_) => HeritageHistoryDialog(
                     heritageId: heritageId,
                     heritageName: _name,
@@ -673,19 +682,19 @@ _MockAIPredictionRepository();
               icon: const Icon(
                 Icons.history,
                 size: 16,
-                color: Color(0xFF1E2A44),
+                color: Colors.white,
               ),
               label: const Text(
                 '기존이력',
                 style: TextStyle(
-                  color: Color(0xFF1E2A44),
+                  color: Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF1E2A44), width: 1),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.2),
+                side: const BorderSide(color: Colors.white, width: 1),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -922,8 +931,10 @@ _MockAIPredictionRepository();
                       icon: const Icon(Icons.psychology),
                       label: const Text('AI 등급 예측'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple.shade600,
+                        backgroundColor: const Color(0xFF7C3AED),
                         foregroundColor: Colors.white,
+                        elevation: 2,
+                        shadowColor: const Color(0xFF7C3AED).withOpacity(0.3),
                       ),
                     ),
                   ),
@@ -938,8 +949,10 @@ _MockAIPredictionRepository();
                       icon: const Icon(Icons.map),
                       label: const Text('AI 지도 생성'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade600,
+                        backgroundColor: const Color(0xFF2563EB),
                         foregroundColor: Colors.white,
+                        elevation: 2,
+                        shadowColor: const Color(0xFF2563EB).withOpacity(0.3),
                       ),
                     ),
                   ),
@@ -959,8 +972,10 @@ _MockAIPredictionRepository();
                   icon: const Icon(Icons.description),
                   label: const Text('AI 보고서 생성'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
+                    backgroundColor: const Color(0xFF059669),
                     foregroundColor: Colors.white,
+                    elevation: 2,
+                    shadowColor: const Color(0xFF059669).withOpacity(0.3),
                   ),
                 ),
               ),
@@ -1013,8 +1028,10 @@ _MockAIPredictionRepository();
                 : const Icon(Icons.save),
               label: Text(_isSavingText ? '저장 중...' : '텍스트 데이터 저장'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2C3E8C),
+                backgroundColor: const Color(0xFF1E2A44),
                 foregroundColor: Colors.white,
+                elevation: 2,
+                shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1135,37 +1152,62 @@ class BasicInfoCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '기본 정보',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: Color(0xFF111827),
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E2A44).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF1E2A44),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                '기본 정보',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           // 유산명
           _buildOverviewRow('유산명', name.isEmpty ? '미상' : name),
-          const Divider(height: 10, color: Color(0xFFE0E0E0)),
+          const SizedBox(height: 12),
 
           // 지정연월
           _buildOverviewRow('지정연월', _formatDate(asdt)),
-          const Divider(height: 10, color: Color(0xFFE0E0E0)),
+          const SizedBox(height: 12),
 
           // 종목
           _buildOverviewRow('종목', kind.isEmpty ? '-' : kind),
-          const Divider(height: 10, color: Color(0xFFE0E0E0)),
+          const SizedBox(height: 12),
 
           // 소재지
           _buildOverviewRow('소재지', location.isEmpty ? '-' : location),
-          const Divider(height: 10, color: Color(0xFFE0E0E0)),
+          const SizedBox(height: 12),
 
           // 관리번호
           _buildOverviewRow(
@@ -1196,8 +1238,13 @@ class BasicInfoCard extends StatelessWidget {
   }
 
   Widget _buildOverviewRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1209,7 +1256,8 @@ class BasicInfoCard extends StatelessWidget {
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: Color(0xFF374151),
+                color: Color(0xFF1E2A44),
+                letterSpacing: -0.2,
               ),
             ),
           ),
@@ -1246,25 +1294,54 @@ class HeritagePhotoSection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '현황 사진',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: Color(0xFF111827),
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E2A44).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.photo_camera,
+                  color: Color(0xFF1E2A44),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                '현황 사진',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           const Text(
             '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
-            style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+            style: TextStyle(
+              color: Color(0xFF6B7280), 
+              fontSize: 14,
+              letterSpacing: -0.2,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -1289,14 +1366,14 @@ class HeritagePhotoSection extends StatelessWidget {
                           onPressed: onAddPhoto,
                           icon: const Icon(
                             Icons.photo_camera_outlined,
-                            color: Color(0xFF2C3E8C),
+                            color: Color(0xFF1E2A44),
                           ),
                           label: const Text(
                             '사진 등록',
-                            style: TextStyle(color: Color(0xFF2C3E8C)),
+                            style: TextStyle(color: Color(0xFF1E2A44)),
                           ),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF2C3E8C)),
+                            side: const BorderSide(color: Color(0xFF1E2A44)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -1330,14 +1407,14 @@ class HeritagePhotoSection extends StatelessWidget {
                           onPressed: onAddPhoto,
                           icon: const Icon(
                             Icons.photo_camera_outlined,
-                            color: Color(0xFF2C3E8C),
+                            color: Color(0xFF1E2A44),
                           ),
                           label: const Text(
                             '사진 등록',
-                            style: TextStyle(color: Color(0xFF2C3E8C)),
+                            style: TextStyle(color: Color(0xFF1E2A44)),
                           ),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF2C3E8C)),
+                            side: const BorderSide(color: Color(0xFF1E2A44)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -1355,69 +1432,69 @@ class HeritagePhotoSection extends StatelessWidget {
                   children: [
                     // 사진 등록 버튼 (항상 표시)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.only(bottom: 16),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          OutlinedButton.icon(
+                          ElevatedButton.icon(
                             onPressed: onAddPhoto,
                             icon: const Icon(
                               Icons.add_a_photo,
-                              color: Color(0xFF2C3E8C),
+                              color: Colors.white,
                               size: 18,
                             ),
                             label: const Text(
                               '사진 추가',
-                              style: TextStyle(color: Color(0xFF2C3E8C)),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFF2C3E8C)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1E2A44),
+                              elevation: 2,
+                              shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 8,
+                                vertical: 10,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    // 사진 목록 - 완전히 새로운 구조
+                    // 사진 목록 - 깔끔한 그리드 레이아웃
                     Container(
-                      height: 200, // 고정 높이
-                      width: double.infinity, // 전체 너비 사용
-                      child: ClipRect( // 오버플로우 완전 차단
-                        child: ScrollConfiguration(
-                          behavior: const MaterialScrollBehavior(),
-                          child: ListView.builder(
-                            primary: false,
-                            physics: const BouncingScrollPhysics(),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: docs.length,
-                            itemBuilder: (_, index) {
-                              final data = docs[index].data();
-                              final title = (data['title'] as String?) ?? '';
-                              final url = (data['url'] as String?) ?? '';
-                              final meta =
-                                  '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
-                              return Container(
-                                margin: EdgeInsets.only(
-                                  left: index == 0 ? 12 : 8,
-                                  right: index == docs.length - 1 ? 12 : 0,
-                                ),
-                                child: _PhotoCard(
-                                  title: title,
-                                  url: url,
-                                  meta: meta,
-                                  onPreview: () => onPreview(url, title),
-                                  onDelete: () => onDelete(docs[index].id, url),
-                                ),
-                              );
-                            },
-                          ),
+                      height: 200,
+                      width: double.infinity,
+                      child: GridView.builder(
+                        primary: false,
+                        physics: const BouncingScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.75,
                         ),
+                        itemCount: docs.length,
+                        itemBuilder: (_, index) {
+                          final data = docs[index].data();
+                          final title = (data['title'] as String?) ?? '';
+                          final url = (data['url'] as String?) ?? '';
+                          final meta =
+                              '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
+                          return _PhotoCard(
+                            title: title,
+                            url: url,
+                            meta: meta,
+                            onPreview: () => onPreview(url, title),
+                            onDelete: () => onDelete(docs[index].id, url),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -1438,17 +1515,22 @@ class HeritagePhotoSection extends StatelessWidget {
     required VoidCallback onDelete,
   }) {
     return Container(
-      width: 150, // 더 작은 너비로 안정성 확보
-      height: 180, // 고정 높이로 일관성 확보
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded( // AspectRatio 대신 Expanded 사용
-            flex: 3, // 3:2 비율로 조정
+          Expanded(
+            flex: 3,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(12),
@@ -1462,21 +1544,34 @@ class HeritagePhotoSection extends StatelessWidget {
                     height: double.infinity,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image, size: 50),
+                        color: const Color(0xFFF8FAFC),
+                        child: const Icon(
+                          Icons.broken_image, 
+                          size: 40,
+                          color: Color(0xFF9CA3AF),
+                        ),
                       );
                     },
                   ),
                   Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      onPressed: onDelete,
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.8),
-                        padding: const EdgeInsets.all(4),
-                        minimumSize: const Size(32, 32),
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: IconButton(
+                        onPressed: onDelete,
+                        icon: const Icon(
+                          Icons.delete_outline, 
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        style: IconButton.styleFrom(
+                          padding: const EdgeInsets.all(4),
+                          minimumSize: const Size(28, 28),
+                        ),
                       ),
                     ),
                   ),
@@ -1484,44 +1579,52 @@ class HeritagePhotoSection extends StatelessWidget {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  meta,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: onPreview,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3E66FB),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: Color(0xFF111827),
                     ),
-                    child: const Text('미리보기', style: TextStyle(fontSize: 12)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    meta,
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280), 
+                      fontSize: 10,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 24,
+                    child: ElevatedButton(
+                      onPressed: onPreview,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E2A44),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text('미리보기', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1549,33 +1652,64 @@ class DamageSurveySection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '손상부 조사',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: Color(0xFF111827),
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E2A44).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.search,
+                  color: Color(0xFF1E2A44),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                '손상부 조사',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              OutlinedButton.icon(
+              ElevatedButton.icon(
                 onPressed: onAddSurvey,
-                icon: const Icon(Icons.add, color: Color(0xFF2C3E8C)),
+                icon: const Icon(Icons.add, color: Colors.white, size: 18),
                 label: const Text(
                   '조사 등록',
-                  style: TextStyle(color: Color(0xFF2C3E8C)),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF2C3E8C)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E2A44),
+                  elevation: 2,
+                  shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1593,9 +1727,13 @@ class DamageSurveySection extends StatelessWidget {
                   size: 16,
                   color: Colors.white,
                 ),
-                label: const Text('심화조사'),
+                label: const Text(
+                  '심화조사',
+                  style: TextStyle(color: Colors.white),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4B6CB7),
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1603,7 +1741,8 @@ class DamageSurveySection extends StatelessWidget {
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  elevation: 0,
+                  elevation: 2,
+                  shadowColor: const Color(0xFF4B6CB7).withOpacity(0.3),
                 ),
               ),
             ],
@@ -3341,8 +3480,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           await _loadYearData();
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
+                          backgroundColor: const Color(0xFF2563EB),
                           foregroundColor: Colors.white,
+                          elevation: 2,
+                          shadowColor: const Color(0xFF2563EB).withOpacity(0.3),
                           minimumSize: const Size(120, 44),
                         ),
                         child: _isLoading 
@@ -3364,8 +3505,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
+                          backgroundColor: const Color(0xFF1E2A44),
                           foregroundColor: Colors.white,
+                          elevation: 2,
+                          shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
                           minimumSize: const Size(120, 44),
                         ),
                         child: _isSaving
@@ -3389,6 +3532,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                                 _toggleEditMode();
                               },
                         style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF6B7280)),
+                          foregroundColor: const Color(0xFF6B7280),
                           minimumSize: const Size(120, 44),
                         ),
                         child: Text(_isEditable ? '취소' : '수정'),
