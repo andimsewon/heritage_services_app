@@ -29,8 +29,10 @@ class AppTheme {
   static const Map<String, Color> gradeColors = {
     'A': Color(0xFF4CAF50),
     'B': Color(0xFF8BC34A),
-    'C': Color(0xFFFFC107),
-    'D': Color(0xFFFF9800),
+    'C1': Color(0xFFFFC107), // 주의 - 경미한 손상
+    'C2': Color(0xFFFF9800), // 주의 - 중간 손상
+    'D': Color(0xFFFF5722),
     'E': Color(0xFFF44336),
+    'F': Color(0xFFD32F2F),
   };
 }

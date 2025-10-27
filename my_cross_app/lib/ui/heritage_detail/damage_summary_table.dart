@@ -30,10 +30,12 @@ class DamageSummaryTable extends StatefulWidget {
 
 class _DamageSummaryTableState extends State<DamageSummaryTable> {
   final List<TextEditingController> _labelControllers = [];
-  static const List<String> _gradeOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
+  static const List<String> _gradeOptions = ['A', 'B', 'C1', 'C2', 'D', 'E', 'F'];
+  static const List<String> _positionOptions = ['-', 'X', 'O'];
   
   final _fb = FirebaseService();
   bool _isSaving = false;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -62,6 +64,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       controller.dispose();
     }
     _labelControllers.clear();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -115,6 +118,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             child: ScrollConfiguration(
               behavior: const MaterialScrollBehavior(),
               child: SingleChildScrollView(
+                controller: _scrollController,
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
                   headingRowHeight: 64,
@@ -147,17 +151,29 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       ),
       ...widget.value.columnsStructural.map(
         (label) => DataColumn(
-          label: _ColumnHeader(group: '구조적 손상', column: label),
+          label: _ColumnHeader(
+            group: '구조적 손상', 
+            column: label,
+            groupColor: Colors.red,
+          ),
         ),
       ),
       ...widget.value.columnsPhysical.map(
         (label) => DataColumn(
-          label: _ColumnHeader(group: '물리적 손상', column: label),
+          label: _ColumnHeader(
+            group: '물리적 손상', 
+            column: label,
+            groupColor: Colors.blue,
+          ),
         ),
       ),
       ...widget.value.columnsBioChemical.map(
         (label) => DataColumn(
-          label: _ColumnHeader(group: '생물·화학적 손상', column: label),
+          label: _ColumnHeader(
+            group: '생물·화학적 손상', 
+            column: label,
+            groupColor: Colors.green,
+          ),
         ),
       ),
       const DataColumn(
@@ -199,7 +215,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
               decoration: const InputDecoration(
                 isDense: true,
                 border: OutlineInputBorder(),
-                hintText: '손상 위치',
+                hintText: '손상 위치를 입력하세요',
               ),
               onChanged: (value) {
                 _replaceRow(index, row.copyWith(label: value));
@@ -213,24 +229,60 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         Map<String, DamageCell> map,
         String label,
         String semantics,
+        Color groupColor,
       ) {
-        final present = map[label]?.present ?? false;
+        final cell = map[label] ?? const DamageCell();
+        final present = cell.present;
+        
         cells.add(
           DataCell(
             Center(
-              child: OxToggle(
-                value: present,
-                onChanged: (value) {
-                  final updated = _updateMap(map, label, value);
-                  if (map == row.structural) {
-                    _replaceRow(index, row.copyWith(structural: updated));
-                  } else if (map == row.physical) {
-                    _replaceRow(index, row.copyWith(physical: updated));
-                  } else {
-                    _replaceRow(index, row.copyWith(bioChemical: updated));
-                  }
-                },
-                label: '$semantics • ${row.label}',
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Main toggle for present/absent
+                  OxToggle(
+                    value: present,
+                    onChanged: (value) {
+                      final updated = _updateMap(map, label, cell.copyWith(present: value));
+                      if (map == row.structural) {
+                        _replaceRow(index, row.copyWith(structural: updated));
+                      } else if (map == row.physical) {
+                        _replaceRow(index, row.copyWith(physical: updated));
+                      } else {
+                        _replaceRow(index, row.copyWith(bioChemical: updated));
+                      }
+                    },
+                    label: '$semantics • ${row.label}',
+                  ),
+                  const SizedBox(height: 4),
+                  // Position indicators (상/중/하)
+                  if (present) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildPositionIndicator(
+                          '상', 
+                          cell.positionTop, 
+                          (value) => _updatePosition(map, label, 'top', value, index, row),
+                          groupColor,
+                        ),
+                        _buildPositionIndicator(
+                          '중', 
+                          cell.positionMiddle, 
+                          (value) => _updatePosition(map, label, 'middle', value, index, row),
+                          groupColor,
+                        ),
+                        _buildPositionIndicator(
+                          '하', 
+                          cell.positionBottom, 
+                          (value) => _updatePosition(map, label, 'bottom', value, index, row),
+                          groupColor,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -238,13 +290,13 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       }
 
       for (final label in widget.value.columnsStructural) {
-        addToggleCell(row.structural, label, '구조적 손상 $label');
+        addToggleCell(row.structural, label, '구조적 손상 $label', Colors.red);
       }
       for (final label in widget.value.columnsPhysical) {
-        addToggleCell(row.physical, label, '물리적 손상 $label');
+        addToggleCell(row.physical, label, '물리적 손상 $label', Colors.blue);
       }
       for (final label in widget.value.columnsBioChemical) {
-        addToggleCell(row.bioChemical, label, '생물·화학적 손상 $label');
+        addToggleCell(row.bioChemical, label, '생물·화학적 손상 $label', Colors.green);
       }
 
       cells.addAll([
@@ -311,14 +363,22 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   Map<String, DamageCell> _updateMap(
     Map<String, DamageCell> source,
     String key,
-    bool value,
+    dynamic value,
   ) {
-    return {
-      for (final entry in source.entries)
-        entry.key: entry.key == key
-            ? entry.value.copyWith(present: value)
-            : entry.value,
-    };
+    if (value is bool) {
+      return {
+        for (final entry in source.entries)
+          entry.key: entry.key == key
+              ? entry.value.copyWith(present: value)
+              : entry.value,
+      };
+    } else if (value is DamageCell) {
+      return {
+        for (final entry in source.entries)
+          entry.key: entry.key == key ? value : entry.value,
+      };
+    }
+    return source;
   }
 
   void _replaceRow(int index, DamageRow row) {
@@ -328,12 +388,11 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   }
 
   void _addRow() {
-    const defaultLabel = '새 손상 위치';
     final makeMap = (List<String> keys) => {
       for (final key in keys) key: const DamageCell(),
     };
     final row = DamageRow(
-      label: defaultLabel,
+      label: '', // Empty label instead of hardcoded text
       structural: makeMap(widget.value.columnsStructural),
       physical: makeMap(widget.value.columnsPhysical),
       bioChemical: makeMap(widget.value.columnsBioChemical),
@@ -343,6 +402,17 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     );
     final rows = List<DamageRow>.from(widget.value.rows)..add(row);
     widget.onChanged(widget.value.copyWith(rows: rows));
+    
+    // Smooth scroll to the newly added row
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   void _syncControllers() {
@@ -356,6 +426,72 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             .map((row) => TextEditingController(text: row.label))
             .toList(),
       );
+  }
+
+  Widget _buildPositionIndicator(
+    String positionLabel,
+    String currentValue,
+    ValueChanged<String> onChanged,
+    Color groupColor,
+  ) {
+    return Container(
+      width: 40,
+      height: 32,
+      decoration: BoxDecoration(
+        border: Border.all(color: groupColor.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: currentValue,
+          isDense: true,
+          items: _positionOptions.map((option) {
+            return DropdownMenuItem<String>(
+              value: option,
+              child: Center(
+                child: Text(
+                  option,
+                  style: TextStyle(
+                    color: option == 'O' ? Colors.green : 
+                           option == 'X' ? Colors.red : Colors.grey,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _updatePosition(
+    Map<String, DamageCell> map,
+    String label,
+    String position,
+    String value,
+    int index,
+    DamageRow row,
+  ) {
+    final cell = map[label] ?? const DamageCell();
+    final updatedCell = cell.copyWith(
+      positionTop: position == 'top' ? value : cell.positionTop,
+      positionMiddle: position == 'middle' ? value : cell.positionMiddle,
+      positionBottom: position == 'bottom' ? value : cell.positionBottom,
+    );
+    
+    final updated = _updateMap(map, label, updatedCell);
+    if (map == row.structural) {
+      _replaceRow(index, row.copyWith(structural: updated));
+    } else if (map == row.physical) {
+      _replaceRow(index, row.copyWith(physical: updated));
+    } else {
+      _replaceRow(index, row.copyWith(bioChemical: updated));
+    }
   }
 
   Future<void> _saveDamageSummary() async {
@@ -387,7 +523,16 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         final structuralDamages = <String>[];
         for (final entry in row.structural.entries) {
           if (entry.value.present) {
-            structuralDamages.add(entry.key);
+            final positions = <String>[];
+            if (entry.value.positionTop != '-') positions.add('상:${entry.value.positionTop}');
+            if (entry.value.positionMiddle != '-') positions.add('중:${entry.value.positionMiddle}');
+            if (entry.value.positionBottom != '-') positions.add('하:${entry.value.positionBottom}');
+            
+            if (positions.isNotEmpty) {
+              structuralDamages.add('${entry.key}(${positions.join(', ')})');
+            } else {
+              structuralDamages.add(entry.key);
+            }
           }
         }
         if (structuralDamages.isNotEmpty) {
@@ -398,7 +543,16 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         final physicalDamages = <String>[];
         for (final entry in row.physical.entries) {
           if (entry.value.present) {
-            physicalDamages.add(entry.key);
+            final positions = <String>[];
+            if (entry.value.positionTop != '-') positions.add('상:${entry.value.positionTop}');
+            if (entry.value.positionMiddle != '-') positions.add('중:${entry.value.positionMiddle}');
+            if (entry.value.positionBottom != '-') positions.add('하:${entry.value.positionBottom}');
+            
+            if (positions.isNotEmpty) {
+              physicalDamages.add('${entry.key}(${positions.join(', ')})');
+            } else {
+              physicalDamages.add(entry.key);
+            }
           }
         }
         if (physicalDamages.isNotEmpty) {
@@ -409,7 +563,16 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         final bioChemicalDamages = <String>[];
         for (final entry in row.bioChemical.entries) {
           if (entry.value.present) {
-            bioChemicalDamages.add(entry.key);
+            final positions = <String>[];
+            if (entry.value.positionTop != '-') positions.add('상:${entry.value.positionTop}');
+            if (entry.value.positionMiddle != '-') positions.add('중:${entry.value.positionMiddle}');
+            if (entry.value.positionBottom != '-') positions.add('하:${entry.value.positionBottom}');
+            
+            if (positions.isNotEmpty) {
+              bioChemicalDamages.add('${entry.key}(${positions.join(', ')})');
+            } else {
+              bioChemicalDamages.add(entry.key);
+            }
           }
         }
         if (bioChemicalDamages.isNotEmpty) {
@@ -470,10 +633,15 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 }
 
 class _ColumnHeader extends StatelessWidget {
-  const _ColumnHeader({required this.group, required this.column});
+  const _ColumnHeader({
+    required this.group, 
+    required this.column,
+    this.groupColor,
+  });
 
   final String group;
   final String column;
+  final Color? groupColor;
 
   @override
   Widget build(BuildContext context) {
@@ -482,11 +650,21 @@ class _ColumnHeader extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          group,
-          style: textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: groupColor?.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: groupColor != null 
+                ? Border.all(color: groupColor!.withOpacity(0.3))
+                : null,
+          ),
+          child: Text(
+            group,
+            style: textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: groupColor ?? Colors.black87,
+            ),
           ),
         ),
         const SizedBox(height: 4),
@@ -494,7 +672,10 @@ class _ColumnHeader extends StatelessWidget {
           child: Text(
             column,
             textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: groupColor?.withOpacity(0.8) ?? Colors.black87,
+            ),
           ),
         ),
       ],

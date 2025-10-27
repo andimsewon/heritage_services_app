@@ -132,6 +132,11 @@ _MockAIPredictionRepository();
   final _section13Surroundings = TextEditingController();
   final _section13Usage = TextEditingController();
 
+  // 1.4 유지보수/수리 이력
+  bool _precisionDiagnosis = false;
+  bool _careProject = false;
+  final TextEditingController _repairRecordController = TextEditingController();
+
   // 1.2 보존 사항 컨트롤러들
   final _preservationFoundationBaseController = TextEditingController();
   final _preservationFoundationBasePhotoController = TextEditingController();
@@ -1181,15 +1186,15 @@ class BasicInfoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                '기본 정보',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
+          const Text(
+            '기본 정보',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  color: Color(0xFF111827),
+              color: Color(0xFF111827),
                   letterSpacing: -0.3,
-                ),
-              ),
+            ),
+          ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1323,15 +1328,15 @@ class HeritagePhotoSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                '현황 사진',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
+          const Text(
+            '현황 사진',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  color: Color(0xFF111827),
+              color: Color(0xFF111827),
                   letterSpacing: -0.3,
-                ),
-              ),
+            ),
+          ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1472,29 +1477,29 @@ class HeritagePhotoSection extends StatelessWidget {
                       height: 200,
                       width: double.infinity,
                       child: GridView.builder(
-                        primary: false,
-                        physics: const BouncingScrollPhysics(),
+                            primary: false,
+                            physics: const BouncingScrollPhysics(),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 4,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                           childAspectRatio: 0.75,
                         ),
-                        itemCount: docs.length,
-                        itemBuilder: (_, index) {
-                          final data = docs[index].data();
-                          final title = (data['title'] as String?) ?? '';
-                          final url = (data['url'] as String?) ?? '';
-                          final meta =
-                              '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
+                            itemCount: docs.length,
+                            itemBuilder: (_, index) {
+                              final data = docs[index].data();
+                              final title = (data['title'] as String?) ?? '';
+                              final url = (data['url'] as String?) ?? '';
+                              final meta =
+                                  '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
                           return _PhotoCard(
-                            title: title,
-                            url: url,
-                            meta: meta,
-                            onPreview: () => onPreview(url, title),
-                            onDelete: () => onDelete(docs[index].id, url),
-                          );
-                        },
+                                  title: title,
+                                  url: url,
+                                  meta: meta,
+                                  onPreview: () => onPreview(url, title),
+                                  onDelete: () => onDelete(docs[index].id, url),
+                              );
+                            },
                       ),
                     ),
                   ],
@@ -1561,15 +1566,15 @@ class HeritagePhotoSection extends StatelessWidget {
                         color: Colors.red.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: IconButton(
-                        onPressed: onDelete,
+                    child: IconButton(
+                      onPressed: onDelete,
                         icon: const Icon(
                           Icons.delete_outline, 
                           color: Colors.white,
                           size: 16,
                         ),
-                        style: IconButton.styleFrom(
-                          padding: const EdgeInsets.all(4),
+                      style: IconButton.styleFrom(
+                        padding: const EdgeInsets.all(4),
                           minimumSize: const Size(28, 28),
                         ),
                       ),
@@ -1583,47 +1588,47 @@ class HeritagePhotoSection extends StatelessWidget {
             flex: 2,
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
                       color: Color(0xFF111827),
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    meta,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  meta,
                     style: const TextStyle(
                       color: Color(0xFF6B7280), 
                       fontSize: 10,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                   const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
+                SizedBox(
+                  width: double.infinity,
                     height: 24,
-                    child: ElevatedButton(
-                      onPressed: onPreview,
-                      style: ElevatedButton.styleFrom(
+                  child: ElevatedButton(
+                    onPressed: onPreview,
+                    style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1E2A44),
-                        foregroundColor: Colors.white,
+                      foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        shape: RoundedRectangleBorder(
+                      shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
-                        ),
                       ),
-                      child: const Text('미리보기', style: TextStyle(fontSize: 12)),
                     ),
+                    child: const Text('미리보기', style: TextStyle(fontSize: 12)),
                   ),
-                ],
+                ),
+              ],
               ),
             ),
           ),
@@ -1633,7 +1638,7 @@ class HeritagePhotoSection extends StatelessWidget {
   }
 }
 
-class DamageSurveySection extends StatelessWidget {
+class DamageSurveySection extends StatefulWidget {
   const DamageSurveySection({
     super.key,
     required this.damageStream,
@@ -1646,6 +1651,14 @@ class DamageSurveySection extends StatelessWidget {
   final VoidCallback onAddSurvey;
   final Future<void> Function() onDeepInspection;
   final Future<void> Function(String docId, String imageUrl) onDelete;
+
+  @override
+  State<DamageSurveySection> createState() => _DamageSurveySectionState();
+}
+
+class _DamageSurveySectionState extends State<DamageSurveySection> {
+  Map<String, dynamic>? _selectedDamage;
+  int? _selectedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -1681,14 +1694,14 @@ class DamageSurveySection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                '손상부 조사',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
+          const Text(
+            '손상부 조사',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  color: Color(0xFF111827),
+              color: Color(0xFF111827),
                   letterSpacing: -0.3,
-                ),
+            ),
               ),
             ],
           ),
@@ -1696,7 +1709,7 @@ class DamageSurveySection extends StatelessWidget {
           Row(
             children: [
               ElevatedButton.icon(
-                onPressed: onAddSurvey,
+                onPressed: widget.onAddSurvey,
                 icon: const Icon(Icons.add, color: Colors.white, size: 18),
                 label: const Text(
                   '조사 등록',
@@ -1721,18 +1734,20 @@ class DamageSurveySection extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               ElevatedButton.icon(
-                onPressed: onDeepInspection,
+                onPressed: _selectedDamage != null ? _openDeepInspection : null,
                 icon: const Icon(
                   Icons.assignment,
                   size: 16,
                   color: Colors.white,
                 ),
-                label: const Text(
-                  '심화조사',
-                  style: TextStyle(color: Colors.white),
+                label: Text(
+                  _selectedDamage != null ? '심화조사' : '심화조사 (선택 필요)',
+                  style: const TextStyle(color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4B6CB7),
+                  backgroundColor: _selectedDamage != null 
+                      ? const Color(0xFF4B6CB7) 
+                      : const Color(0xFF9CA3AF),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1748,10 +1763,13 @@ class DamageSurveySection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          // Interactive Damage Table
+          _buildDamageTable(),
+          const SizedBox(height: 16),
           SizedBox(
             height: 240,
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: damageStream,
+              stream: widget.damageStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -1803,7 +1821,7 @@ class DamageSurveySection extends StatelessWidget {
                         severityGrade: grade,
                         location: location,
                         phenomenon: phenomenon,
-                        onDelete: () => onDelete(doc.id, url),
+                        onDelete: () => widget.onDelete(doc.id, url),
                       );
                     },
                   ),
@@ -1812,6 +1830,195 @@ class DamageSurveySection extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDamageTable() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: widget.damageStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: const Center(
+              child: Text(
+                '등록된 손상부 조사가 없습니다.',
+                style: TextStyle(color: Color(0xFF6B7280)),
+              ),
+            ),
+          );
+        }
+
+        final docs = snapshot.data!.docs
+            .where((doc) => ((doc.data())['imageUrl'] as String?)?.isNotEmpty ?? false)
+            .toList();
+
+        if (docs.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: const Center(
+              child: Text(
+                '등록된 손상부 조사가 없습니다.',
+                style: TextStyle(color: Color(0xFF6B7280)),
+              ),
+            ),
+          );
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  '손상부 조사 목록 (행을 선택하여 심화조사 진행)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Color(0xFF374151),
+                  ),
+                ),
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  headingRowHeight: 48,
+                  dataRowMinHeight: 56,
+                  columnSpacing: 16,
+                  columns: const [
+                    DataColumn(label: Text('선택', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('위치', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('손상 유형', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('등급', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('조사일시', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(label: Text('조사자 의견', style: TextStyle(fontWeight: FontWeight.bold))),
+                  ],
+                  rows: docs.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final doc = entry.value;
+                    final data = doc.data();
+                    final isSelected = _selectedIndex == index;
+                    
+                    return DataRow(
+                      selected: isSelected,
+                      onSelectChanged: (selected) {
+                        if (selected == true) {
+                          setState(() {
+                            _selectedIndex = index;
+                            _selectedDamage = data;
+                          });
+                        }
+                      },
+                      cells: [
+                        DataCell(
+                          Radio<int>(
+                            value: index,
+                            groupValue: _selectedIndex,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedIndex = value;
+                                _selectedDamage = data;
+                              });
+                            },
+                          ),
+                        ),
+                        DataCell(Text(data['location']?.toString() ?? '—')),
+                        DataCell(Text(data['phenomenon']?.toString() ?? '—')),
+                        DataCell(
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getGradeColor(data['severityGrade']?.toString()),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              data['severityGrade']?.toString() ?? '—',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(
+                          data['timestamp'] != null 
+                              ? _formatTimestamp(data['timestamp'].toString())
+                              : '—'
+                        )),
+                        DataCell(Text(
+                          data['inspectorOpinion']?.toString() ?? '—',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        )),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Color _getGradeColor(String? grade) {
+    switch (grade) {
+      case 'A': return const Color(0xFF4CAF50);
+      case 'B': return const Color(0xFF8BC34A);
+      case 'C1': return const Color(0xFFFFC107);
+      case 'C2': return const Color(0xFFFF9800);
+      case 'D': return const Color(0xFFFF5722);
+      case 'E': return const Color(0xFFF44336);
+      case 'F': return const Color(0xFFD32F2F);
+      default: return const Color(0xFF9CA3AF);
+    }
+  }
+
+  String _formatTimestamp(String timestamp) {
+    try {
+      final date = DateTime.parse(timestamp);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return timestamp;
+    }
+  }
+
+  void _openDeepInspection() {
+    if (_selectedDamage == null) return;
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DeepInspectionScreen(selectedDamage: _selectedDamage!),
       ),
     );
   }
@@ -1833,7 +2040,8 @@ class DamageSurveySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 4 / 3,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(12),
@@ -1842,7 +2050,7 @@ class DamageSurveySection extends StatelessWidget {
                 children: [
                   Image.network(
                     url,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     width: double.infinity,
                     height: double.infinity,
                     errorBuilder: (context, error, stackTrace) {
@@ -2193,6 +2401,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Map<String, Uint8List?> _preservationPhotos = {};
   Map<String, String?> _preservationPhotoUrls = {};
   final _fb = FirebaseService();
+
+  // 새로운 유지보수/수리 이력 필드들
+  bool _precisionDiagnosis = false;
+  bool _careProject = false;
+  final TextEditingController _repairRecordController = TextEditingController();
 
   @override
   void initState() {
@@ -2883,6 +3096,12 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _hasExhibitionMuseum = managementData['hasExhibitionMuseum'] == true;
         _hasNationalHeritageInterpreter = managementData['hasNationalHeritageInterpreter'] == true;
         
+        // 유지보수/수리 이력 데이터 로드
+        final maintenanceData = data['maintenanceHistory'] as Map<String, dynamic>? ?? {};
+        _precisionDiagnosis = maintenanceData['precision_diagnosis'] == true;
+        _careProject = maintenanceData['care_project'] == true;
+        _repairRecordController.text = maintenanceData['repair_record']?.toString() ?? '';
+        
         // 원본 데이터 저장 (변경 감지용)
         _originalData = Map.from(data);
         
@@ -2977,6 +3196,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _hasInfoBoard = false;
     _hasExhibitionMuseum = false;
     _hasNationalHeritageInterpreter = false;
+    
+    // 유지보수/수리 이력 필드 초기화
+    _precisionDiagnosis = false;
+    _careProject = false;
+    _repairRecordController.clear();
   }
 
   // 변경사항 감지
@@ -3044,10 +3268,17 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       'hasNationalHeritageInterpreter': _hasNationalHeritageInterpreter,
     };
     
+    final maintenanceData = <String, dynamic>{
+      'precision_diagnosis': _precisionDiagnosis,
+      'care_project': _careProject,
+      'repair_record': _repairRecordController.text.trim(),
+    };
+    
     return {
       'surveyResults': surveyData,
       'preservationItems': preservationData,
       'managementItems': managementData,
+      'maintenanceHistory': maintenanceData,
     };
   }
 
@@ -3353,6 +3584,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _preservationRoofCeilingDanjipPhotoController.dispose();
     _preservationOtherSpecialNotesController.dispose();
     _preservationOtherSpecialNotesPhotoController.dispose();
+    _repairRecordController.dispose();
     
     // 리스너 제거
     _removeChangeListeners();
@@ -3440,7 +3672,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           const SizedBox(height: 8),
                           _buildManagementTable(),
                           const SizedBox(height: 24),
-                          const _HistorySectionTitle('1.4 위치현황'),
+                          const _HistorySectionTitle('1.4 유지보수/수리 이력'),
+                          const SizedBox(height: 8),
+                          _buildMaintenanceHistorySection(),
+                          const SizedBox(height: 24),
+                          const _HistorySectionTitle('1.5 위치현황'),
                           const SizedBox(height: 8),
                           _buildHistoryPhotoSection(
                             title: '위치 도면/위성자료 등록',
@@ -3449,7 +3685,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                             kind: _HistoryPhotoKind.location,
                           ),
                           const SizedBox(height: 24),
-                          const _HistorySectionTitle('1.5 현황사진'),
+                          const _HistorySectionTitle('1.6 현황사진'),
                           const SizedBox(height: 8),
                           _buildHistoryPhotoSection(
                             title: '현황 사진 등록',
@@ -3458,7 +3694,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                             kind: _HistoryPhotoKind.current,
                           ),
                           const SizedBox(height: 24),
-                          const _HistorySectionTitle('1.6 손상부 조사'),
+                          const _HistorySectionTitle('1.7 손상부 조사'),
                           const SizedBox(height: 8),
                           _buildHistoryPhotoSection(
                             title: '손상부 사진 등록',
@@ -3475,27 +3711,15 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      ElevatedButton(
-                        onPressed: _isLoading ? null : () async {
-                          await _loadYearData();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shadowColor: const Color(0xFF2563EB).withOpacity(0.3),
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back, size: 18),
+                        label: const Text('뒤로가기'),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF6B7280)),
+                          foregroundColor: const Color(0xFF6B7280),
                           minimumSize: const Size(120, 44),
                         ),
-                        child: _isLoading 
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text('불러오기'),
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
@@ -3601,7 +3825,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-        children: [
+      children: [
           // 테이블 헤더
           Container(
             padding: const EdgeInsets.all(12),
@@ -3613,7 +3837,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               ),
             ),
             child: const Row(
-              children: [
+                children: [
                 Expanded(
                   flex: 1,
                   child: Text(
@@ -3635,9 +3859,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                       color: Color(0xFF111827),
                     ),
                   ),
-                ),
-              ],
-            ),
+              ),
+          ],
+        ),
           ),
           // 구조부 섹션
           _buildSurveyTableSection('구조부', [
@@ -3678,7 +3902,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             ),
           ),
           child: Row(
-            children: [
+                      children: [
               Expanded(
                 child: Text(
                   sectionTitle,
@@ -3689,9 +3913,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
+                      ],
+                    ),
+            ),
         // 섹션 내용
         ...rows,
       ],
@@ -3907,7 +4131,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementElectricalSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+          children: [
         const Text(
           '전기시설',
           style: TextStyle(
@@ -3927,7 +4151,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementGasSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+              children: [
         const Text(
           '가스시설',
           style: TextStyle(
@@ -3970,7 +4194,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementCareSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+              children: [
         const Text(
           '돌봄사업',
           style: TextStyle(
@@ -4042,7 +4266,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementOriginalFunctionSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+              children: [
         const Text(
           '원래기능/활용상태/사용빈도',
           style: TextStyle(
@@ -4078,9 +4302,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                 _buildManagementCheckbox('없음', !value, () => onChanged(false)),
               ],
             ),
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
     );
   }
 
@@ -4088,7 +4312,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        children: [
+          children: [
           Expanded(
             flex: 2,
             child: Text(
@@ -4227,7 +4451,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-        children: [
+                      children: [
           // 테이블 헤더
           Container(
             padding: const EdgeInsets.all(12),
@@ -4284,9 +4508,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                     ),
                   ),
                 ),
-              ],
+                      ],
+                    ),
             ),
-          ),
           // ① 기단부 섹션
           _buildPreservationTableSection('① 기단부', [
             _buildPreservationTableRow('기단부', '기단', _preservationFoundationBaseController, _preservationFoundationBasePhotoController, 
@@ -4669,6 +4893,167 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
+  Widget _buildMaintenanceHistorySection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '4. 유지보수/수리 이력',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          // 정밀진단 실시 여부
+          _buildMaintenanceCheckboxRow(
+            '정밀진단 실시 여부',
+            _precisionDiagnosis,
+            (value) {
+              setState(() => _precisionDiagnosis = value);
+            },
+          ),
+          const SizedBox(height: 16),
+          
+          // 돌봄사업 수행 여부
+          _buildMaintenanceCheckboxRow(
+            '돌봄사업 수행 여부',
+            _careProject,
+            (value) {
+              setState(() => _careProject = value);
+            },
+          ),
+          const SizedBox(height: 16),
+          
+          // 수리 기록
+          _buildMaintenanceTextFieldRow(
+            '수리 기록',
+            _repairRecordController,
+            '유지보수, 수리, 복원 이력을 입력하세요',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMaintenanceCheckboxRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Row(
+              children: [
+                _buildMaintenanceCheckbox('실시', value, () => onChanged(true)),
+                const SizedBox(width: 8),
+                _buildMaintenanceCheckbox('미실시', !value, () => onChanged(false)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMaintenanceCheckbox(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? const Color(0xFF1E2A44) : const Color(0xFFD1D5DB),
+                width: 2,
+              ),
+              color: isSelected ? const Color(0xFF1E2A44) : Colors.white,
+            ),
+            child: isSelected
+                ? const Icon(
+                    Icons.check,
+                    size: 12,
+                    color: Colors.white,
+                  )
+                : null,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: isSelected ? const Color(0xFF1E2A44) : const Color(0xFF6B7280),
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMaintenanceTextFieldRow(String label, TextEditingController controller, String hintText) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF374151),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            enabled: _isEditable,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: hintText,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+              ),
+              fillColor: _isEditable ? Colors.white : const Color(0xFFF9FAFB),
+              filled: true,
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHistoryPhotoSection({
     required String title,
     required String description,
@@ -5040,6 +5425,306 @@ class _HistoryImage {
 
   Object? removalPayload() => rawValue ?? (url != null ? toFirestore() : null);
 }
+// ═══════════════════════════════════════════════════════════════
+// DeepInspectionScreen - 심화조사 화면
+// ═══════════════════════════════════════════════════════════════
+
+class DeepInspectionScreen extends StatefulWidget {
+  const DeepInspectionScreen({
+    super.key,
+    required this.selectedDamage,
+  });
+
+  final Map<String, dynamic> selectedDamage;
+
+  @override
+  State<DeepInspectionScreen> createState() => _DeepInspectionScreenState();
+}
+
+class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
+  final TextEditingController _detailedOpinionController = TextEditingController();
+  final TextEditingController _recommendationController = TextEditingController();
+  final TextEditingController _priorityController = TextEditingController();
+  String _selectedPriority = '중';
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 기존 데이터로 폼 초기화
+    _detailedOpinionController.text = widget.selectedDamage['inspectorOpinion']?.toString() ?? '';
+    _recommendationController.text = widget.selectedDamage['recommendation']?.toString() ?? '';
+    _priorityController.text = widget.selectedDamage['priority']?.toString() ?? '중';
+  }
+
+  @override
+  void dispose() {
+    _detailedOpinionController.dispose();
+    _recommendationController.dispose();
+    _priorityController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('심화조사'),
+        backgroundColor: const Color(0xFF1E2A44),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 선택된 손상 정보 카드
+            _buildSelectedDamageCard(),
+            const SizedBox(height: 24),
+            
+            // 심화조사 폼
+            _buildInspectionForm(),
+            const SizedBox(height: 24),
+            
+            // 저장 버튼
+            _buildSaveButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedDamageCard() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '선택된 손상 정보',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E2A44),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildInfoRow('위치', widget.selectedDamage['location']?.toString() ?? '—'),
+                      _buildInfoRow('손상 유형', widget.selectedDamage['phenomenon']?.toString() ?? '—'),
+                      _buildInfoRow('등급', widget.selectedDamage['severityGrade']?.toString() ?? '—'),
+                    ],
+                  ),
+                ),
+                if (widget.selectedDamage['imageUrl'] != null)
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: Image.network(
+                          widget.selectedDamage['imageUrl'].toString(),
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.image_not_supported);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Color(0xFF6B7280)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInspectionForm() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '심화조사 상세 정보',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E2A44),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // 상세 의견
+            TextFormField(
+              controller: _detailedOpinionController,
+              decoration: const InputDecoration(
+                labelText: '상세 조사 의견',
+                hintText: '손상에 대한 상세한 조사 의견을 입력하세요',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 4,
+            ),
+            const SizedBox(height: 16),
+            
+            // 권고사항
+            TextFormField(
+              controller: _recommendationController,
+              decoration: const InputDecoration(
+                labelText: '권고사항',
+                hintText: '보수 및 관리 권고사항을 입력하세요',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            
+            // 우선순위
+            DropdownButtonFormField<String>(
+              value: _selectedPriority,
+              decoration: const InputDecoration(
+                labelText: '우선순위',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: '높음', child: Text('높음')),
+                DropdownMenuItem(value: '중', child: Text('중')),
+                DropdownMenuItem(value: '낮음', child: Text('낮음')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedPriority = value ?? '중';
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return ElevatedButton(
+      onPressed: _isSaving ? null : _saveInspection,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF1E2A44),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: _isSaving
+          ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          : const Text(
+              '심화조사 결과 저장',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+    );
+  }
+
+  Future<void> _saveInspection() async {
+    setState(() => _isSaving = true);
+
+    try {
+      // Firebase에 심화조사 데이터 저장
+      final inspectionData = {
+        'detailedOpinion': _detailedOpinionController.text.trim(),
+        'recommendation': _recommendationController.text.trim(),
+        'priority': _selectedPriority,
+        'timestamp': DateTime.now().toIso8601String(),
+        'inspectorId': 'current_user', // 실제 사용자 ID로 교체
+      };
+
+      // 기존 손상 데이터에 심화조사 정보 추가
+      final updatedDamage = Map<String, dynamic>.from(widget.selectedDamage);
+      updatedDamage.addAll(inspectionData);
+
+      // Firebase에 업데이트된 데이터 저장
+      // TODO: 실제 Firebase 저장 로직 구현
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('심화조사 결과가 저장되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, {'saved': true});
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('저장 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // DamageDetectionDialog - AI 손상부 조사 다이얼로그
 // ═══════════════════════════════════════════════════════════════

@@ -15,6 +15,27 @@ class GradeClassificationCard extends StatelessWidget {
   final GradeClassification value;
   final ValueChanged<GradeClassification> onChanged;
 
+  String _getGradeTooltip(String grade) {
+    switch (grade) {
+      case 'A':
+        return 'A등급: 양호 - 문화재 보존 상태가 매우 양호하여 별도의 조치가 필요하지 않음';
+      case 'B':
+        return 'B등급: 양호 - 경미한 손상이 있으나 정기적인 관찰만 필요';
+      case 'C1':
+        return 'C1등급: 주의 - 경미한 손상이 관찰되며 정기적인 관찰과 예방 조치 필요';
+      case 'C2':
+        return 'C2등급: 주의 - 중간 정도의 손상이 관찰되며 모니터링 및 예방 조치 필요';
+      case 'D':
+        return 'D등급: 경고 - 손상이 심화될 가능성이 있어 정밀조사 및 보수 계획 수립 필요';
+      case 'E':
+        return 'E등급: 심각 - 즉시 보수 또는 긴급 조치가 필요한 상태';
+      case 'F':
+        return 'F등급: 매우 심각 - 안전상 위험이 있어 즉시 안전 조치 및 긴급 보수 필요';
+      default:
+        return '문화재 보존 상태 등급을 선택해주세요';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -22,23 +43,39 @@ class GradeClassificationCard extends StatelessWidget {
 
     return SectionCard(
       title: '등급 분류',
-      action: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value.grade,
-          items: const [
-            DropdownMenuItem(value: 'A', child: Text('A')),
-            DropdownMenuItem(value: 'B', child: Text('B')),
-            DropdownMenuItem(value: 'C', child: Text('C')),
-            DropdownMenuItem(value: 'D', child: Text('D')),
-            DropdownMenuItem(value: 'E', child: Text('E')),
-          ],
-          onChanged: (newGrade) {
-            if (newGrade == null) return;
-            onChanged(value.copyWith(grade: newGrade));
-          },
-          icon: const Icon(Icons.arrow_drop_down),
-          style: theme.textTheme.titleMedium,
-        ),
+      action: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value.grade,
+              items: const [
+                DropdownMenuItem(value: 'A', child: Text('A')),
+                DropdownMenuItem(value: 'B', child: Text('B')),
+                DropdownMenuItem(value: 'C1', child: Text('C1')),
+                DropdownMenuItem(value: 'C2', child: Text('C2')),
+                DropdownMenuItem(value: 'D', child: Text('D')),
+                DropdownMenuItem(value: 'E', child: Text('E')),
+                DropdownMenuItem(value: 'F', child: Text('F')),
+              ],
+              onChanged: (newGrade) {
+                if (newGrade == null) return;
+                onChanged(value.copyWith(grade: newGrade));
+              },
+              icon: const Icon(Icons.arrow_drop_down),
+              style: theme.textTheme.titleMedium,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: _getGradeTooltip(value.grade),
+            child: Icon(
+              Icons.info_outline,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -113,12 +150,16 @@ class _GradePanel extends StatelessWidget {
         return '양호 - 별도 조치 필요 없음';
       case 'B':
         return '양호 - 경미한 손상 관찰 필요';
-      case 'C':
-        return '주의 - 관찰 필요, 손상 진행 모니터링';
+      case 'C1':
+        return '주의 - 경미한 손상, 정기적 관찰 필요';
+      case 'C2':
+        return '주의 - 중간 손상, 모니터링 및 예방 조치 필요';
       case 'D':
         return '경고 - 정밀조사 필요, 손상 심화 가능성';
       case 'E':
         return '심각 - 즉시 보수 또는 긴급 조치 필요';
+      case 'F':
+        return '매우 심각 - 즉시 안전 조치 및 긴급 보수 필요';
       default:
         return '등급을 선택해주세요';
     }

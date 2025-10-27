@@ -24,12 +24,30 @@ class InspectionResult {
 }
 
 class DamageCell {
-  const DamageCell({this.present = false});
+  const DamageCell({
+    this.present = false,
+    this.positionTop = '-',
+    this.positionMiddle = '-',
+    this.positionBottom = '-',
+  });
 
   final bool present;
+  final String positionTop;    // 상 (Top)
+  final String positionMiddle; // 중 (Middle)
+  final String positionBottom; // 하 (Bottom)
 
-  DamageCell copyWith({bool? present}) =>
-      DamageCell(present: present ?? this.present);
+  DamageCell copyWith({
+    bool? present,
+    String? positionTop,
+    String? positionMiddle,
+    String? positionBottom,
+  }) =>
+      DamageCell(
+        present: present ?? this.present,
+        positionTop: positionTop ?? this.positionTop,
+        positionMiddle: positionMiddle ?? this.positionMiddle,
+        positionBottom: positionBottom ?? this.positionBottom,
+      );
 }
 
 class DamageRow {

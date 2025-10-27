@@ -24,9 +24,12 @@ def _calculate_grade(detections: list[dict]) -> tuple[str, str]:
     if score >= 0.85:
         grade = "D"
         message = f"{label} 손상이 심각하여 즉시 보수가 필요합니다."
-    elif score >= 0.7:
-        grade = "C"
-        message = f"{label} 손상이 명확히 관찰됩니다. 정밀 조사와 조치가 필요합니다."
+    elif score >= 0.75:
+        grade = "C2"
+        message = f"{label} 손상이 명확히 관찰됩니다. 모니터링 및 예방 조치가 필요합니다."
+    elif score >= 0.6:
+        grade = "C1"
+        message = f"{label} 손상이 경미하게 관찰됩니다. 정기적 관찰이 필요합니다."
     elif score >= 0.5:
         grade = "B"
         message = f"{label} 손상이 의심됩니다. 지속적인 관찰과 예방 조치를 권장합니다."

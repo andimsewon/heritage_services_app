@@ -2,6 +2,7 @@
 // 손상부 조사 - 도면 기반 부재 선택 모달
 
 import 'package:flutter/material.dart';
+import '../utils/position_options.dart';
 
 class DamagePartDialog extends StatefulWidget {
   const DamagePartDialog({super.key});
@@ -15,38 +16,38 @@ class _DamagePartDialogState extends State<DamagePartDialog> {
   // TODO: 실제 도면 이미지 업로드 후 좌표 조정 필요
   final List<Map<String, dynamic>> parts = [
     // 남쪽 기둥 (하단)
-    {'id': 1, 'name': '기둥', 'x': 100.0, 'y': 450.0, 'direction': '남향', 'position': '좌측'},
-    {'id': 2, 'name': '기둥', 'x': 180.0, 'y': 450.0, 'direction': '남향', 'position': '중앙좌'},
-    {'id': 3, 'name': '기둥', 'x': 260.0, 'y': 450.0, 'direction': '남향', 'position': '중앙'},
-    {'id': 4, 'name': '기둥', 'x': 340.0, 'y': 450.0, 'direction': '남향', 'position': '중앙우'},
-    {'id': 5, 'name': '기둥', 'x': 420.0, 'y': 450.0, 'direction': '남향', 'position': '우측'},
+    {'id': 1, 'name': '기둥', 'x': 100.0, 'y': 450.0, 'direction': '남향', 'position': '상'},
+    {'id': 2, 'name': '기둥', 'x': 180.0, 'y': 450.0, 'direction': '남향', 'position': '중'},
+    {'id': 3, 'name': '기둥', 'x': 260.0, 'y': 450.0, 'direction': '남향', 'position': '중'},
+    {'id': 4, 'name': '기둥', 'x': 340.0, 'y': 450.0, 'direction': '남향', 'position': '중'},
+    {'id': 5, 'name': '기둥', 'x': 420.0, 'y': 450.0, 'direction': '남향', 'position': '하'},
 
     // 서쪽 기둥 (좌측)
-    {'id': 6, 'name': '기둥', 'x': 100.0, 'y': 370.0, 'direction': '서향', 'position': '상단'},
-    {'id': 7, 'name': '기둥', 'x': 100.0, 'y': 290.0, 'direction': '서향', 'position': '중앙'},
-    {'id': 8, 'name': '기둥', 'x': 100.0, 'y': 210.0, 'direction': '서향', 'position': '하단'},
+    {'id': 6, 'name': '기둥', 'x': 100.0, 'y': 370.0, 'direction': '서향', 'position': '상'},
+    {'id': 7, 'name': '기둥', 'x': 100.0, 'y': 290.0, 'direction': '서향', 'position': '중'},
+    {'id': 8, 'name': '기둥', 'x': 100.0, 'y': 210.0, 'direction': '서향', 'position': '하'},
 
     // 중앙 부재
-    {'id': 9, 'name': '보', 'x': 260.0, 'y': 300.0, 'direction': '중앙', 'position': '횡'},
-    {'id': 10, 'name': '보', 'x': 260.0, 'y': 220.0, 'direction': '중앙', 'position': '종'},
-    {'id': 11, 'name': '기둥', 'x': 320.0, 'y': 250.0, 'direction': '서향', 'position': '중앙'},
+    {'id': 9, 'name': '보', 'x': 260.0, 'y': 300.0, 'direction': '중앙', 'position': '좌'},
+    {'id': 10, 'name': '보', 'x': 260.0, 'y': 220.0, 'direction': '중앙', 'position': '중'},
+    {'id': 11, 'name': '기둥', 'x': 320.0, 'y': 250.0, 'direction': '서향', 'position': '중'},
 
     // 동쪽 기둥 (우측)
-    {'id': 12, 'name': '기둥', 'x': 500.0, 'y': 370.0, 'direction': '동향', 'position': '상단'},
-    {'id': 13, 'name': '기둥', 'x': 500.0, 'y': 290.0, 'direction': '동향', 'position': '중앙'},
-    {'id': 14, 'name': '기둥', 'x': 500.0, 'y': 210.0, 'direction': '동향', 'position': '하단'},
+    {'id': 12, 'name': '기둥', 'x': 500.0, 'y': 370.0, 'direction': '동향', 'position': '상'},
+    {'id': 13, 'name': '기둥', 'x': 500.0, 'y': 290.0, 'direction': '동향', 'position': '중'},
+    {'id': 14, 'name': '기둥', 'x': 500.0, 'y': 210.0, 'direction': '동향', 'position': '하'},
 
     // 북쪽 기둥 (상단)
-    {'id': 15, 'name': '기둥', 'x': 100.0, 'y': 80.0, 'direction': '북향', 'position': '좌측'},
-    {'id': 16, 'name': '기둥', 'x': 180.0, 'y': 80.0, 'direction': '북향', 'position': '중앙좌'},
-    {'id': 17, 'name': '기둥', 'x': 260.0, 'y': 80.0, 'direction': '북향', 'position': '중앙'},
-    {'id': 18, 'name': '기둥', 'x': 340.0, 'y': 80.0, 'direction': '북향', 'position': '중앙우'},
-    {'id': 19, 'name': '기둥', 'x': 420.0, 'y': 80.0, 'direction': '북향', 'position': '우측'},
+    {'id': 15, 'name': '기둥', 'x': 100.0, 'y': 80.0, 'direction': '북향', 'position': '상'},
+    {'id': 16, 'name': '기둥', 'x': 180.0, 'y': 80.0, 'direction': '북향', 'position': '중'},
+    {'id': 17, 'name': '기둥', 'x': 260.0, 'y': 80.0, 'direction': '북향', 'position': '중'},
+    {'id': 18, 'name': '기둥', 'x': 340.0, 'y': 80.0, 'direction': '북향', 'position': '중'},
+    {'id': 19, 'name': '기둥', 'x': 420.0, 'y': 80.0, 'direction': '북향', 'position': '하'},
 
     // 지붕 부재
-    {'id': 20, 'name': '추녀', 'x': 80.0, 'y': 50.0, 'direction': '북서', 'position': '좌측'},
-    {'id': 21, 'name': '추녀', 'x': 520.0, 'y': 50.0, 'direction': '북동', 'position': '우측'},
-    {'id': 22, 'name': '기둥', 'x': 500.0, 'y': 80.0, 'direction': '북향', 'position': '우측'},
+    {'id': 20, 'name': '추녀', 'x': 80.0, 'y': 50.0, 'direction': '북서', 'position': '좌'},
+    {'id': 21, 'name': '추녀', 'x': 520.0, 'y': 50.0, 'direction': '북동', 'position': '우'},
+    {'id': 22, 'name': '기둥', 'x': 500.0, 'y': 80.0, 'direction': '북향', 'position': '하'},
   ];
 
   Map<String, dynamic>? selectedPart;

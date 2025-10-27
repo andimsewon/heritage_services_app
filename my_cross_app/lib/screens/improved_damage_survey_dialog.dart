@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 import '../services/firebase_service.dart';
+import '../utils/position_options.dart';
 
 /// 조사 단계 정의
 enum SurveyStep {
@@ -53,7 +54,7 @@ class _ImprovedDamageSurveyDialogState
 
   final List<String> _partNames = ['기둥', '보', '도리', '창방', '평방', '장혀', '추녀', '서까래'];
   final List<String> _directions = ['동향', '서향', '남향', '북향'];
-  final List<String> _positions = ['상', '중', '하'];
+  List<String> _positions = PositionOptions.defaultPositions;
 
   // 이미지 데이터
   Uint8List? _imageBytes;
@@ -263,7 +264,7 @@ class _ImprovedDamageSurveyDialogState
         _autoGrade = normalizedGrade;
         _autoExplanation = detectionResult.explanation;
         if (normalizedGrade != null &&
-            ['A', 'B', 'C', 'D', 'E', 'F'].contains(normalizedGrade)) {
+            ['A', 'B', 'C1', 'C2', 'D', 'E', 'F'].contains(normalizedGrade)) {
           _severityGrade = normalizedGrade;
         }
       });
@@ -328,6 +329,62 @@ class _ImprovedDamageSurveyDialogState
     } catch (e) {
       debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
       rethrow;
+    }
+  }
+
+  // 텍스트 데이터만 저장 (이미지 없이)
+  Future<void> _saveTextDataOnly() async {
+    try {
+      final damageSurveyData = {
+        'heritageId': widget.heritageId,
+        'partName': _selectedPartName ?? '',
+        'direction': _selectedDirection ?? '',
+        'position': _selectedPosition ?? '',
+        'partNumber': _partNumberController.text.trim(),
+        'location': _locationController.text.trim(),
+        'damagePart': _partController.text.trim(),
+        'opinion': _opinionController.text.trim(),
+        'temperature': _temperatureController.text.trim(),
+        'humidity': _humidityController.text.trim(),
+        'severityGrade': _severityGrade,
+        'damageTypes': _selectedDamageTypes.toList(),
+        'selectedLabel': _selectedLabel,
+        'selectedConfidence': _selectedConfidence,
+        'autoGrade': _autoGrade,
+        'autoExplanation': _autoExplanation,
+        'isTextOnly': true, // 텍스트만 저장된 데이터임을 표시
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _fb.saveDamageSurvey(
+        heritageId: widget.heritageId,
+        data: damageSurveyData,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 텍스트 데이터가 저장되었습니다'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      debugPrint('✅ 텍스트 데이터 저장 완료');
+    } catch (e) {
+      debugPrint('❌ 텍스트 데이터 저장 실패: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('텍스트 저장 실패: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -550,7 +607,17 @@ class _ImprovedDamageSurveyDialogState
                   return DropdownMenuItem(value: name, child: Text(name));
                 }).toList(),
                 onChanged: (value) {
-                  setState(() => _selectedPartName = value);
+                  setState(() {
+                    _selectedPartName = value;
+                    // 부재 유형에 따라 위치 옵션 업데이트
+                    if (value != null) {
+                      _positions = PositionOptions.getPositionsForMember(value);
+                      // 현재 선택된 위치가 새로운 옵션에 없으면 초기화
+                      if (_selectedPosition != null && !_positions.contains(_selectedPosition)) {
+                        _selectedPosition = null;
+                      }
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 16),
@@ -596,7 +663,10 @@ class _ImprovedDamageSurveyDialogState
                   fillColor: Colors.white,
                 ),
                 items: _positions.map((pos) {
-                  return DropdownMenuItem(value: pos, child: Text(pos));
+                  final displayText = _selectedPartName != null 
+                      ? PositionOptions.getPositionDisplayText(_selectedPartName!, pos)
+                      : pos;
+                  return DropdownMenuItem(value: pos, child: Text(displayText));
                 }).toList(),
                 onChanged: (value) {
                   setState(() => _selectedPosition = value);
@@ -977,6 +1047,24 @@ class _ImprovedDamageSurveyDialogState
                     child: Text(_currentStep == SurveyStep.register ? '취소' : '이전'),
                   ),
                   const SizedBox(width: 12),
+                  // 텍스트 데이터 저장 버튼 (단계 2, 3, 4에서만 표시)
+                  if (_currentStep != SurveyStep.register)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: OutlinedButton.icon(
+                        onPressed: _saveTextDataOnly,
+                        icon: const Icon(Icons.save_outlined, size: 18),
+                        label: const Text('텍스트 저장'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: headerColor,
+                          side: BorderSide(color: headerColor),
+                          minimumSize: const Size(120, 44),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
                   ElevatedButton(
                     onPressed: _loading ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
@@ -1605,7 +1693,7 @@ class _ImprovedDamageSurveyDialogState
               labelText: '손상 등급',
               border: OutlineInputBorder(),
             ),
-            items: const ['A', 'B', 'C', 'D', 'E', 'F']
+            items: const ['A', 'B', 'C1', 'C2', 'D', 'E', 'F']
                 .map((g) => DropdownMenuItem(value: g, child: Text('$g 등급')))
                 .toList(),
             onChanged: (val) {
@@ -1648,8 +1736,10 @@ class _ImprovedDamageSurveyDialogState
         return '양호 - 손상 없음, 관찰 불필요';
       case 'B':
         return '경미 - 작은 손상, 정기적 관찰 권장';
-      case 'C':
-        return '주의 - 관찰 필요, 손상 진행 모니터링';
+      case 'C1':
+        return '주의 - 경미한 손상, 정기적 관찰 필요';
+      case 'C2':
+        return '주의 - 중간 손상, 모니터링 및 예방 조치 필요';
       case 'D':
         return '보수 필요 - 단기간 내 보수 권장';
       case 'E':
