@@ -705,8 +705,8 @@ class _ImprovedDamageSurveyDialogState
                 onTap: _loading ? null : _pickImageAndDetect,
                 isLoading: _loading,
                 detections: _detections.isNotEmpty ? _detections : null,
-                imageWidth: 640,  // DETA 모델 입력 크기
-                imageHeight: 640,
+                imageWidth: 640,  // 4:3 비율 유지
+                imageHeight: 480, // 4:3 비율 (640:480)
               ),
             ),
           ],
@@ -1141,7 +1141,7 @@ class _ImprovedDamageSurveyDialogState
         GestureDetector(
           onTap: onTap,
           child: Container(
-            height: 180,
+            height: 240, // 4:3 비율을 위한 높이 조정 (320x240)
             decoration: BoxDecoration(
               border: Border.all(color: Colors.grey.shade300),
               borderRadius: BorderRadius.circular(8),
@@ -1170,7 +1170,7 @@ class _ImprovedDamageSurveyDialogState
                     borderRadius: BorderRadius.circular(8),
                     child: Image.network(
                       imageSource,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain, // 4:3 비율 유지
                       width: double.infinity,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
@@ -1203,13 +1203,13 @@ class _ImprovedDamageSurveyDialogState
                           ),
                           child: Image.memory(
                             imageSource,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain, // 4:3 비율 유지
                             width: double.infinity,
                           ),
                         )
                       : Image.memory(
                           imageSource,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.contain, // 4:3 비율 유지
                           width: double.infinity,
                         ),
                   ),

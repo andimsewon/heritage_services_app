@@ -2061,15 +2061,34 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                     },
                   ),
                   Positioned(
-                    top: 8,
-                    right: 8,
-                    child: IconButton(
-                      onPressed: onDelete,
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white.withOpacity(0.8),
-                        padding: const EdgeInsets.all(4),
-                        minimumSize: const Size(32, 32),
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        onPressed: onDelete,
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        style: IconButton.styleFrom(
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                       ),
                     ),
                   ),
@@ -3592,6 +3611,178 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     super.dispose();
   }
 
+  // 수정이력 다이얼로그 표시
+  void _showEditHistoryDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('수정이력'),
+        content: SizedBox(
+          width: 800,
+          height: 500,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '이력 수정 기록',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _getEditHistoryList().length,
+                  itemBuilder: (context, index) {
+                    final edit = _getEditHistoryList()[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.edit_note,
+                                  color: Colors.blue.shade700,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    edit['title'],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: edit['status'] == '완료' 
+                                        ? Colors.green.shade100 
+                                        : Colors.orange.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    edit['status'],
+                                    style: TextStyle(
+                                      color: edit['status'] == '완료' 
+                                          ? Colors.green.shade700 
+                                          : Colors.orange.shade700,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.person, size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '수정자: ${edit['editor']}',
+                                  style: TextStyle(color: Colors.grey[700]),
+                                ),
+                                const SizedBox(width: 16),
+                                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '수정일: ${edit['date']}',
+                                  style: TextStyle(color: Colors.grey[700]),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '수정내용: ${edit['description']}',
+                              style: TextStyle(color: Colors.grey[700]),
+                            ),
+                            if (edit['changedFields'] != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                '변경된 필드: ${edit['changedFields']}',
+                                style: TextStyle(
+                                  color: Colors.blue[700],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 수정이력 목록 생성 (실제로는 Firestore에서 가져와야 함)
+  List<Map<String, String>> _getEditHistoryList() {
+    return [
+      {
+        'title': '조사결과 수정',
+        'editor': '김조사',
+        'date': '2024-01-15 14:30',
+        'description': '기단부 조사 결과에서 균열 현상 추가 기록',
+        'status': '완료',
+        'changedFields': '기단부 조사결과, 특기사항',
+      },
+      {
+        'title': '보존사항 수정',
+        'editor': '이보존',
+        'date': '2024-01-10 09:15',
+        'description': '벽체부 보존 상태를 양호에서 주의로 변경',
+        'status': '완료',
+        'changedFields': '벽체부 보존상태, 조사 종합의견',
+      },
+      {
+        'title': '관리사항 수정',
+        'editor': '박관리',
+        'date': '2024-01-05 16:45',
+        'description': '안전시설 현황에 소화기 설치 현황 추가',
+        'status': '완료',
+        'changedFields': '안전시설 현황, 관리사항',
+      },
+      {
+        'title': '등급분류 수정',
+        'editor': '최등급',
+        'date': '2024-01-03 11:20',
+        'description': '전체 등급을 B에서 C1으로 하향 조정',
+        'status': '진행중',
+        'changedFields': '등급분류, 조사 종합의견',
+      },
+      {
+        'title': '유지보수 이력 추가',
+        'editor': '정유지',
+        'date': '2024-01-01 13:00',
+        'description': '2023년 12월 정기점검 결과 추가',
+        'status': '완료',
+        'changedFields': '유지보수/수리 이력',
+      },
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_invalidHeritage) {
@@ -3625,28 +3816,42 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      DropdownButton<String>(
-                        value: _selectedYear,
-                        onChanged: (String? newValue) {
-                          if (newValue != null && newValue != _selectedYear) {
-                            setState(() {
-                              _selectedYear = newValue;
-                            });
-                            _loadYearData();
-                          }
-                        },
-                        items: const [
-                          DropdownMenuItem(
-                            value: '2024년 조사',
-                            child: Text('2024년 조사'),
+                      Row(
+                        children: [
+                          DropdownButton<String>(
+                            value: _selectedYear,
+                            onChanged: (String? newValue) {
+                              if (newValue != null && newValue != _selectedYear) {
+                                setState(() {
+                                  _selectedYear = newValue;
+                                });
+                                _loadYearData();
+                              }
+                            },
+                            items: const [
+                              DropdownMenuItem(
+                                value: '2024년 조사',
+                                child: Text('2024년 조사'),
+                              ),
+                              DropdownMenuItem(
+                                value: '2022년 조사',
+                                child: Text('2022년 조사'),
+                              ),
+                              DropdownMenuItem(
+                                value: '2020년 조사',
+                                child: Text('2020년 조사'),
+                              ),
+                            ],
                           ),
-                          DropdownMenuItem(
-                            value: '2022년 조사',
-                            child: Text('2022년 조사'),
-                          ),
-                          DropdownMenuItem(
-                            value: '2020년 조사',
-                            child: Text('2020년 조사'),
+                          const SizedBox(width: 16),
+                          OutlinedButton.icon(
+                            onPressed: () => _showEditHistoryDialog(),
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: const Text('수정이력'),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF6B7280)),
+                              foregroundColor: const Color(0xFF6B7280),
+                            ),
                           ),
                         ],
                       ),

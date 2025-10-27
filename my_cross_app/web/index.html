@@ -125,6 +125,62 @@
       height: 100vh !important;
     }
 
+    /* 🔥 반응형 텍스트 및 버튼 수정 */
+    .flt-text,
+    .flt-text span,
+    .flt-text div {
+      white-space: nowrap !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      direction: ltr !important;
+      unicode-bidi: normal !important;
+    }
+
+    /* 버튼 크기 조정 */
+    .flt-button,
+    .flt-elevated-button,
+    .flt-outlined-button {
+      min-width: auto !important;
+      min-height: 32px !important;
+      padding: 4px 8px !important;
+      font-size: 12px !important;
+      line-height: 1.2 !important;
+    }
+
+    /* 아이콘 버튼 크기 조정 */
+    .flt-icon-button {
+      width: 24px !important;
+      height: 24px !important;
+      min-width: 24px !important;
+      min-height: 24px !important;
+      padding: 2px !important;
+    }
+
+    /* 테이블 셀 텍스트 수정 */
+    .flt-table-cell,
+    .flt-data-table-cell {
+      white-space: nowrap !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      writing-mode: horizontal-tb !important;
+    }
+
+    /* 그리드 아이템 크기 조정 */
+    .flt-grid-item {
+      min-width: 120px !important;
+      min-height: 120px !important;
+    }
+
+    /* 컨테이너 반응형 설정 */
+    .flt-container,
+    .flt-card {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow: visible !important;
+    }
+
     /* 모든 Flutter 관련 요소 강제 반응형 */
     flt-glass-pane[style*="width"],
     flt-glass-pane[style*="height"],
@@ -474,6 +530,45 @@
       console.log('🔧 강력한 반응형 크기 적용 완료');
     }
 
+    // 🔥 텍스트 방향 수정 함수
+    function fixTextDirection() {
+      // 모든 텍스트 요소 찾기
+      const textElements = document.querySelectorAll('flt-text, flt-text span, flt-text div, [class*="text"]');
+
+      textElements.forEach(element => {
+        // 텍스트 방향 강제 수정
+        element.style.setProperty('writing-mode', 'horizontal-tb', 'important');
+        element.style.setProperty('text-orientation', 'mixed', 'important');
+        element.style.setProperty('direction', 'ltr', 'important');
+        element.style.setProperty('unicode-bidi', 'normal', 'important');
+        element.style.setProperty('white-space', 'nowrap', 'important');
+        element.style.setProperty('overflow', 'visible', 'important');
+        element.style.setProperty('text-overflow', 'clip', 'important');
+      });
+
+      // 버튼 크기 수정
+      const buttons = document.querySelectorAll('flt-elevated-button, flt-outlined-button, flt-text-button, [class*="button"]');
+      buttons.forEach(button => {
+        button.style.setProperty('min-width', 'auto', 'important');
+        button.style.setProperty('min-height', '32px', 'important');
+        button.style.setProperty('padding', '4px 8px', 'important');
+        button.style.setProperty('font-size', '12px', 'important');
+        button.style.setProperty('line-height', '1.2', 'important');
+      });
+
+      // 아이콘 버튼 크기 수정
+      const iconButtons = document.querySelectorAll('flt-icon-button, [class*="icon-button"]');
+      iconButtons.forEach(button => {
+        button.style.setProperty('width', '24px', 'important');
+        button.style.setProperty('height', '24px', 'important');
+        button.style.setProperty('min-width', '24px', 'important');
+        button.style.setProperty('min-height', '24px', 'important');
+        button.style.setProperty('padding', '2px', 'important');
+      });
+
+      console.log('🔧 텍스트 방향 및 버튼 크기 수정 완료');
+    }
+
     // 🔥 화면 크기 변경 감지 및 강제 수정
     function handleResize() {
       const viewportWidth = window.innerWidth;
@@ -483,6 +578,7 @@
 
       // 즉시 크기 수정
       forceResponsiveSize();
+      fixTextDirection();
 
       // Flutter 리사이즈 이벤트 발생
       window.dispatchEvent(new Event('flutter-resize'));
@@ -490,6 +586,7 @@
       // 추가 지연 후 한 번 더 수정 (Flutter가 다시 설정하는 경우 대비)
       setTimeout(() => {
         forceResponsiveSize();
+        fixTextDirection();
       }, 100);
     }
 
@@ -525,6 +622,7 @@
 
       // 강제 크기 수정
       forceResponsiveSize();
+      fixTextDirection();
     }, 50); // 0.05초마다 체크 (더 자주)
 
     // 6. ✅ Flutter 로드 완료는 새로운 강력한 시스템에서 자동 처리됨

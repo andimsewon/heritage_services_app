@@ -550,12 +550,16 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _pickImage(_getPhotoKey(photoController)),
-                    icon: const Icon(Icons.camera_alt, size: 16),
-                    label: const Text('사진 첨부', style: TextStyle(fontSize: 12)),
+                    icon: const Icon(Icons.camera_alt, size: 14),
+                    label: const Text(
+                      '사진 첨부',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E2A44),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                      minimumSize: const Size(0, 32),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
