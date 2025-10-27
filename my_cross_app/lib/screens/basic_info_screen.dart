@@ -18,6 +18,9 @@ import '../services/ai_detection_service.dart';
 import '../services/image_acquire.dart';
 import '../models/heritage_detail_models.dart';
 import '../repositories/ai_prediction_repository.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/optimized_image.dart';
+import '../widgets/optimized_stream_builder.dart';
 import '../ui/heritage_detail/ai_prediction_section.dart';
 import '../ui/heritage_detail/damage_summary_table.dart';
 import '../ui/heritage_detail/grade_classification_card.dart';
@@ -202,44 +205,29 @@ _MockAIPredictionRepository();
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      // 병렬로 데이터 로드
+      final futures = <Future>[];
+      
+      // 1. 기본 유산 정보 로드
+      Future<Map<String, dynamic>> heritageFuture;
       if (_args?['isCustom'] == true) {
-        // Firestore에 저장된 커스텀 유산 문서를 불러와 기본개요를 구성
-        final customId = _args?['customId'] as String?;
-        if (customId != null && customId.isNotEmpty) {
-          final snap = await FirebaseFirestore.instance
-              .collection('custom_heritages')
-              .doc(customId)
-              .get();
-          final m = snap.data() ?? <String, dynamic>{};
-          setState(
-            () => _detail = {
-              'item': {
-                'ccbaMnm1': (m['name'] as String?) ?? (_args?['name'] ?? ''),
-                'ccmaName': m['ccmaName'] ?? m['kindName'],
-                'ccbaAsdt': m['ccbaAsdt'] ?? m['asdt'],
-                'ccbaPoss': m['ccbaPoss'] ?? m['owner'],
-                'ccbaAdmin': m['ccbaAdmin'] ?? m['admin'],
-                'ccbaLcto': m['ccbaLcto'] ?? m['lcto'],
-                'ccbaLcad': m['ccbaLcad'] ?? m['lcad'],
-              },
-            },
-          );
-        } else {
-          // 폴백: 전달된 인자만으로 구성
-          setState(
-            () => _detail = {
-              'item': {'ccbaMnm1': _args?['name'] ?? ''},
-            },
-          );
-        }
+        heritageFuture = _loadCustomHeritage();
       } else {
-        final d = await _api.fetchDetail(
-          ccbaKdcd: _args?['ccbaKdcd'] ?? '',
-          ccbaAsno: _args?['ccbaAsno'] ?? '',
-          ccbaCtcd: _args?['ccbaCtcd'] ?? '',
-        );
-        setState(() => _detail = d);
+        heritageFuture = _loadHeritageFromAPI();
       }
+      futures.add(heritageFuture);
+      
+      // 2. 텍스트 데이터 로드 (병렬)
+      futures.add(_loadTextFields());
+      
+      // 3. 모든 데이터를 병렬로 로드
+      final results = await Future.wait(futures);
+      
+      // 결과 처리
+      if (results.isNotEmpty) {
+        setState(() => _detail = results[0] as Map<String, dynamic>);
+      }
+      
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -247,10 +235,41 @@ _MockAIPredictionRepository();
       ).showSnackBar(SnackBar(content: Text('상세 로드 실패: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
-      
-      // 저장된 텍스트 데이터 로드
-      await _loadTextFields();
     }
+  }
+
+  Future<Map<String, dynamic>> _loadCustomHeritage() async {
+    final customId = _args?['customId'] as String?;
+    if (customId != null && customId.isNotEmpty) {
+      final snap = await FirebaseFirestore.instance
+          .collection('custom_heritages')
+          .doc(customId)
+          .get();
+      final m = snap.data() ?? <String, dynamic>{};
+      return {
+        'item': {
+          'ccbaMnm1': (m['name'] as String?) ?? (_args?['name'] ?? ''),
+          'ccmaName': m['ccmaName'] ?? m['kindName'],
+          'ccbaAsdt': m['ccbaAsdt'] ?? m['asdt'],
+          'ccbaPoss': m['ccbaPoss'] ?? m['owner'],
+          'ccbaAdmin': m['ccbaAdmin'] ?? m['admin'],
+          'ccbaLcto': m['ccbaLcto'] ?? m['lcto'],
+          'ccbaLcad': m['ccbaLcad'] ?? m['lcad'],
+        },
+      };
+    } else {
+      return {
+        'item': {'ccbaMnm1': _args?['name'] ?? ''},
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _loadHeritageFromAPI() async {
+    return await _api.fetchDetail(
+      ccbaKdcd: _args?['ccbaKdcd'] ?? '',
+      ccbaAsno: _args?['ccbaAsno'] ?? '',
+      ccbaCtcd: _args?['ccbaCtcd'] ?? '',
+    );
   }
 
   String _read(List<List<String>> paths) {
@@ -1351,12 +1370,10 @@ class HeritagePhotoSection extends StatelessWidget {
           const SizedBox(height: 16),
           SizedBox(
             height: 230,
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            child: OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: photosStream,
+              loadingBuilder: (context) => const SkeletonList(itemCount: 3, itemHeight: 120),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -1542,8 +1559,8 @@ class HeritagePhotoSection extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  Image.network(
-                    url,
+                  OptimizedImage(
+                    imageUrl: url,
                     fit: BoxFit.cover,
                     width: double.infinity,
                     height: double.infinity,
@@ -1768,12 +1785,10 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
           const SizedBox(height: 16),
           SizedBox(
             height: 240,
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            child: OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: widget.damageStream,
+              loadingBuilder: (context) => const SkeletonList(itemCount: 3, itemHeight: 120),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(
                     child: Text(
@@ -2048,8 +2063,8 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
               ),
               child: Stack(
                 children: [
-                  Image.network(
-                    url,
+                  OptimizedImage(
+                    imageUrl: url,
                     fit: BoxFit.contain,
                     width: double.infinity,
                     height: double.infinity,
@@ -2936,7 +2951,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   child: imageBytes != null
                       ? Image.memory(imageBytes, fit: BoxFit.contain)
                       : imageUrl != null
-                          ? Image.network(imageUrl, fit: BoxFit.contain)
+                          ? OptimizedImage(imageUrl: imageUrl, fit: BoxFit.contain)
                           : Container(),
                 ),
               ),
@@ -5741,8 +5756,8 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
                       borderRadius: BorderRadius.circular(8),
                       child: AspectRatio(
                         aspectRatio: 4 / 3,
-                        child: Image.network(
-                          widget.selectedDamage['imageUrl'].toString(),
+                        child: OptimizedImage(
+                          imageUrl: widget.selectedDamage['imageUrl'].toString(),
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) {
                             return const Icon(Icons.image_not_supported);
@@ -6535,8 +6550,8 @@ class _DeepDamageInspectionDialogState
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                damageImageUrl,
+                              child: OptimizedImage(
+                                imageUrl: damageImageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => Container(
                                   color: Colors.grey.shade200,

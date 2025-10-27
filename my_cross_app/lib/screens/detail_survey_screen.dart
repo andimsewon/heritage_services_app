@@ -7,6 +7,7 @@ import '../ui/widgets/section.dart';
 import '../ui/widgets/attach_tile.dart';
 import '../ui/widgets/yellow_nav_button.dart';
 import '../services/firebase_service.dart';
+import '../widgets/skeleton_loader.dart';
 import 'damage_model_screen.dart';
 import 'damage_part_dialog.dart';
 import 'detail_sections/survey_sections_panel.dart';
@@ -86,7 +87,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     _loadSavedData();
   }
 
-  // 저장된 데이터 로드
+  // 저장된 데이터 로드 (병렬 처리)
   Future<void> _loadSavedData() async {
     if (widget.heritageId == null) {
       debugPrint('⚠️ HeritageId가 null입니다. 데이터를 로드할 수 없습니다.');
@@ -97,16 +98,29 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final snapshot = await _firebaseService.getDetailSurveys(widget.heritageId!);
-      debugPrint('📊 Firestore에서 ${snapshot.docs.length}개의 문서를 찾았습니다.');
+      // 병렬로 여러 데이터 소스 로드
+      final futures = <Future>[];
+      
+      // 1. 상세 조사 데이터
+      futures.add(_firebaseService.getDetailSurveys(widget.heritageId!));
+      
+      // 2. 추가 데이터가 있다면 여기에 추가
+      // futures.add(_loadAdditionalData());
+      
+      final results = await Future.wait(futures);
+      
+      if (results.isNotEmpty) {
+        final snapshot = results[0] as QuerySnapshot;
+        debugPrint('📊 Firestore에서 ${snapshot.docs.length}개의 문서를 찾았습니다.');
 
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
-        debugPrint('📋 로드된 데이터 키들: ${data.keys.toList()}');
-        _loadDataIntoFields(data);
-        debugPrint('✅ 데이터 로드 완료');
-      } else {
-        debugPrint('📭 저장된 데이터가 없습니다.');
+        if (snapshot.docs.isNotEmpty) {
+          final data = snapshot.docs.first.data() as Map<String, dynamic>;
+          debugPrint('📋 로드된 데이터 키들: ${data.keys.toList()}');
+          _loadDataIntoFields(data);
+          debugPrint('✅ 데이터 로드 완료');
+        } else {
+          debugPrint('📭 저장된 데이터가 없습니다.');
+        }
       }
     } catch (e) {
       debugPrint('❌ 데이터 로드 실패: $e');
@@ -636,7 +650,18 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('상세 조사')),
       body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SkeletonCard(width: 300, height: 200),
+                  SizedBox(height: 16),
+                  SkeletonText(width: 200, height: 20),
+                  SizedBox(height: 8),
+                  SkeletonText(width: 150, height: 16),
+                ],
+              ),
+            )
           : Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1100),

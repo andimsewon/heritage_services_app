@@ -153,23 +153,25 @@ class FirebaseService {
     });
   }
 
-  /// 현황 사진 스트림
+  /// 현황 사진 스트림 (최적화)
   Stream<QuerySnapshot<Map<String, dynamic>>> photosStream(String heritageId, {String folder = 'photos'}) {
     return _fs
         .collection('heritages')
         .doc(heritageId)
         .collection(folder)
         .orderBy('timestamp', descending: true)
+        .limit(20) // 최대 20개로 제한하여 성능 향상
         .snapshots();
   }
 
-  /// 손상부 조사 스트림 (최신 먼저)
+  /// 손상부 조사 스트림 (최신 먼저) - 최적화
   Stream<QuerySnapshot<Map<String, dynamic>>> damageStream(String heritageId) {
     return _fs
         .collection('heritages')
         .doc(heritageId)
         .collection('damage_surveys')
         .orderBy('timestamp', descending: true)
+        .limit(10) // 최대 10개로 제한하여 성능 향상
         .snapshots();
   }
 
@@ -327,15 +329,27 @@ class FirebaseService {
     }
   }
 
-  /// 상세 조사 데이터 조회 (문화유산별 구조)
+  /// 상세 조사 데이터 조회 (문화유산별 구조) - 최적화
   Future<QuerySnapshot<Map<String, dynamic>>> getDetailSurveys(String heritageId) async {
-    return await _fs
-        .collection('heritages')
-        .doc(heritageId)
-        .collection('detail_surveys')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
+    try {
+      // 캐시 우선 조회로 성능 향상
+      return await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('detail_surveys')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get(const GetOptions(source: Source.cache));
+    } catch (e) {
+      // 캐시 실패시 서버에서 조회
+      return await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('detail_surveys')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+    }
   }
 
   /// 섹션 폼 데이터 저장
