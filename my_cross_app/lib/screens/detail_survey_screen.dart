@@ -786,14 +786,14 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                   _buildSurveySections(),
                 const SizedBox(height: 20),
 
-                // (5) 주요 점검 결과
+                // (5) 1.1 조사 결과
                 Section(
-                  title: '주요 점검 결과',
+                  title: '1.1 조사 결과',
                   child: TextField(
                     controller: _inspectionResult,
                     decoration: const InputDecoration(
-                      labelText: '주요 점검 결과를 입력하세요',
-                      hintText: '점검 결과를 상세히 기록하세요',
+                      labelText: '1.1 조사 결과를 입력하세요',
+                      hintText: '조사 결과를 상세히 기록하세요',
                     ),
                     maxLines: 4,
                   ),

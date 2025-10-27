@@ -707,4 +707,69 @@ class FirebaseService {
       return null;
     }
   }
+
+  /// 연도별 데이터 저장
+  Future<void> saveYearData(String heritageId, String year, Map<String, dynamic> data) async {
+    try {
+      debugPrint('📅 연도별 데이터 저장 시작: $heritageId, $year');
+      
+      final docRef = _fs.collection('heritages').doc(heritageId).collection('yearly_data').doc(year);
+      
+      await docRef.set({
+        ...data,
+        'year': year,
+        'heritageId': heritageId,
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      debugPrint('✅ 연도별 데이터 저장 완료: $year');
+    } catch (e) {
+      debugPrint('❌ 연도별 데이터 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 연도별 데이터 불러오기
+  Future<Map<String, dynamic>?> getYearData(String heritageId, String year) async {
+    try {
+      debugPrint('📅 연도별 데이터 불러오기 시작: $heritageId, $year');
+      
+      final docRef = _fs.collection('heritages').doc(heritageId).collection('yearly_data').doc(year);
+      final doc = await docRef.get();
+      
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        debugPrint('✅ 연도별 데이터 불러오기 완료: $year');
+        return data;
+      } else {
+        debugPrint('⚠️ 연도별 데이터 없음: $year');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ 연도별 데이터 불러오기 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 연도별 데이터 목록 조회
+  Future<List<String>> getYearList(String heritageId) async {
+    try {
+      debugPrint('📅 연도별 데이터 목록 조회 시작: $heritageId');
+      
+      final querySnapshot = await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('yearly_data')
+          .orderBy('year', descending: true)
+          .get();
+      
+      final years = querySnapshot.docs.map((doc) => doc.id).toList();
+      debugPrint('✅ 연도별 데이터 목록 조회 완료: $years');
+      return years;
+    } catch (e) {
+      debugPrint('❌ 연도별 데이터 목록 조회 실패: $e');
+      return [];
+    }
+  }
 }
