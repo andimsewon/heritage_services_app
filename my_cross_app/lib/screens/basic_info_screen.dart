@@ -36,6 +36,83 @@ import '../ui/section_form/section_form_widget.dart';
 import '../models/section_form_models.dart';
 import 'detail_survey_screen.dart';
 
+class _SectionNavigationItem {
+  const _SectionNavigationItem({
+    required this.key,
+    required this.title,
+    required this.shortTitle,
+    required this.icon,
+  });
+
+  final String key;
+  final String title;
+  final String shortTitle;
+  final IconData icon;
+}
+
+const List<_SectionNavigationItem> _sectionNavigationItems = [
+  _SectionNavigationItem(
+    key: 'basicInfo',
+    title: '기본 정보',
+    shortTitle: '기본',
+    icon: Icons.info_outline,
+  ),
+  _SectionNavigationItem(
+    key: 'location',
+    title: '위치 현황',
+    shortTitle: '위치',
+    icon: Icons.location_on,
+  ),
+  _SectionNavigationItem(
+    key: 'photos',
+    title: '현황 사진',
+    shortTitle: '사진',
+    icon: Icons.photo_camera,
+  ),
+  _SectionNavigationItem(
+    key: 'damageSurvey',
+    title: '손상부 조사',
+    shortTitle: '손상',
+    icon: Icons.build,
+  ),
+  _SectionNavigationItem(
+    key: 'inspectionResult',
+    title: '조사 결과',
+    shortTitle: '조사',
+    icon: Icons.assignment,
+  ),
+  _SectionNavigationItem(
+    key: 'management',
+    title: '관리사항',
+    shortTitle: '관리',
+    icon: Icons.manage_accounts,
+  ),
+  _SectionNavigationItem(
+    key: 'damageSummary',
+    title: '손상부 종합',
+    shortTitle: '종합',
+    icon: Icons.table_chart,
+  ),
+  _SectionNavigationItem(
+    key: 'investigatorOpinion',
+    title: '조사자 의견',
+    shortTitle: '의견',
+    icon: Icons.edit_note,
+  ),
+  _SectionNavigationItem(
+    key: 'aiPrediction',
+    title: 'AI 예측',
+    shortTitle: 'AI',
+    icon: Icons.psychology,
+  ),
+  _SectionNavigationItem(
+    key: 'gradeClassification',
+    title: '등급 분류',
+    shortTitle: '등급',
+    icon: Icons.grade,
+  ),
+];
+
 String _proxyImageUrl(String originalUrl, {int? maxWidth, int? maxHeight}) {
   if (originalUrl.contains('firebasestorage.googleapis.com')) {
     final proxyBase = Env.proxyBase;
@@ -119,6 +196,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     'aiPrediction': GlobalKey(),
     'gradeClassification': GlobalKey(),
   };
+
+  String _activeSectionKey = 'basicInfo';
 
   // 조사 결과 필드들
   final _inspectionResult = TextEditingController();
@@ -760,13 +839,14 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
   // 섹션으로 스크롤 이동
   void _scrollToSection(String sectionKey) {
+    setState(() => _activeSectionKey = sectionKey);
     final key = _sectionKeys[sectionKey];
     if (key?.currentContext != null) {
       Scrollable.ensureVisible(
         key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-        alignment: 0.1, // 상단에서 10% 아래 위치
+        alignment: 0.08,
       );
     }
   }
@@ -876,19 +956,55 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ),
       backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
-        child: ResponsivePage(
-          controller: _mainScrollController,
-          maxWidth: 1040.0,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildTopNavigationBar(),
-              const SizedBox(height: 16),
-              ...detailSections,
-              const SizedBox(height: 24),
-            ],
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isDesktopLayout = constraints.maxWidth >= 1100;
+            final horizontalPadding = constraints.maxWidth < 720 ? 16.0 : 24.0;
+
+            if (isDesktopLayout) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSideNavigationMenu(),
+                  Expanded(
+                    child: ResponsivePage(
+                      controller: _mainScrollController,
+                      maxWidth: 1040.0,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: 24,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ...detailSections,
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return ResponsivePage(
+              controller: _mainScrollController,
+              maxWidth: 1040.0,
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 24,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildTopNavigationBar(),
+                  const SizedBox(height: 16),
+                  ...detailSections,
+                  const SizedBox(height: 24),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1336,21 +1452,107 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   }
 
   // 사이드 네비게이션 메뉴 빌드
+  Widget _buildSideNavigationMenu() {
+    final navItems = _sectionNavigationItems;
+
+    final itemWidgets = <Widget>[];
+    for (var i = 0; i < navItems.length; i++) {
+      final item = navItems[i];
+      final isActive = item.key == _activeSectionKey;
+
+      itemWidgets.add(
+        InkWell(
+          onTap: () => _scrollToSection(item.key),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: isActive ? const Color(0xFFE8EEF9) : Colors.transparent,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  item.icon,
+                  size: 20,
+                  color: isActive
+                      ? const Color(0xFF1E2A44)
+                      : const Color(0xFF4B5563),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                      color: isActive
+                          ? const Color(0xFF1E2A44)
+                          : const Color(0xFF374151),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      if (i != navItems.length - 1) {
+        itemWidgets.add(
+          const Divider(
+            height: 0,
+            thickness: 1,
+            indent: 20,
+            endIndent: 20,
+            color: Color(0xFFE5E7EB),
+          ),
+        );
+      }
+    }
+
+    return Container(
+      width: 248,
+      margin: const EdgeInsets.only(right: 24, left: 8, top: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E2A44),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: const Text(
+              '목차',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          ...itemWidgets,
+        ],
+      ),
+    );
+  }
+
   // 상단 네비게이션 바 (모바일/태블릿용)
   Widget _buildTopNavigationBar() {
-    final menuItems = [
-      {'key': 'basicInfo', 'title': '기본', 'icon': Icons.info_outline},
-      {'key': 'location', 'title': '위치', 'icon': Icons.location_on},
-      {'key': 'photos', 'title': '사진', 'icon': Icons.photo_camera},
-      {'key': 'damageSurvey', 'title': '손상', 'icon': Icons.build},
-      {'key': 'inspectionResult', 'title': '조사', 'icon': Icons.assignment},
-      {'key': 'management', 'title': '관리', 'icon': Icons.manage_accounts},
-      {'key': 'damageSummary', 'title': '종합', 'icon': Icons.table_chart},
-      {'key': 'investigatorOpinion', 'title': '의견', 'icon': Icons.edit_note},
-      {'key': 'aiPrediction', 'title': 'AI', 'icon': Icons.psychology},
-      {'key': 'gradeClassification', 'title': '등급', 'icon': Icons.grade},
-    ];
-
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1366,22 +1568,39 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
-          children: menuItems.asMap().entries.map((entry) {
+          children: _sectionNavigationItems.asMap().entries.map((entry) {
             final index = entry.key;
             final item = entry.value;
+            final isActive = item.key == _activeSectionKey;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: OutlinedButton.icon(
-                onPressed: () => _scrollToSection(item['key'] as String),
-                icon: Icon(item['icon'] as IconData, size: 16),
-                label: Text('${index + 1}. ${item['title']}'),
+                onPressed: () => _scrollToSection(item.key),
+                icon: Icon(
+                  item.icon,
+                  size: 16,
+                  color: isActive
+                      ? const Color(0xFF1E2A44)
+                      : const Color(0xFF4B5563),
+                ),
+                label: Text('${index + 1}. ${item.shortTitle}'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1E2A44),
-                  side: const BorderSide(color: Color(0xFFE5E7EB)),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
                   ),
+                  foregroundColor: isActive
+                      ? const Color(0xFF1E2A44)
+                      : const Color(0xFF1F2937),
+                  side: BorderSide(
+                    color: isActive
+                        ? const Color(0xFF1E2A44)
+                        : const Color(0xFFE5E7EB),
+                    width: isActive ? 1.4 : 1,
+                  ),
+                  backgroundColor: isActive
+                      ? const Color(0xFFE8EEF9)
+                      : Colors.white,
                 ),
               ),
             );
