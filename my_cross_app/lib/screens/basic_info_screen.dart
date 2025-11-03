@@ -105,6 +105,21 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   late final AIPredictionRepository _aiPredictionRepository =
       _MockAIPredictionRepository();
 
+  // 섹션 네비게이션용 키 및 스크롤 컨트롤러
+  final ScrollController _mainScrollController = ScrollController();
+  final Map<String, GlobalKey> _sectionKeys = {
+    'basicInfo': GlobalKey(),
+    'location': GlobalKey(),
+    'photos': GlobalKey(),
+    'damageSurvey': GlobalKey(),
+    'inspectionResult': GlobalKey(),
+    'management': GlobalKey(),
+    'damageSummary': GlobalKey(),
+    'investigatorOpinion': GlobalKey(),
+    'aiPrediction': GlobalKey(),
+    'gradeClassification': GlobalKey(),
+  };
+
   // 조사 결과 필드들
   final _inspectionResult = TextEditingController();
   final _managementItems = TextEditingController();
@@ -397,7 +412,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   // ───────────────────────── 문화유산 현황 사진 업로드
   Future<void> _addPhoto() async {
     if (!mounted) return;
-    
+
     // 업로드 시작 피드백
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -418,7 +433,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         duration: Duration(seconds: 2),
       ),
     );
-    
+
     final pair = await ImageAcquire.pick(context);
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
@@ -435,7 +450,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         imageBytes: bytes,
         sizeGetter: sizeGetter,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -459,9 +474,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text('업로드 실패: ${e.toString()}'),
-                ),
+                Expanded(child: Text('업로드 실패: ${e.toString()}')),
               ],
             ),
             backgroundColor: Colors.red,
@@ -475,7 +488,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
   Future<void> _addLocationPhoto() async {
     if (!mounted) return;
-    
+
     // 업로드 시작 피드백
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -496,7 +509,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         duration: Duration(seconds: 2),
       ),
     );
-    
+
     final pair = await ImageAcquire.pick(context);
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
@@ -514,7 +527,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         sizeGetter: sizeGetter,
         folder: 'location_photos',
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -538,9 +551,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text('업로드 실패: ${e.toString()}'),
-                ),
+                Expanded(child: Text('업로드 실패: ${e.toString()}')),
               ],
             ),
             backgroundColor: Colors.red,
@@ -704,11 +715,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     // ImprovedDamageSurveyDialog에서 이미 저장 및 업데이트를 완료했으므로
     // 여기서는 중복 저장하지 않음 (데이터는 이미 Firebase에 저장됨)
     // 다이얼로그에서 저장 완료 메시지를 표시했으므로 여기서는 간단한 확인 메시지만 표시
-    
+
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('손상부 조사가 완료되었습니다.'),
           backgroundColor: Colors.green,
@@ -745,7 +754,21 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   @override
   void dispose() {
     _detailViewModel?.dispose();
+    _mainScrollController.dispose();
     super.dispose();
+  }
+
+  // 섹션으로 스크롤 이동
+  void _scrollToSection(String sectionKey) {
+    final key = _sectionKeys[sectionKey];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.1, // 상단에서 10% 아래 위치
+      );
+    }
   }
 
   @override
@@ -778,6 +801,16 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ['result', 'item', 'ccbaLcad'],
       ['item', 'ccbaLcad'],
     ]);
+
+    final detailSections = _buildDetailSections(
+      context: context,
+      kind: kind,
+      asdt: asdt,
+      owner: owner,
+      admin: admin,
+      lcto: lcto,
+      lcad: lcad,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -843,33 +876,19 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ),
       backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 1100.0;
-
-            final detailSections = _buildDetailSections(
-              context: context,
-              kind: kind,
-              asdt: asdt,
-              owner: owner,
-              admin: admin,
-              lcto: lcto,
-              lcad: lcad,
-            );
-
-            // ResponsivePage로 감싸서 모든 뷰포트 크기에서 내용이 보이도록 보장
-            return ResponsivePage(
-              maxWidth: 1040.0,
-              padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 32 : 16,
-                vertical: 24,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: detailSections,
-              ),
-            );
-          },
+        child: ResponsivePage(
+          controller: _mainScrollController,
+          maxWidth: 1040.0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildTopNavigationBar(),
+              const SizedBox(height: 16),
+              ...detailSections,
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -886,76 +905,89 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     required String lcad,
   }) {
     final sections = <Widget>[
-      BasicInfoCard(
-        name: _name.isEmpty ? '미상' : _name,
-        kind: kind,
-        asdt: asdt,
-        owner: owner,
-        admin: admin,
-        lcto: lcto,
-        lcad: lcad,
-        managementNumber: _managementNumber,
+      Container(
+        key: _sectionKeys['basicInfo'],
+        child: BasicInfoCard(
+          name: _name.isEmpty ? '미상' : _name,
+          kind: kind,
+          asdt: asdt,
+          owner: owner,
+          admin: admin,
+          lcto: lcto,
+          lcad: lcad,
+          managementNumber: _managementNumber,
+        ),
       ),
       const SizedBox(height: 24),
-      LocationStatusCard(
-        heritageId: heritageId,
-        heritageName: _name.isEmpty ? '미상' : _name,
-        photosStream: _fb.photosStream(heritageId, folder: 'location_photos'),
-        onAddPhoto: _addLocationPhoto,
-        onPreview: (url, title) => _openPhotoViewer(url: url, title: title),
-        onDelete: (docId, url) async {
-          final ok = await _confirmDelete(context);
-          if (ok != true) return;
-          await _fb.deletePhoto(
-            heritageId: heritageId,
-            docId: docId,
-            url: url,
-            folder: 'location_photos',
-          );
-        },
-        formatBytes: _formatBytes,
+      Container(
+        key: _sectionKeys['location'],
+        child: HeritagePhotoSection(
+          photosStream: _fb.photosStream(heritageId, folder: 'location_photos'),
+          onAddPhoto: _addLocationPhoto,
+          onPreview: (url, title) => _openPhotoViewer(url: url, title: title),
+          onDelete: (docId, url) async {
+            final ok = await _confirmDelete(context);
+            if (ok != true) return;
+            await _fb.deletePhoto(
+              heritageId: heritageId,
+              docId: docId,
+              url: url,
+              folder: 'location_photos',
+            );
+          },
+          formatBytes: _formatBytes,
+          title: '위치 현황',
+          description: '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
+          icon: Icons.location_on,
+        ),
       ),
       const SizedBox(height: 24),
-      HeritagePhotoSection(
-        photosStream: _fb.photosStream(heritageId),
-        onAddPhoto: _addPhoto,
-        onPreview: (url, title) => _openPhotoViewer(url: url, title: title),
-        onDelete: (docId, url) async {
-          final ok = await _confirmDelete(context);
-          if (ok != true) return;
-          await _fb.deletePhoto(
-            heritageId: heritageId,
-            docId: docId,
-            url: url,
-            folder: 'photos',
-          );
-        },
-        formatBytes: _formatBytes,
+      Container(
+        key: _sectionKeys['photos'],
+        child: HeritagePhotoSection(
+          photosStream: _fb.photosStream(heritageId),
+          onAddPhoto: _addPhoto,
+          onPreview: (url, title) => _openPhotoViewer(url: url, title: title),
+          onDelete: (docId, url) async {
+            final ok = await _confirmDelete(context);
+            if (ok != true) return;
+            await _fb.deletePhoto(
+              heritageId: heritageId,
+              docId: docId,
+              url: url,
+              folder: 'photos',
+            );
+          },
+          formatBytes: _formatBytes,
+        ),
       ),
       const SizedBox(height: 24),
-      DamageSurveySection(
-        damageStream: _fb.damageStream(heritageId),
-        onAddSurvey: () => _openDamageDetectionDialog(),
-        onDeepInspection: () async {
-          final result = await showDialog(
-            context: context,
-            builder: (_) => const DeepDamageInspectionDialog(),
-          );
-          if (result != null && result['saved'] == true && mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('심화조사 데이터가 저장되었습니다')));
-          }
-        },
-        onDelete: (docId, imageUrl) async {
-          final ok = await _confirmDelete(context);
-          if (ok != true) return;
-          await _fb.deleteDamageSurvey(
-            heritageId: heritageId,
-            docId: docId,
-            imageUrl: imageUrl,
-          );
-        },
+      Container(
+        key: _sectionKeys['damageSurvey'],
+        child: DamageSurveySection(
+          damageStream: _fb.damageStream(heritageId),
+          onAddSurvey: () => _openDamageDetectionDialog(),
+          onDeepInspection: () async {
+            final result = await showDialog(
+              context: context,
+              builder: (_) => const DeepDamageInspectionDialog(),
+            );
+            if (result != null && result['saved'] == true && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('심화조사 데이터가 저장되었습니다')),
+              );
+            }
+          },
+          onDelete: (docId, imageUrl) async {
+            final ok = await _confirmDelete(context);
+            if (ok != true) return;
+            await _fb.deleteDamageSurvey(
+              heritageId: heritageId,
+              docId: docId,
+              imageUrl: imageUrl,
+            );
+          },
+        ),
       ),
       const SectionDivider(),
       const SizedBox(height: 24),
@@ -970,44 +1002,62 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                InspectionResultCard(
-                  value: vm.inspectionResult,
-                  onChanged: vm.updateInspectionResult,
-                  heritageId: heritageId,
-                  heritageName: _name.isEmpty ? '미상' : _name,
-                ),
-                const SectionDivider(),
-                ManagementItemsCard(
-                  heritageId: heritageId,
-                  heritageName: _name.isEmpty ? '미상' : _name,
-                ),
-                const SectionDivider(),
-                DamageSummaryTable(
-                  value: vm.damageSummary,
-                  onChanged: vm.updateDamageSummary,
-                  heritageId: heritageId,
-                  heritageName: _name.isEmpty ? '미상' : _name,
-                ),
-                const SectionDivider(),
-                InvestigatorOpinionField(
-                  value: vm.investigatorOpinion,
-                  onChanged: vm.updateInvestigatorOpinion,
-                  heritageId: heritageId,
-                  heritageName: _name.isEmpty ? '미상' : _name,
-                ),
-                const SectionDivider(),
-                AIPredictionSection(
-                  state: vm.aiPredictionState,
-                  actions: AIPredictionActions(
-                    onPredictGrade: vm.predictGrade,
-                    onGenerateMap: vm.generateMap,
-                    onSuggest: vm.suggestMitigation,
+                Container(
+                  key: _sectionKeys['inspectionResult'],
+                  child: InspectionResultCard(
+                    value: vm.inspectionResult,
+                    onChanged: vm.updateInspectionResult,
+                    heritageId: heritageId,
+                    heritageName: _name.isEmpty ? '미상' : _name,
                   ),
                 ),
                 const SectionDivider(),
-                GradeClassificationCard(
-                  value: vm.gradeClassification,
-                  onChanged: vm.updateGradeClassification,
+                Container(
+                  key: _sectionKeys['management'],
+                  child: ManagementItemsCard(
+                    heritageId: heritageId,
+                    heritageName: _name.isEmpty ? '미상' : _name,
+                  ),
+                ),
+                const SectionDivider(),
+                Container(
+                  key: _sectionKeys['damageSummary'],
+                  child: DamageSummaryTable(
+                    value: vm.damageSummary,
+                    onChanged: vm.updateDamageSummary,
+                    heritageId: heritageId,
+                    heritageName: _name.isEmpty ? '미상' : _name,
+                  ),
+                ),
+                const SectionDivider(),
+                Container(
+                  key: _sectionKeys['investigatorOpinion'],
+                  child: InvestigatorOpinionField(
+                    value: vm.investigatorOpinion,
+                    onChanged: vm.updateInvestigatorOpinion,
+                    heritageId: heritageId,
+                    heritageName: _name.isEmpty ? '미상' : _name,
+                  ),
+                ),
+                const SectionDivider(),
+                Container(
+                  key: _sectionKeys['aiPrediction'],
+                  child: AIPredictionSection(
+                    state: vm.aiPredictionState,
+                    actions: AIPredictionActions(
+                      onPredictGrade: vm.predictGrade,
+                      onGenerateMap: vm.generateMap,
+                      onSuggest: vm.suggestMitigation,
+                    ),
+                  ),
+                ),
+                const SectionDivider(),
+                Container(
+                  key: _sectionKeys['gradeClassification'],
+                  child: GradeClassificationCard(
+                    value: vm.gradeClassification,
+                    onChanged: vm.updateGradeClassification,
+                  ),
                 ),
               ],
             );
@@ -1285,6 +1335,61 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     return sections;
   }
 
+  // 사이드 네비게이션 메뉴 빌드
+  // 상단 네비게이션 바 (모바일/태블릿용)
+  Widget _buildTopNavigationBar() {
+    final menuItems = [
+      {'key': 'basicInfo', 'title': '기본', 'icon': Icons.info_outline},
+      {'key': 'location', 'title': '위치', 'icon': Icons.location_on},
+      {'key': 'photos', 'title': '사진', 'icon': Icons.photo_camera},
+      {'key': 'damageSurvey', 'title': '손상', 'icon': Icons.build},
+      {'key': 'inspectionResult', 'title': '조사', 'icon': Icons.assignment},
+      {'key': 'management', 'title': '관리', 'icon': Icons.manage_accounts},
+      {'key': 'damageSummary', 'title': '종합', 'icon': Icons.table_chart},
+      {'key': 'investigatorOpinion', 'title': '의견', 'icon': Icons.edit_note},
+      {'key': 'aiPrediction', 'title': 'AI', 'icon': Icons.psychology},
+      {'key': 'gradeClassification', 'title': '등급', 'icon': Icons.grade},
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: menuItems.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: OutlinedButton.icon(
+                onPressed: () => _scrollToSection(item['key'] as String),
+                icon: Icon(item['icon'] as IconData, size: 16),
+                label: Text('${index + 1}. ${item['title']}'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF1E2A44),
+                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
 }
 
 // Redesigned detail components
@@ -1483,6 +1588,9 @@ class HeritagePhotoSection extends StatelessWidget {
     required this.onPreview,
     required this.onDelete,
     required this.formatBytes,
+    this.title = '현황 사진',
+    this.description = '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
+    this.icon = Icons.photo_camera,
   });
 
   final Stream<QuerySnapshot<Map<String, dynamic>>> photosStream;
@@ -1490,6 +1598,9 @@ class HeritagePhotoSection extends StatelessWidget {
   final void Function(String url, String title) onPreview;
   final Future<void> Function(String docId, String url) onDelete;
   final String Function(num? bytes) formatBytes;
+  final String title;
+  final String description;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -1513,11 +1624,7 @@ class HeritagePhotoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _SectionTitle(
-            icon: Icons.photo_camera,
-            title: '현황 사진',
-            description: '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
-          ),
+          _SectionTitle(icon: icon, title: title, description: description),
           const SizedBox(height: 16),
           OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: photosStream,
@@ -1564,12 +1671,17 @@ class HeritagePhotoSection extends StatelessWidget {
                           final meta =
                               '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
                           final cardWidth = isVeryNarrow ? 180.0 : 200.0;
-                          final thumbnailSize = (cardWidth * 2).round(); // 2x 해상도로 요청
+                          final thumbnailSize = (cardWidth * 2)
+                              .round(); // 2x 해상도로 요청
                           return SizedBox(
                             width: cardWidth,
                             child: _PhotoCard(
                               title: title,
-                              url: _proxyImageUrl(url, maxWidth: thumbnailSize, maxHeight: thumbnailSize),
+                              url: _proxyImageUrl(
+                                url,
+                                maxWidth: thumbnailSize,
+                                maxHeight: thumbnailSize,
+                              ),
                               meta: meta,
                               onPreview: () => onPreview(url, title),
                               onDelete: () => onDelete(docs[index].id, url),
@@ -1585,9 +1697,12 @@ class HeritagePhotoSection extends StatelessWidget {
                     final crossAxisCount = width < 900 ? 3 : 4;
                     final spacing = width < 900 ? 10.0 : 12.0;
                     // GridView 카드 크기 계산 (childAspectRatio 0.75 = width/height)
-                    final cardWidth = (width - (spacing * (crossAxisCount + 1))) / crossAxisCount;
+                    final cardWidth =
+                        (width - (spacing * (crossAxisCount + 1))) /
+                        crossAxisCount;
                     final cardHeight = cardWidth / 0.75;
-                    final thumbnailSize = (cardHeight * 2).round(); // 높이 기준 2x 해상도
+                    final thumbnailSize = (cardHeight * 2)
+                        .round(); // 높이 기준 2x 해상도
                     return GridView.builder(
                       shrinkWrap: true,
                       padding: EdgeInsets.zero,
@@ -1607,7 +1722,11 @@ class HeritagePhotoSection extends StatelessWidget {
                             '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
                         return _PhotoCard(
                           title: title,
-                          url: _proxyImageUrl(url, maxWidth: thumbnailSize, maxHeight: thumbnailSize),
+                          url: _proxyImageUrl(
+                            url,
+                            maxWidth: thumbnailSize,
+                            maxHeight: thumbnailSize,
+                          ),
                           meta: meta,
                           onPreview: () => onPreview(url, title),
                           onDelete: () => onDelete(docs[index].id, url),
@@ -1717,7 +1836,9 @@ class HeritagePhotoSection extends StatelessWidget {
                           height: 30,
                           child: CircularProgressIndicator(
                             strokeWidth: 3,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white70,
+                            ),
                           ),
                         ),
                       ),

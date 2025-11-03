@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/heritage_api.dart';
 import '../services/firebase_service.dart';
 import '../env.dart';
+import '../ui/widgets/responsive_table.dart';
 import 'basic_info_screen.dart';
 
 class AssetSelectScreen extends StatefulWidget {
@@ -104,6 +105,33 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
+  Future<void> _confirmDeleteCustom(Map<String, dynamic> data) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('삭제 확인'),
+        content: const Text('해당 국가 유산을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      await _fb.deleteCustomHeritage(data['__docId'] as String);
+      if (mounted) {
+        _fetch(reset: true);
+      }
+    }
+  }
+
   Future<void> _fetch({bool reset = false, int? page}) async {
     if (_loading) return;
     final targetPage = reset ? 1 : (page ?? _page);
@@ -187,14 +215,290 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     return buffer.toString();
   }
 
-  Widget _buildResultList() {
+  Widget _buildFilterCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 720;
+
+          Widget buildDropdown({
+            required String label,
+            required String? value,
+            required Map<String, String> options,
+            required ValueChanged<String?> onChanged,
+          }) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFD1D5DB)),
+                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFF9FAFB),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: value ?? '',
+                      isDense: true,
+                      isExpanded: true,
+                      icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                      items: options.entries
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e.key,
+                              child: Text(
+                                e.value,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: onChanged,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: buildDropdown(
+                        label: '종목',
+                        value: _kind,
+                        options: _kindOptions,
+                        onChanged: (v) => setState(() => _kind = v),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: buildDropdown(
+                        label: '지역',
+                        value: _region,
+                        options: _regionOptions,
+                        onChanged: (v) => setState(() => _region = v),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _keyword,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.grey,
+                            size: 20,
+                          ),
+                          hintText: '조건 (유산명 등)',
+                          hintStyle: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 12,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD1D5DB),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD1D5DB),
+                            ),
+                          ),
+                        ),
+                        onSubmitted: (_) => _onSearch(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 42,
+                      width: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.search,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        onPressed: _onSearch,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    width: 160,
+                    child: buildDropdown(
+                      label: '종목',
+                      value: _kind,
+                      options: _kindOptions,
+                      onChanged: (v) => setState(() => _kind = v),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 160,
+                    child: buildDropdown(
+                      label: '지역',
+                      value: _region,
+                      options: _regionOptions,
+                      onChanged: (v) => setState(() => _region = v),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '검색어',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _keyword,
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(
+                                    Icons.search,
+                                    color: Colors.grey,
+                                    size: 20,
+                                  ),
+                                  hintText: '조건 (유산명 등)',
+                                  hintStyle: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 12,
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF9FAFB),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFD1D5DB),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFD1D5DB),
+                                    ),
+                                  ),
+                                ),
+                                onSubmitted: (_) => _onSearch(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              height: 42,
+                              width: 42,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.search,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                onPressed: _onSearch,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTableHeader(BuildContext context) {
+    return Container(
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: const Row(
+        children: [
+          _CellHeader('종목', flex: 2),
+          _CellHeader('유산명', flex: 4),
+          _CellHeader('소재지', flex: 3),
+          _CellHeader('주소', flex: 3),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultList({required bool tableLayout}) {
     final totalItems = _customRows.length + _rows.length;
     if (totalItems == 0) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 40),
         children: [
           SizedBox(
-            height: 220,
+            height: 200,
             child: Center(
               child: _loading
                   ? const CircularProgressIndicator()
@@ -205,56 +509,64 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       );
     }
 
+    final EdgeInsetsGeometry padding = tableLayout
+        ? EdgeInsets.zero
+        : const EdgeInsets.symmetric(vertical: 4);
+    final Widget separator = tableLayout
+        ? const Divider(height: 0)
+        : const SizedBox(height: 12);
+
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
+      padding: padding,
       itemCount: totalItems,
-      separatorBuilder: (_, __) => const Divider(height: 0),
+      separatorBuilder: (_, __) => separator,
       itemBuilder: (context, i) {
         if (i < _customRows.length) {
           final m = _customRows[i];
-          return _CustomRow(
-            data: m,
+          if (tableLayout) {
+            return _CustomRow(
+              data: m,
+              onTap: () => _openCustomHeritageDialog(m),
+              onDelete: () => _confirmDeleteCustom(m),
+            );
+          }
+
+          return _HeritageListCard(
+            badge: m['kindName'] as String? ?? '',
+            title: m['name'] as String? ?? '',
+            location: m['sojaeji'] as String? ?? '',
+            address: m['addr'] as String? ?? '',
             onTap: () => _openCustomHeritageDialog(m),
-            onDelete: () async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('삭제 확인'),
-                  content: const Text('해당 국가 유산을 삭제하시겠습니까?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('취소'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('삭제'),
-                    ),
-                  ],
-                ),
-              );
-              if (ok == true) {
-                await _fb.deleteCustomHeritage(m['__docId'] as String);
-                _fetch(reset: true);
-              }
-            },
+            onDelete: () => _confirmDeleteCustom(m),
+            isCustom: true,
           );
         }
 
         final r = _rows[i - _customRows.length];
-        return InkWell(
-          onTap: () => _openApiHeritageDialog(r),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                _Cell(r.kindName, flex: 2),
-                _Cell(r.name, flex: 4),
-                _Cell(r.sojaeji, flex: 3),
-                _Cell(r.addr, flex: 3),
-              ],
+        if (tableLayout) {
+          return InkWell(
+            onTap: () => _openApiHeritageDialog(r),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  _Cell(r.kindName, flex: 2),
+                  _Cell(r.name, flex: 4),
+                  _Cell(r.sojaeji, flex: 3),
+                  _Cell(r.addr, flex: 3),
+                ],
+              ),
             ),
-          ),
+          );
+        }
+
+        return _HeritageListCard(
+          badge: r.kindName,
+          title: r.name,
+          location: r.sojaeji,
+          address: r.addr,
+          onTap: () => _openApiHeritageDialog(r),
         );
       },
     );
@@ -323,274 +635,76 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         title: const Text('국가 유산 검색'),
         actions: const [],
       ),
-      body: Column(
-        children: [
-          // ── 검색 필터 (컴팩트 디자인)
-          Padding(
-            padding: const EdgeInsets.all(14.0),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE0E0E0)),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isTableLayout = constraints.maxWidth >= 960;
+            final horizontalPadding = constraints.maxWidth >= 1280
+                ? 48.0
+                : 16.0;
+
+            return Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 16,
               ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isCompact = constraints.maxWidth < 720;
-
-                  Widget buildCompactDropdown({
-                    required String label,
-                    required String? value,
-                    required Map<String, String> options,
-                    required ValueChanged<String?> onChanged,
-                  }) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFD1D5DB)),
-                            borderRadius: BorderRadius.circular(8),
-                            color: const Color(0xFFF9FAFB),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: value ?? '',
-                              isDense: true,
-                              isExpanded: true,
-                              icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-                              items: options.entries
-                                  .map(
-                                    (e) => DropdownMenuItem(
-                                      value: e.key,
-                                      child: Text(e.value, style: const TextStyle(fontSize: 14)),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: onChanged,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  if (isCompact) {
-                    // 모바일: 세로 레이아웃
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: buildCompactDropdown(
-                                label: '종목',
-                                value: _kind,
-                                options: _kindOptions,
-                                onChanged: (v) => setState(() => _kind = v),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: buildCompactDropdown(
-                                label: '지역',
-                                value: _region,
-                                options: _regionOptions,
-                                onChanged: (v) => setState(() => _region = v),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _keyword,
-                                decoration: InputDecoration(
-                                  prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
-                                  hintText: '조건 (유산명 등)',
-                                  hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                  filled: true,
-                                  fillColor: const Color(0xFFF9FAFB),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                  ),
-                                ),
-                                onSubmitted: (_) => _onSearch(),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              height: 42,
-                              width: 42,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: IconButton(
-                                icon: const Icon(Icons.search, color: Colors.white, size: 20),
-                                onPressed: _onSearch,
-                                padding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  }
-
-                  // 데스크톱: 가로 레이아웃
-                  return Column(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isTableLayout ? 1200 : 680,
+                  ),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 160,
-                            child: buildCompactDropdown(
-                              label: '종목',
-                              value: _kind,
-                              options: _kindOptions,
-                              onChanged: (v) => setState(() => _kind = v),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          SizedBox(
-                            width: 160,
-                            child: buildCompactDropdown(
-                              label: '지역',
-                              value: _region,
-                              options: _regionOptions,
-                              onChanged: (v) => setState(() => _region = v),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '검색어',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
+                      _buildFilterCard(),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '총 ${_formatCount(_totalCount)}건',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (_loading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 6),
+                          child: LinearProgressIndicator(minHeight: 2),
+                        ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: isTableLayout
+                            ? ResponsiveTable(
+                                minWidth: 960,
+                                child: Column(
                                   children: [
+                                    _buildTableHeader(context),
+                                    const Divider(height: 0),
                                     Expanded(
-                                      child: TextField(
-                                        controller: _keyword,
-                                        decoration: InputDecoration(
-                                          prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
-                                          hintText: '조건 (유산명 등)',
-                                          hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
-                                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                          filled: true,
-                                          fillColor: const Color(0xFFF9FAFB),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                          ),
-                                          enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                          ),
+                                      child: RefreshIndicator(
+                                        onRefresh: () => _fetch(reset: true),
+                                        child: _buildResultList(
+                                          tableLayout: true,
                                         ),
-                                        onSubmitted: (_) => _onSearch(),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      height: 42,
-                                      width: 42,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF2563EB),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: IconButton(
-                                        icon: const Icon(Icons.search, color: Colors.white, size: 20),
-                                        onPressed: _onSearch,
-                                        padding: EdgeInsets.zero,
                                       ),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        ],
+                              )
+                            : RefreshIndicator(
+                                onRefresh: () => _fetch(reset: true),
+                                child: _buildResultList(tableLayout: false),
+                              ),
                       ),
+                      const SizedBox(height: 12),
+                      _buildPagination(),
                     ],
-                  );
-                },
+                  ),
+                ),
               ),
-            ),
-          ),
-          const Divider(height: 0),
-
-          // 헤더
-          Container(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: const Row(
-              children: [
-                _CellHeader('종목', flex: 2),
-                _CellHeader('유산명', flex: 4),
-                _CellHeader('소재지', flex: 3),
-                _CellHeader('주소', flex: 3),
-              ],
-            ),
-          ),
-
-          // 표 리스트 + 페이지네이션
-          Expanded(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '총 ${_formatCount(_totalCount)}건',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                if (_loading) const LinearProgressIndicator(minHeight: 2),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () => _fetch(reset: true),
-                    child: _buildResultList(),
-                  ),
-                ),
-                _buildPagination(),
-              ],
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -649,6 +763,125 @@ class _Cell extends StatelessWidget {
     return Expanded(
       flex: flex,
       child: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
+    );
+  }
+}
+
+class _HeritageListCard extends StatelessWidget {
+  const _HeritageListCard({
+    required this.badge,
+    required this.title,
+    required this.location,
+    required this.address,
+    required this.onTap,
+    this.onDelete,
+    this.isCustom = false,
+  });
+
+  final String badge;
+  final String title;
+  final String location;
+  final String address;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+  final bool isCustom;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _ChipLabel(
+                    text: badge.isEmpty ? '미상' : badge,
+                    backgroundColor: const Color(0xFFE4ECFF),
+                    textColor: const Color(0xFF1D4ED8),
+                  ),
+                  if (isCustom) ...[
+                    const SizedBox(width: 8),
+                    const _ChipLabel(
+                      text: '내 추가',
+                      backgroundColor: Color(0xFFFFEDD5),
+                      textColor: Color(0xFFC2410C),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (onDelete != null)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: '삭제',
+                      onPressed: onDelete,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title.isEmpty ? '이름 미상' : title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (location.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  location,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                address.isEmpty ? '주소 정보 없음' : address,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChipLabel extends StatelessWidget {
+  const _ChipLabel({
+    required this.text,
+    required this.backgroundColor,
+    required this.textColor,
+  });
+
+  final String text;
+  final Color backgroundColor;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
     );
   }
 }

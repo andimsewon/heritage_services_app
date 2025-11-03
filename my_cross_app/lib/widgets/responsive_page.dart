@@ -10,11 +10,14 @@ class ResponsivePage extends StatelessWidget {
   final double maxWidth;
   final EdgeInsets padding;
 
+  final ScrollController? controller;
+
   const ResponsivePage({
     super.key,
     required this.child,
     this.maxWidth = 900,
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    this.controller,
   });
 
   @override
@@ -26,6 +29,7 @@ class ResponsivePage extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: SingleChildScrollView(
+              controller: controller,
               padding: padding,
               child: child,
             ),
@@ -35,4 +39,3 @@ class ResponsivePage extends StatelessWidget {
     );
   }
 }
-

@@ -21,13 +21,8 @@ class SectionButton {
         foregroundColor: buttonColor,
         side: BorderSide(color: buttonColor),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -50,13 +45,8 @@ class SectionButton {
         backgroundColor: backgroundColor ?? const Color(0xFF1C2D5A),
         foregroundColor: foregroundColor ?? Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 2,
       ),
     );
@@ -80,13 +70,8 @@ class SectionButton {
       style: TextButton.styleFrom(
         foregroundColor: buttonColor,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -107,10 +92,7 @@ class SectionButton {
       color: color ?? const Color(0xFF1C2D5A),
       tooltip: tooltip,
       padding: const EdgeInsets.all(8),
-      constraints: const BoxConstraints(
-        minWidth: 36,
-        minHeight: 36,
-      ),
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
     );
   }
 }
@@ -130,14 +112,26 @@ class SectionButtonGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: alignment,
-      children: [
-        for (int i = 0; i < buttons.length; i++) ...[
-          buttons[i],
-          if (i < buttons.length - 1) SizedBox(width: spacing),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final row = Row(
+          mainAxisAlignment: alignment,
+          children: [
+            for (int i = 0; i < buttons.length; i++) ...[
+              buttons[i],
+              if (i < buttons.length - 1) SizedBox(width: spacing),
+            ],
+          ],
+        );
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: row,
+          ),
+        );
+      },
     );
   }
 }

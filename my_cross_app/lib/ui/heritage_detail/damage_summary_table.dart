@@ -8,6 +8,7 @@ import '../../theme.dart';
 import '../widgets/ox_toggle.dart';
 import '../components/section_card.dart';
 import '../components/section_button.dart';
+import '../widgets/responsive_table.dart';
 import '../section_form/section_data_list.dart';
 
 class DamageSummaryTable extends StatefulWidget {
@@ -30,9 +31,17 @@ class DamageSummaryTable extends StatefulWidget {
 
 class _DamageSummaryTableState extends State<DamageSummaryTable> {
   final List<TextEditingController> _labelControllers = [];
-  static const List<String> _gradeOptions = ['A', 'B', 'C1', 'C2', 'D', 'E', 'F'];
+  static const List<String> _gradeOptions = [
+    'A',
+    'B',
+    'C1',
+    'C2',
+    'D',
+    'E',
+    'F',
+  ];
   static const List<String> _positionOptions = ['-', 'X', 'O'];
-  
+
   final _fb = FirebaseService();
   bool _isSaving = false;
   final ScrollController _scrollController = ScrollController();
@@ -117,9 +126,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             borderRadius: BorderRadius.circular(12),
             child: ScrollConfiguration(
               behavior: const MaterialScrollBehavior(),
-              child: SingleChildScrollView(
+              child: ResponsiveTable(
                 controller: _scrollController,
-                scrollDirection: Axis.horizontal,
+                minWidth: 1024,
                 child: DataTable(
                   headingRowHeight: 64,
                   dataRowMinHeight: 56,
@@ -152,7 +161,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       ...widget.value.columnsStructural.map(
         (label) => DataColumn(
           label: _ColumnHeader(
-            group: '구조적 손상', 
+            group: '구조적 손상',
             column: label,
             groupColor: Colors.red,
           ),
@@ -161,7 +170,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       ...widget.value.columnsPhysical.map(
         (label) => DataColumn(
           label: _ColumnHeader(
-            group: '물리적 손상', 
+            group: '물리적 손상',
             column: label,
             groupColor: Colors.blue,
           ),
@@ -170,7 +179,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       ...widget.value.columnsBioChemical.map(
         (label) => DataColumn(
           label: _ColumnHeader(
-            group: '생물·화학적 손상', 
+            group: '생물·화학적 손상',
             column: label,
             groupColor: Colors.green,
           ),
@@ -233,7 +242,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       ) {
         final cell = map[label] ?? const DamageCell();
         final present = cell.present;
-        
+
         cells.add(
           DataCell(
             Center(
@@ -244,7 +253,11 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                   OxToggle(
                     value: present,
                     onChanged: (value) {
-                      final updated = _updateMap(map, label, cell.copyWith(present: value));
+                      final updated = _updateMap(
+                        map,
+                        label,
+                        cell.copyWith(present: value),
+                      );
                       if (map == row.structural) {
                         _replaceRow(index, row.copyWith(structural: updated));
                       } else if (map == row.physical) {
@@ -262,21 +275,42 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildPositionIndicator(
-                          '상', 
-                          cell.positionTop, 
-                          (value) => _updatePosition(map, label, 'top', value, index, row),
+                          '상',
+                          cell.positionTop,
+                          (value) => _updatePosition(
+                            map,
+                            label,
+                            'top',
+                            value,
+                            index,
+                            row,
+                          ),
                           groupColor,
                         ),
                         _buildPositionIndicator(
-                          '중', 
-                          cell.positionMiddle, 
-                          (value) => _updatePosition(map, label, 'middle', value, index, row),
+                          '중',
+                          cell.positionMiddle,
+                          (value) => _updatePosition(
+                            map,
+                            label,
+                            'middle',
+                            value,
+                            index,
+                            row,
+                          ),
                           groupColor,
                         ),
                         _buildPositionIndicator(
-                          '하', 
-                          cell.positionBottom, 
-                          (value) => _updatePosition(map, label, 'bottom', value, index, row),
+                          '하',
+                          cell.positionBottom,
+                          (value) => _updatePosition(
+                            map,
+                            label,
+                            'bottom',
+                            value,
+                            index,
+                            row,
+                          ),
                           groupColor,
                         ),
                       ],
@@ -402,7 +436,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     );
     final rows = List<DamageRow>.from(widget.value.rows)..add(row);
     widget.onChanged(widget.value.copyWith(rows: rows));
-    
+
     // Smooth scroll to the newly added row
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -452,8 +486,11 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                 child: Text(
                   option,
                   style: TextStyle(
-                    color: option == 'O' ? Colors.green : 
-                           option == 'X' ? Colors.red : Colors.grey,
+                    color: option == 'O'
+                        ? Colors.green
+                        : option == 'X'
+                        ? Colors.red
+                        : Colors.grey,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -483,7 +520,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       positionMiddle: position == 'middle' ? value : cell.positionMiddle,
       positionBottom: position == 'bottom' ? value : cell.positionBottom,
     );
-    
+
     final updated = _updateMap(map, label, updatedCell);
     if (map == row.structural) {
       _replaceRow(index, row.copyWith(structural: updated));
@@ -511,23 +548,26 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       // 손상부 종합 데이터를 하나의 제목과 내용으로 결합
       final title = '손상부 종합 - ${DateTime.now().toString().substring(0, 16)}';
       final content = StringBuffer();
-      
+
       for (int i = 0; i < widget.value.rows.length; i++) {
         final row = widget.value.rows[i];
         content.writeln('${i + 1}. ${row.label}');
         content.writeln('  - 육안등급: ${row.visualGrade}');
         content.writeln('  - 실험실등급: ${row.labGrade}');
         content.writeln('  - 최종등급: ${row.finalGrade}');
-        
+
         // 구조부 손상
         final structuralDamages = <String>[];
         for (final entry in row.structural.entries) {
           if (entry.value.present) {
             final positions = <String>[];
-            if (entry.value.positionTop != '-') positions.add('상:${entry.value.positionTop}');
-            if (entry.value.positionMiddle != '-') positions.add('중:${entry.value.positionMiddle}');
-            if (entry.value.positionBottom != '-') positions.add('하:${entry.value.positionBottom}');
-            
+            if (entry.value.positionTop != '-')
+              positions.add('상:${entry.value.positionTop}');
+            if (entry.value.positionMiddle != '-')
+              positions.add('중:${entry.value.positionMiddle}');
+            if (entry.value.positionBottom != '-')
+              positions.add('하:${entry.value.positionBottom}');
+
             if (positions.isNotEmpty) {
               structuralDamages.add('${entry.key}(${positions.join(', ')})');
             } else {
@@ -538,16 +578,19 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         if (structuralDamages.isNotEmpty) {
           content.writeln('  - 구조부 손상: ${structuralDamages.join(', ')}');
         }
-        
+
         // 물리적 손상
         final physicalDamages = <String>[];
         for (final entry in row.physical.entries) {
           if (entry.value.present) {
             final positions = <String>[];
-            if (entry.value.positionTop != '-') positions.add('상:${entry.value.positionTop}');
-            if (entry.value.positionMiddle != '-') positions.add('중:${entry.value.positionMiddle}');
-            if (entry.value.positionBottom != '-') positions.add('하:${entry.value.positionBottom}');
-            
+            if (entry.value.positionTop != '-')
+              positions.add('상:${entry.value.positionTop}');
+            if (entry.value.positionMiddle != '-')
+              positions.add('중:${entry.value.positionMiddle}');
+            if (entry.value.positionBottom != '-')
+              positions.add('하:${entry.value.positionBottom}');
+
             if (positions.isNotEmpty) {
               physicalDamages.add('${entry.key}(${positions.join(', ')})');
             } else {
@@ -558,16 +601,19 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         if (physicalDamages.isNotEmpty) {
           content.writeln('  - 물리적 손상: ${physicalDamages.join(', ')}');
         }
-        
+
         // 생화학적 손상
         final bioChemicalDamages = <String>[];
         for (final entry in row.bioChemical.entries) {
           if (entry.value.present) {
             final positions = <String>[];
-            if (entry.value.positionTop != '-') positions.add('상:${entry.value.positionTop}');
-            if (entry.value.positionMiddle != '-') positions.add('중:${entry.value.positionMiddle}');
-            if (entry.value.positionBottom != '-') positions.add('하:${entry.value.positionBottom}');
-            
+            if (entry.value.positionTop != '-')
+              positions.add('상:${entry.value.positionTop}');
+            if (entry.value.positionMiddle != '-')
+              positions.add('중:${entry.value.positionMiddle}');
+            if (entry.value.positionBottom != '-')
+              positions.add('하:${entry.value.positionBottom}');
+
             if (positions.isNotEmpty) {
               bioChemicalDamages.add('${entry.key}(${positions.join(', ')})');
             } else {
@@ -578,7 +624,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         if (bioChemicalDamages.isNotEmpty) {
           content.writeln('  - 생화학적 손상: ${bioChemicalDamages.join(', ')}');
         }
-        
+
         content.writeln('');
       }
 
@@ -618,10 +664,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('저장 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -634,7 +677,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
 class _ColumnHeader extends StatelessWidget {
   const _ColumnHeader({
-    required this.group, 
+    required this.group,
     required this.column,
     this.groupColor,
   });
@@ -655,12 +698,15 @@ class _ColumnHeader extends StatelessWidget {
           decoration: BoxDecoration(
             color: groupColor?.withOpacity(0.1),
             borderRadius: BorderRadius.circular(4),
-            border: groupColor != null 
+            border: groupColor != null
                 ? Border.all(color: groupColor!.withOpacity(0.3))
                 : null,
           ),
           child: Text(
             group,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
             style: textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w700,
               color: groupColor ?? Colors.black87,
@@ -671,7 +717,10 @@ class _ColumnHeader extends StatelessWidget {
         Flexible(
           child: Text(
             column,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
+            textWidthBasis: TextWidthBasis.longestLine,
             style: textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: groupColor?.withOpacity(0.8) ?? Colors.black87,

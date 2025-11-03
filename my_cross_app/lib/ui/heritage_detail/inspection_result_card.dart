@@ -7,6 +7,7 @@ import '../../models/heritage_detail_models.dart';
 import '../../models/section_form_models.dart';
 import '../../services/firebase_service.dart';
 import '../section_form/section_data_list.dart';
+import '../widgets/responsive_table.dart';
 
 class InspectionResultCard extends StatefulWidget {
   const InspectionResultCard({
@@ -30,16 +31,21 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   final _fb = FirebaseService();
   bool _isSaving = false;
 
+  static const double _preservationCategoryWidth = 160;
+  static const double _preservationComponentWidth = 220;
+  static const double _preservationSurveyWidth = 420;
+  static const double _preservationPhotoWidth = 148;
+
   // 구조부 (Structural Part)
   late final TextEditingController _foundationController;
   late final TextEditingController _wallController;
   late final TextEditingController _roofController;
-  
+
   // 기타부 (Other Parts)
   late final TextEditingController _coloringController;
   late final TextEditingController _pestDamageController;
   late final TextEditingController _otherController;
-  
+
   // 추가 필드들
   late final TextEditingController _specialNotesController;
   late final TextEditingController _overallOpinionController;
@@ -82,20 +88,22 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   @override
   void initState() {
     super.initState();
-    _foundationController = TextEditingController(text: widget.value.foundation);
+    _foundationController = TextEditingController(
+      text: widget.value.foundation,
+    );
     _wallController = TextEditingController(text: widget.value.wall);
     _roofController = TextEditingController(text: widget.value.roof);
     _coloringController = TextEditingController();
     _pestDamageController = TextEditingController();
     _otherController = TextEditingController();
-    
+
     // 추가 필드들
     _specialNotesController = TextEditingController();
     _overallOpinionController = TextEditingController();
     _gradeClassificationController = TextEditingController();
     _investigationDateController = TextEditingController();
     _investigatorController = TextEditingController();
-    
+
     _foundationController.addListener(() => _handleChanged('foundation'));
     _wallController.addListener(() => _handleChanged('wall'));
     _roofController.addListener(() => _handleChanged('roof'));
@@ -150,7 +158,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     _coloringController.dispose();
     _pestDamageController.dispose();
     _otherController.dispose();
-    
+
     // 추가 필드들
     _specialNotesController.dispose();
     _overallOpinionController.dispose();
@@ -210,7 +218,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
           const SizedBox(height: 16),
           _buildInspectionTable(),
           const SizedBox(height: 32),
-          
+
           // 1.2 보존 사항 섹션
           const Text(
             '1.2 보존 사항',
@@ -223,7 +231,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
           const SizedBox(height: 16),
           _buildPreservationTable(),
           const SizedBox(height: 20),
-          
+
           // 저장 버튼
           LayoutBuilder(
             builder: (context, constraints) {
@@ -253,7 +261,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
               );
             },
           ),
-          
+
           // 저장된 데이터 리스트 표시
           if (widget.heritageId.isNotEmpty)
             SectionDataList(
@@ -337,108 +345,147 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   }
 
   Widget _buildPreservationTable() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          // 테이블 헤더
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
+    const double gutter = 12;
+    final double minWidth =
+        _preservationCategoryWidth +
+        _preservationComponentWidth +
+        _preservationSurveyWidth +
+        _preservationPhotoWidth +
+        gutter * 3;
+
+    return ResponsiveTable(
+      minWidth: minWidth,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
+                ),
+              ),
+              child: Row(
+                children: [
+                  _buildHeaderCell('구분', _preservationCategoryWidth),
+                  SizedBox(width: gutter),
+                  _buildHeaderCell('부재', _preservationComponentWidth),
+                  SizedBox(width: gutter),
+                  _buildHeaderCell('조사내용(현상)', _preservationSurveyWidth),
+                  SizedBox(width: gutter),
+                  _buildHeaderCell('사진/위치', _preservationPhotoWidth),
+                ],
               ),
             ),
-            child: const Row(
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    '구분',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    '부재',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    '조사내용(현상)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    '사진/위치',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // ① 기단부 섹션
-          _buildPreservationTableSection('① 기단부', [
-            _buildPreservationTableRow('기단부', '기단', _foundationBaseController, _foundationBasePhotoController, 
-              surveyContent: '조사내용에서는 부재/위치/현상 순으로 내용을 기입한다.\n해당 현상을 촬영한 사진을 첨부하고, 사진/위치 란에 사진번호를 기입한다.\n사진번호는 부재명과 번호를 같이 기입한다.'),
-            _buildPreservationTableRow('', '초석', TextEditingController(), _foundationCornerstonePhotoController),
-          ]),
-          // ② 축부(벽체부) 섹션
-          _buildPreservationTableSection('② 축부(벽체부)', [
-            _buildPreservationTableRow('축부(벽체부)', '기둥 등 수직재 (기둥 등 수직으로 하중을 받는 모든 부재)', 
-              _shaftVerticalMembersController, _shaftVerticalMembersPhotoController),
-            _buildPreservationTableRow('', '인방(引枋: 기둥과 기둥 사이에 놓이는 부재)/창방 등', 
-              _shaftLintelTiebeamController, _shaftLintelTiebeamPhotoController),
-            _buildPreservationTableRow('', '공포', _shaftBracketSystemController, _shaftBracketSystemPhotoController),
-            _buildPreservationTableRow('', '벽체/고막이', _shaftWallGomagiController, _shaftWallGomagiPhotoController),
-            _buildPreservationTableRow('', '구들/마루', _shaftOndolFloorController, _shaftOndolFloorPhotoController),
-            _buildPreservationTableRow('', '창호/난간', _shaftWindowsRailingsController, _shaftWindowsRailingsPhotoController),
-          ]),
-          // ③ 지붕부 섹션
-          _buildPreservationTableSection('③ 지붕부', [
-            _buildPreservationTableRow('지붕부', '지붕 가구재', _roofFramingMembersController, _roofFramingMembersPhotoController,
-              surveyContent: '보 부재 등의 조사내용을 기입한다.'),
-            _buildPreservationTableRow('', '서까래/부연 (처마 서까래의 끝에 덧없는 네모지고 짧은 서까래)', 
-              _roofRaftersPuyeonController, _roofRaftersPuyeonPhotoController),
-            _buildPreservationTableRow('', '지붕/기와', _roofRoofTilesController, _roofRoofTilesPhotoController),
-            _buildPreservationTableRow('', '천장/단집', _roofCeilingDanjipController, _roofCeilingDanjipPhotoController),
-          ]),
-          // 기타사항 섹션
-          _buildPreservationTableSection('기타사항', [
-            _buildPreservationTableRow('기타사항', '특기사항', _otherSpecialNotesController, _otherSpecialNotesPhotoController),
-          ]),
-        ],
+            // ① 기단부 섹션
+            _buildPreservationTableSection('① 기단부', [
+              _buildPreservationTableRow(
+                '기단부',
+                '기단',
+                _foundationBaseController,
+                _foundationBasePhotoController,
+                surveyContent:
+                    '조사내용에서는 부재/위치/현상 순으로 내용을 기입한다.\n해당 현상을 촬영한 사진을 첨부하고, 사진/위치 란에 사진번호를 기입한다.\n사진번호는 부재명과 번호를 같이 기입한다.',
+              ),
+              _buildPreservationTableRow(
+                '',
+                '초석',
+                TextEditingController(),
+                _foundationCornerstonePhotoController,
+              ),
+            ]),
+            // ② 축부(벽체부) 섹션
+            _buildPreservationTableSection('② 축부(벽체부)', [
+              _buildPreservationTableRow(
+                '축부(벽체부)',
+                '기둥 등 수직재 (기둥 등 수직으로 하중을 받는 모든 부재)',
+                _shaftVerticalMembersController,
+                _shaftVerticalMembersPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '인방(引枋: 기둥과 기둥 사이에 놓이는 부재)/창방 등',
+                _shaftLintelTiebeamController,
+                _shaftLintelTiebeamPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '공포',
+                _shaftBracketSystemController,
+                _shaftBracketSystemPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '벽체/고막이',
+                _shaftWallGomagiController,
+                _shaftWallGomagiPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '구들/마루',
+                _shaftOndolFloorController,
+                _shaftOndolFloorPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '창호/난간',
+                _shaftWindowsRailingsController,
+                _shaftWindowsRailingsPhotoController,
+              ),
+            ]),
+            // ③ 지붕부 섹션
+            _buildPreservationTableSection('③ 지붕부', [
+              _buildPreservationTableRow(
+                '지붕부',
+                '지붕 가구재',
+                _roofFramingMembersController,
+                _roofFramingMembersPhotoController,
+                surveyContent: '보 부재 등의 조사내용을 기입한다.',
+              ),
+              _buildPreservationTableRow(
+                '',
+                '서까래/부연 (처마 서까래의 끝에 덧없는 네모지고 짧은 서까래)',
+                _roofRaftersPuyeonController,
+                _roofRaftersPuyeonPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '지붕/기와',
+                _roofRoofTilesController,
+                _roofRoofTilesPhotoController,
+              ),
+              _buildPreservationTableRow(
+                '',
+                '천장/단집',
+                _roofCeilingDanjipController,
+                _roofCeilingDanjipPhotoController,
+              ),
+            ]),
+            // 기타사항 섹션
+            _buildPreservationTableSection('기타사항', [
+              _buildPreservationTableRow(
+                '기타사항',
+                '특기사항',
+                _otherSpecialNotesController,
+                _otherSpecialNotesPhotoController,
+              ),
+            ]),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPreservationTableSection(String sectionTitle, List<Widget> rows) {
+  Widget _buildPreservationTableSection(
+    String sectionTitle,
+    List<Widget> rows,
+  ) {
     return Column(
       children: [
         // 섹션 헤더
@@ -472,44 +519,29 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     );
   }
 
-  Widget _buildPreservationTableRow(String category, String component, TextEditingController surveyController, TextEditingController photoController, {String? surveyContent}) {
+  Widget _buildPreservationTableRow(
+    String category,
+    String component,
+    TextEditingController surveyController,
+    TextEditingController photoController, {
+    String? surveyContent,
+  }) {
+    const double gutter = 12;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 구분 컬럼
-          Expanded(
-            flex: 1,
-            child: Text(
-              category,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-                color: Color(0xFF374151),
-              ),
-            ),
-          ),
-          // 부재 컬럼
-          Expanded(
-            flex: 2,
-            child: Text(
-              component,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-                color: Color(0xFF374151),
-              ),
-            ),
-          ),
-          // 조사내용(현상) 컬럼
-          Expanded(
-            flex: 3,
+          _buildBodyTextCell(category, _preservationCategoryWidth),
+          SizedBox(width: gutter),
+          _buildBodyTextCell(component, _preservationComponentWidth),
+          SizedBox(width: gutter),
+          SizedBox(
+            width: _preservationSurveyWidth,
             child: TextField(
               controller: surveyController,
               decoration: InputDecoration(
@@ -533,19 +565,14 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
               ),
               maxLines: surveyContent != null ? 5 : 2,
               readOnly: false,
-              style: const TextStyle(
-                fontSize: 13, 
-                color: Color(0xFF374151)
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
             ),
           ),
-          const SizedBox(width: 12),
-          // 사진/위치 컬럼
-          Expanded(
-            flex: 1,
+          SizedBox(width: gutter),
+          SizedBox(
+            width: _preservationPhotoWidth,
             child: Column(
               children: [
-                // 사진 첨부 버튼
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -553,12 +580,18 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                     icon: const Icon(Icons.camera_alt, size: 14),
                     label: const Text(
                       '사진 첨부',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
                       style: TextStyle(fontSize: 11),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E2A44),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 6,
+                        horizontal: 8,
+                      ),
                       minimumSize: const Size(0, 32),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
@@ -567,7 +600,6 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // 사진 URL 표시 및 보기
                 GestureDetector(
                   onTap: () => _showImageDialog(_getPhotoKey(photoController)),
                   child: Container(
@@ -576,16 +608,25 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFD1D5DB)),
                       borderRadius: BorderRadius.circular(6),
-                      color: photoController.text.isNotEmpty ? const Color(0xFFF0F9FF) : Colors.white,
+                      color: photoController.text.isNotEmpty
+                          ? const Color(0xFFF0F9FF)
+                          : Colors.white,
                     ),
                     child: Text(
                       photoController.text.isNotEmpty ? '사진 보기' : '사진 없음',
                       style: TextStyle(
                         fontSize: 12,
-                        color: photoController.text.isNotEmpty ? const Color(0xFF1E2A44) : Colors.grey.shade600,
-                        fontWeight: photoController.text.isNotEmpty ? FontWeight.w500 : FontWeight.normal,
+                        color: photoController.text.isNotEmpty
+                            ? const Color(0xFF1E2A44)
+                            : Colors.grey.shade600,
+                        fontWeight: photoController.text.isNotEmpty
+                            ? FontWeight.w500
+                            : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
                     ),
                   ),
                 ),
@@ -593,6 +634,37 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String label, double width) {
+    return SizedBox(
+      width: width,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+          color: Color(0xFF111827),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBodyTextCell(String label, double width) {
+    return SizedBox(
+      width: width,
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+          color: Color(0xFF374151),
+        ),
       ),
     );
   }
@@ -635,9 +707,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,8 +756,11 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     );
   }
 
-
-  Widget _buildTextArea(String label, TextEditingController controller, {String hint = '조사 결과를 입력하세요'}) {
+  Widget _buildTextArea(
+    String label,
+    TextEditingController controller, {
+    String hint = '조사 결과를 입력하세요',
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -724,7 +797,6 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     );
   }
 
-
   Widget _dividerLine() {
     return Container(
       height: 1,
@@ -747,18 +819,27 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   // 컨트롤러를 기반으로 사진 키 반환
   String _getPhotoKey(TextEditingController controller) {
     if (controller == _foundationBasePhotoController) return 'foundationBase';
-    if (controller == _foundationCornerstonePhotoController) return 'foundationCornerstone';
-    if (controller == _shaftVerticalMembersPhotoController) return 'shaftVerticalMembers';
-    if (controller == _shaftLintelTiebeamPhotoController) return 'shaftLintelTiebeam';
-    if (controller == _shaftBracketSystemPhotoController) return 'shaftBracketSystem';
+    if (controller == _foundationCornerstonePhotoController)
+      return 'foundationCornerstone';
+    if (controller == _shaftVerticalMembersPhotoController)
+      return 'shaftVerticalMembers';
+    if (controller == _shaftLintelTiebeamPhotoController)
+      return 'shaftLintelTiebeam';
+    if (controller == _shaftBracketSystemPhotoController)
+      return 'shaftBracketSystem';
     if (controller == _shaftWallGomagiPhotoController) return 'shaftWallGomagi';
     if (controller == _shaftOndolFloorPhotoController) return 'shaftOndolFloor';
-    if (controller == _shaftWindowsRailingsPhotoController) return 'shaftWindowsRailings';
-    if (controller == _roofFramingMembersPhotoController) return 'roofFramingMembers';
-    if (controller == _roofRaftersPuyeonPhotoController) return 'roofRaftersPuyeon';
+    if (controller == _shaftWindowsRailingsPhotoController)
+      return 'shaftWindowsRailings';
+    if (controller == _roofFramingMembersPhotoController)
+      return 'roofFramingMembers';
+    if (controller == _roofRaftersPuyeonPhotoController)
+      return 'roofRaftersPuyeon';
     if (controller == _roofRoofTilesPhotoController) return 'roofRoofTiles';
-    if (controller == _roofCeilingDanjipPhotoController) return 'roofCeilingDanjip';
-    if (controller == _otherSpecialNotesPhotoController) return 'otherSpecialNotes';
+    if (controller == _roofCeilingDanjipPhotoController)
+      return 'roofCeilingDanjip';
+    if (controller == _otherSpecialNotesPhotoController)
+      return 'otherSpecialNotes';
     return 'unknown';
   }
 
@@ -771,48 +852,51 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
         maxHeight: 1080,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         final Uint8List imageBytes = await image.readAsBytes();
         setState(() {
           _preservationPhotos[photoKey] = imageBytes;
         });
-        
+
         // Firebase에 사진 업로드
         await _uploadPhotoToFirebase(photoKey, imageBytes);
       }
     } catch (e) {
       print('사진 선택 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')));
     }
   }
 
   // Firebase에 사진 업로드
-  Future<void> _uploadPhotoToFirebase(String photoKey, Uint8List imageBytes) async {
+  Future<void> _uploadPhotoToFirebase(
+    String photoKey,
+    Uint8List imageBytes,
+  ) async {
     try {
       final String downloadUrl = await _fb.uploadImage(
         heritageId: widget.heritageId,
         folder: 'preservation_photos',
         bytes: imageBytes,
       );
-      
+
       setState(() {
         _preservationPhotoUrls[photoKey] = downloadUrl;
       });
-      
+
       // 해당 컨트롤러에 사진 URL 업데이트
       _updatePhotoController(photoKey, downloadUrl);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')));
     } catch (e) {
       print('사진 업로드 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')));
     }
   }
 
@@ -865,9 +949,9 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   void _showImageDialog(String photoKey) {
     final String? imageUrl = _preservationPhotoUrls[photoKey];
     final Uint8List? imageBytes = _preservationPhotos[photoKey];
-    
+
     if (imageUrl == null && imageBytes == null) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -889,8 +973,8 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                   child: imageBytes != null
                       ? Image.memory(imageBytes, fit: BoxFit.contain)
                       : imageUrl != null
-                          ? Image.network(imageUrl, fit: BoxFit.contain)
-                          : Container(),
+                      ? Image.network(imageUrl, fit: BoxFit.contain)
+                      : Container(),
                 ),
               ),
             ],
@@ -903,7 +987,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   Future<void> _saveInspectionResult() async {
     print('🚨 _saveInspectionResult 호출됨!');
     debugPrint('🚨 _saveInspectionResult 호출됨!');
-    
+
     if (widget.heritageId.isEmpty) {
       print('❌ HeritageId가 비어있음');
       debugPrint('❌ HeritageId가 비어있음');
@@ -925,7 +1009,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       // 모든 필드의 내용을 하나의 문서로 통합 저장
       final title = '1.1 조사 결과 - ${DateTime.now().toString().substring(0, 16)}';
       final content = StringBuffer();
-      
+
       // 구조부 섹션
       content.writeln('구조부:');
       if (_foundationController.text.trim().isNotEmpty) {
@@ -937,7 +1021,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       if (_roofController.text.trim().isNotEmpty) {
         content.writeln('  - 지붕부: ${_roofController.text.trim()}');
       }
-      
+
       // 기타부 섹션
       content.writeln('\n기타부:');
       if (_coloringController.text.trim().isNotEmpty) {
@@ -949,32 +1033,34 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       if (_otherController.text.trim().isNotEmpty) {
         content.writeln('  - 기타: ${_otherController.text.trim()}');
       }
-      
+
       // 특기사항
       if (_specialNotesController.text.trim().isNotEmpty) {
         content.writeln('\n특기사항: ${_specialNotesController.text.trim()}');
       }
-      
+
       // 조사 종합의견
       if (_overallOpinionController.text.trim().isNotEmpty) {
         content.writeln('\n조사 종합의견: ${_overallOpinionController.text.trim()}');
       }
-      
+
       // 등급분류
       if (_gradeClassificationController.text.trim().isNotEmpty) {
-        content.writeln('\n등급분류: ${_gradeClassificationController.text.trim()}');
+        content.writeln(
+          '\n등급분류: ${_gradeClassificationController.text.trim()}',
+        );
       }
-      
+
       // 조사일시
       if (_investigationDateController.text.trim().isNotEmpty) {
         content.writeln('\n조사일시: ${_investigationDateController.text.trim()}');
       }
-      
+
       // 조사자
       if (_investigatorController.text.trim().isNotEmpty) {
         content.writeln('\n조사자: ${_investigatorController.text.trim()}');
       }
-      
+
       // 1.2 보존 사항 섹션
       content.writeln('\n1.2 보존 사항:');
       content.writeln('기단부:');
@@ -982,82 +1068,124 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
         content.writeln('  - 기단: ${_foundationBaseController.text.trim()}');
       }
       if (_foundationBasePhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 기단 사진: ${_foundationBasePhotoController.text.trim()}');
+        content.writeln(
+          '  - 기단 사진: ${_foundationBasePhotoController.text.trim()}',
+        );
       }
       if (_foundationCornerstonePhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 초석 사진: ${_foundationCornerstonePhotoController.text.trim()}');
+        content.writeln(
+          '  - 초석 사진: ${_foundationCornerstonePhotoController.text.trim()}',
+        );
       }
-      
+
       content.writeln('\n축부(벽체부):');
       if (_shaftVerticalMembersController.text.trim().isNotEmpty) {
-        content.writeln('  - 기둥 등 수직재: ${_shaftVerticalMembersController.text.trim()}');
+        content.writeln(
+          '  - 기둥 등 수직재: ${_shaftVerticalMembersController.text.trim()}',
+        );
       }
       if (_shaftVerticalMembersPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 기둥 등 수직재 사진: ${_shaftVerticalMembersPhotoController.text.trim()}');
+        content.writeln(
+          '  - 기둥 등 수직재 사진: ${_shaftVerticalMembersPhotoController.text.trim()}',
+        );
       }
       if (_shaftLintelTiebeamController.text.trim().isNotEmpty) {
-        content.writeln('  - 인방/창방 등: ${_shaftLintelTiebeamController.text.trim()}');
+        content.writeln(
+          '  - 인방/창방 등: ${_shaftLintelTiebeamController.text.trim()}',
+        );
       }
       if (_shaftLintelTiebeamPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 인방/창방 등 사진: ${_shaftLintelTiebeamPhotoController.text.trim()}');
+        content.writeln(
+          '  - 인방/창방 등 사진: ${_shaftLintelTiebeamPhotoController.text.trim()}',
+        );
       }
       if (_shaftBracketSystemController.text.trim().isNotEmpty) {
         content.writeln('  - 공포: ${_shaftBracketSystemController.text.trim()}');
       }
       if (_shaftBracketSystemPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 공포 사진: ${_shaftBracketSystemPhotoController.text.trim()}');
+        content.writeln(
+          '  - 공포 사진: ${_shaftBracketSystemPhotoController.text.trim()}',
+        );
       }
       if (_shaftWallGomagiController.text.trim().isNotEmpty) {
-        content.writeln('  - 벽체/고막이: ${_shaftWallGomagiController.text.trim()}');
+        content.writeln(
+          '  - 벽체/고막이: ${_shaftWallGomagiController.text.trim()}',
+        );
       }
       if (_shaftWallGomagiPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 벽체/고막이 사진: ${_shaftWallGomagiPhotoController.text.trim()}');
+        content.writeln(
+          '  - 벽체/고막이 사진: ${_shaftWallGomagiPhotoController.text.trim()}',
+        );
       }
       if (_shaftOndolFloorController.text.trim().isNotEmpty) {
         content.writeln('  - 구들/마루: ${_shaftOndolFloorController.text.trim()}');
       }
       if (_shaftOndolFloorPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 구들/마루 사진: ${_shaftOndolFloorPhotoController.text.trim()}');
+        content.writeln(
+          '  - 구들/마루 사진: ${_shaftOndolFloorPhotoController.text.trim()}',
+        );
       }
       if (_shaftWindowsRailingsController.text.trim().isNotEmpty) {
-        content.writeln('  - 창호/난간: ${_shaftWindowsRailingsController.text.trim()}');
+        content.writeln(
+          '  - 창호/난간: ${_shaftWindowsRailingsController.text.trim()}',
+        );
       }
       if (_shaftWindowsRailingsPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 창호/난간 사진: ${_shaftWindowsRailingsPhotoController.text.trim()}');
+        content.writeln(
+          '  - 창호/난간 사진: ${_shaftWindowsRailingsPhotoController.text.trim()}',
+        );
       }
-      
+
       content.writeln('\n지붕부:');
       if (_roofFramingMembersController.text.trim().isNotEmpty) {
-        content.writeln('  - 지붕 가구재: ${_roofFramingMembersController.text.trim()}');
+        content.writeln(
+          '  - 지붕 가구재: ${_roofFramingMembersController.text.trim()}',
+        );
       }
       if (_roofFramingMembersPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 지붕 가구재 사진: ${_roofFramingMembersPhotoController.text.trim()}');
+        content.writeln(
+          '  - 지붕 가구재 사진: ${_roofFramingMembersPhotoController.text.trim()}',
+        );
       }
       if (_roofRaftersPuyeonController.text.trim().isNotEmpty) {
-        content.writeln('  - 서까래/부연: ${_roofRaftersPuyeonController.text.trim()}');
+        content.writeln(
+          '  - 서까래/부연: ${_roofRaftersPuyeonController.text.trim()}',
+        );
       }
       if (_roofRaftersPuyeonPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 서까래/부연 사진: ${_roofRaftersPuyeonPhotoController.text.trim()}');
+        content.writeln(
+          '  - 서까래/부연 사진: ${_roofRaftersPuyeonPhotoController.text.trim()}',
+        );
       }
       if (_roofRoofTilesController.text.trim().isNotEmpty) {
         content.writeln('  - 지붕/기와: ${_roofRoofTilesController.text.trim()}');
       }
       if (_roofRoofTilesPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 지붕/기와 사진: ${_roofRoofTilesPhotoController.text.trim()}');
+        content.writeln(
+          '  - 지붕/기와 사진: ${_roofRoofTilesPhotoController.text.trim()}',
+        );
       }
       if (_roofCeilingDanjipController.text.trim().isNotEmpty) {
-        content.writeln('  - 천장/단집: ${_roofCeilingDanjipController.text.trim()}');
+        content.writeln(
+          '  - 천장/단집: ${_roofCeilingDanjipController.text.trim()}',
+        );
       }
       if (_roofCeilingDanjipPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 천장/단집 사진: ${_roofCeilingDanjipPhotoController.text.trim()}');
+        content.writeln(
+          '  - 천장/단집 사진: ${_roofCeilingDanjipPhotoController.text.trim()}',
+        );
       }
-      
+
       content.writeln('\n기타사항:');
       if (_otherSpecialNotesController.text.trim().isNotEmpty) {
-        content.writeln('  - 특기사항: ${_otherSpecialNotesController.text.trim()}');
+        content.writeln(
+          '  - 특기사항: ${_otherSpecialNotesController.text.trim()}',
+        );
       }
       if (_otherSpecialNotesPhotoController.text.trim().isNotEmpty) {
-        content.writeln('  - 특기사항 사진: ${_otherSpecialNotesPhotoController.text.trim()}');
+        content.writeln(
+          '  - 특기사항 사진: ${_otherSpecialNotesPhotoController.text.trim()}',
+        );
       }
 
       if (content.toString().trim().isEmpty) {
@@ -1072,7 +1200,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
 
       print('📝 SectionFormData 생성 중...');
       debugPrint('📝 SectionFormData 생성 중...');
-      
+
       final formData = SectionFormData(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         sectionType: SectionType.inspection,
@@ -1092,13 +1220,13 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
 
       print('🔥 Firebase 저장 시작...');
       debugPrint('🔥 Firebase 저장 시작...');
-      
+
       await _fb.saveSectionForm(
         heritageId: widget.heritageId,
         sectionType: SectionType.inspection,
         formData: formData,
       );
-      
+
       print('✅ Firebase 저장 완료!');
       debugPrint('✅ Firebase 저장 완료!');
 
@@ -1114,7 +1242,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       _gradeClassificationController.clear();
       _investigationDateController.clear();
       _investigatorController.clear();
-      
+
       // 1.2 보존 사항 필드 초기화
       _foundationBaseController.clear();
       _foundationBasePhotoController.clear();
@@ -1153,10 +1281,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('저장 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
