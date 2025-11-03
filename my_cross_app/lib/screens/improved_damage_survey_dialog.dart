@@ -62,6 +62,8 @@ class _ImprovedDamageSurveyDialogState
   bool _loadingPreviousPhoto = false;
   List<Map<String, dynamic>> _detections = [];
   bool _loading = false;
+  String? _savedDocId; // 저장된 문서 ID (최종 저장 시 업데이트용)
+  String? _savedImageUrl; // 저장된 이미지 URL
 
   // Firebase Service
   final _fb = FirebaseService();
@@ -245,8 +247,9 @@ class _ImprovedDamageSurveyDialogState
         );
       final normalized = _normalizeDetections(sorted);
 
-      // 3. 손상부 조사 데이터를 Firebase에 저장
-      await _saveDamageSurveyData(imageUrl, normalized);
+      // 3. 손상부 조사 데이터를 Firebase에 저장 (초기 저장)
+      _savedDocId = await _saveDamageSurveyData(imageUrl, normalized);
+      _savedImageUrl = imageUrl;
 
       setState(() {
         _loading = false;
@@ -295,7 +298,7 @@ class _ImprovedDamageSurveyDialogState
   }
 
   // 손상부 조사 데이터를 Firebase에 저장
-  Future<void> _saveDamageSurveyData(String imageUrl, List<Map<String, dynamic>> detections) async {
+  Future<String?> _saveDamageSurveyData(String imageUrl, List<Map<String, dynamic>> detections) async {
     try {
       final damageSurveyData = {
         'heritageId': widget.heritageId,
@@ -320,14 +323,50 @@ class _ImprovedDamageSurveyDialogState
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
-      await _fb.saveDamageSurvey(
+      final docId = await _fb.saveDamageSurvey(
         heritageId: widget.heritageId,
         data: damageSurveyData,
       );
 
-      debugPrint('✅ 손상부 조사 데이터 저장 완료: $imageUrl');
+      debugPrint('✅ 손상부 조사 데이터 저장 완료: $imageUrl, docId: $docId');
+      return docId;
     } catch (e) {
       debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  // 손상부 조사 데이터 업데이트
+  Future<void> _updateDamageSurveyData(String docId, String imageUrl) async {
+    try {
+      final updateData = {
+        'partName': _selectedPartName ?? '',
+        'direction': _selectedDirection ?? '',
+        'position': _selectedPosition ?? '',
+        'partNumber': _partNumberController.text.trim(),
+        'location': _locationController.text.trim(),
+        'damagePart': _partController.text.trim(),
+        'opinion': _opinionController.text.trim(),
+        'temperature': _temperatureController.text.trim(),
+        'humidity': _humidityController.text.trim(),
+        'severityGrade': _severityGrade,
+        'damageTypes': _selectedDamageTypes.toList(),
+        'selectedLabel': _selectedLabel,
+        'selectedConfidence': _selectedConfidence,
+        'autoGrade': _autoGrade,
+        'autoExplanation': _autoExplanation,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _fb.updateDamageSurvey(
+        heritageId: widget.heritageId,
+        docId: docId,
+        data: updateData,
+      );
+
+      debugPrint('✅ 손상부 조사 데이터 업데이트 완료: $docId');
+    } catch (e) {
+      debugPrint('❌ 손상부 조사 데이터 업데이트 실패: $e');
       rethrow;
     }
   }
@@ -456,6 +495,32 @@ class _ImprovedDamageSurveyDialogState
     );
 
     if (confirm != true) return;
+
+    // 최종 저장: 사용자가 입력한 모든 정보를 반영하여 업데이트
+    if (_savedDocId != null && _savedImageUrl != null) {
+      try {
+        await _updateDamageSurveyData(_savedDocId!, _savedImageUrl!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('손상부 조사 데이터가 저장되었습니다.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('❌ 최종 저장 실패: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('저장 중 오류가 발생했습니다: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return; // 저장 실패 시 다이얼로그 닫지 않음
+      }
+    }
 
     final result = DamageDetectionResult(
       imageBytes: _imageBytes!,

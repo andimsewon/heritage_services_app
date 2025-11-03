@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:convert' show base64Decode;
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +20,7 @@ import '../repositories/ai_prediction_repository.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/optimized_image.dart';
 import '../widgets/optimized_stream_builder.dart';
+import '../widgets/responsive_page.dart';
 import '../ui/heritage_detail/ai_prediction_section.dart';
 import '../ui/heritage_detail/damage_summary_table.dart';
 import '../ui/heritage_detail/grade_classification_card.dart';
@@ -36,10 +36,13 @@ import '../ui/section_form/section_form_widget.dart';
 import '../models/section_form_models.dart';
 import 'detail_survey_screen.dart';
 
-String _proxyImageUrl(String originalUrl) {
+String _proxyImageUrl(String originalUrl, {int? maxWidth, int? maxHeight}) {
   if (originalUrl.contains('firebasestorage.googleapis.com')) {
     final proxyBase = Env.proxyBase;
-    return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
+    final params = <String>['url=${Uri.encodeComponent(originalUrl)}'];
+    if (maxWidth != null) params.add('maxWidth=$maxWidth');
+    if (maxHeight != null) params.add('maxHeight=$maxHeight');
+    return '$proxyBase/image/proxy?${params.join('&')}';
   }
   return originalUrl;
 }
@@ -99,9 +102,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     baseUrl: Env.proxyBase.replaceFirst(':8080', ':8081'),
   );
   HeritageDetailViewModel? _detailViewModel;
-  final ScrollController _detailScrollController = ScrollController();
   late final AIPredictionRepository _aiPredictionRepository =
-_MockAIPredictionRepository();
+      _MockAIPredictionRepository();
 
   // 조사 결과 필드들
   final _inspectionResult = TextEditingController();
@@ -143,21 +145,27 @@ _MockAIPredictionRepository();
   // 1.2 보존 사항 컨트롤러들
   final _preservationFoundationBaseController = TextEditingController();
   final _preservationFoundationBasePhotoController = TextEditingController();
-  final _preservationFoundationCornerstonePhotoController = TextEditingController();
+  final _preservationFoundationCornerstonePhotoController =
+      TextEditingController();
   final _preservationShaftVerticalMembersController = TextEditingController();
-  final _preservationShaftVerticalMembersPhotoController = TextEditingController();
+  final _preservationShaftVerticalMembersPhotoController =
+      TextEditingController();
   final _preservationShaftLintelTiebeamController = TextEditingController();
-  final _preservationShaftLintelTiebeamPhotoController = TextEditingController();
+  final _preservationShaftLintelTiebeamPhotoController =
+      TextEditingController();
   final _preservationShaftBracketSystemController = TextEditingController();
-  final _preservationShaftBracketSystemPhotoController = TextEditingController();
+  final _preservationShaftBracketSystemPhotoController =
+      TextEditingController();
   final _preservationShaftWallGomagiController = TextEditingController();
   final _preservationShaftWallGomagiPhotoController = TextEditingController();
   final _preservationShaftOndolFloorController = TextEditingController();
   final _preservationShaftOndolFloorPhotoController = TextEditingController();
   final _preservationShaftWindowsRailingsController = TextEditingController();
-  final _preservationShaftWindowsRailingsPhotoController = TextEditingController();
+  final _preservationShaftWindowsRailingsPhotoController =
+      TextEditingController();
   final _preservationRoofFramingMembersController = TextEditingController();
-  final _preservationRoofFramingMembersPhotoController = TextEditingController();
+  final _preservationRoofFramingMembersPhotoController =
+      TextEditingController();
   final _preservationRoofRaftersPuyeonController = TextEditingController();
   final _preservationRoofRaftersPuyeonPhotoController = TextEditingController();
   final _preservationRoofRoofTilesController = TextEditingController();
@@ -207,7 +215,7 @@ _MockAIPredictionRepository();
     try {
       // 병렬로 데이터 로드
       final futures = <Future>[];
-      
+
       // 1. 기본 유산 정보 로드
       Future<Map<String, dynamic>> heritageFuture;
       if (_args?['isCustom'] == true) {
@@ -216,18 +224,17 @@ _MockAIPredictionRepository();
         heritageFuture = _loadHeritageFromAPI();
       }
       futures.add(heritageFuture);
-      
+
       // 2. 텍스트 데이터 로드 (병렬)
       futures.add(_loadTextFields());
-      
+
       // 3. 모든 데이터를 병렬로 로드
       final results = await Future.wait(futures);
-      
+
       // 결과 처리
       if (results.isNotEmpty) {
         setState(() => _detail = results[0] as Map<String, dynamic>);
       }
-      
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -390,6 +397,28 @@ _MockAIPredictionRepository();
   // ───────────────────────── 문화유산 현황 사진 업로드
   Future<void> _addPhoto() async {
     if (!mounted) return;
+    
+    // 업로드 시작 피드백
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('이미지를 업로드하는 중...'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    
     final pair = await ImageAcquire.pick(context);
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
@@ -398,17 +427,76 @@ _MockAIPredictionRepository();
     final title = await _askTitle(context);
     if (title == null) return;
 
-    await _fb.addPhoto(
-      heritageId: heritageId,
-      heritageName: _name,
-      title: title,
-      imageBytes: bytes,
-      sizeGetter: sizeGetter,
-    );
+    try {
+      await _fb.addPhoto(
+        heritageId: heritageId,
+        heritageName: _name,
+        title: title,
+        imageBytes: bytes,
+        sizeGetter: sizeGetter,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('사진이 업로드되었습니다. 잠시 후 목록에 표시됩니다.'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('업로드 실패: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      debugPrint('사진 업로드 오류: $e');
+    }
   }
 
   Future<void> _addLocationPhoto() async {
     if (!mounted) return;
+    
+    // 업로드 시작 피드백
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('이미지를 업로드하는 중...'),
+          ],
+        ),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    
     final pair = await ImageAcquire.pick(context);
     if (pair == null) return;
     final (bytes, sizeGetter) = pair;
@@ -417,31 +505,68 @@ _MockAIPredictionRepository();
     final title = await _askTitle(context);
     if (title == null) return;
 
-    await _fb.addPhoto(
-      heritageId: heritageId,
-      heritageName: _name,
-      title: title,
-      imageBytes: bytes,
-      sizeGetter: sizeGetter,
-      folder: 'location_photos',
-    );
+    try {
+      await _fb.addPhoto(
+        heritageId: heritageId,
+        heritageName: _name,
+        title: title,
+        imageBytes: bytes,
+        sizeGetter: sizeGetter,
+        folder: 'location_photos',
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('사진이 업로드되었습니다. 잠시 후 목록에 표시됩니다.'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('업로드 실패: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      debugPrint('위치 사진 업로드 오류: $e');
+    }
   }
 
   // 텍스트 데이터 저장 함수
   Future<void> _saveTextData() async {
     if (_isSavingText) return;
-    
+
     print('🚨 텍스트 데이터 저장 시작!');
     debugPrint('🚨 텍스트 데이터 저장 시작!');
-    
+
     setState(() => _isSavingText = true);
-    
+
     try {
       final heritageId = this.heritageId;
       final heritageName = _name;
-      
+
       print('🔍 텍스트 저장 - HeritageId: $heritageId, HeritageName: $heritageName');
-      
+
       // 조사 데이터 수집
       final surveyData = {
         'inspectionResult': _inspectionResult.text.trim(),
@@ -468,7 +593,7 @@ _MockAIPredictionRepository();
       );
 
       print('✅ 텍스트 데이터 저장 완료!');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -481,10 +606,7 @@ _MockAIPredictionRepository();
       print('❌ 텍스트 데이터 저장 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('텍스트 저장 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('텍스트 저장 실패: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -498,14 +620,14 @@ _MockAIPredictionRepository();
   Future<void> _loadTextFields() async {
     print('📭 텍스트 필드 데이터 로드 시작!');
     debugPrint('📭 텍스트 필드 데이터 로드 시작!');
-    
+
     try {
       final heritageId = this.heritageId;
       print('🔍 텍스트 로드 - HeritageId: $heritageId');
-      
+
       // Firebase에서 최신 데이터 가져오기
       final surveys = await _fb.getDetailSurveys(heritageId);
-      
+
       if (surveys.docs.isNotEmpty) {
         final latestData = surveys.docs.first.data();
         print('📝 로드된 텍스트 데이터:');
@@ -514,7 +636,7 @@ _MockAIPredictionRepository();
         print('  - 손상부 종합: ${latestData['damageSummary'] ?? ''}');
         print('  - 조사자 의견: ${latestData['investigatorOpinion'] ?? ''}');
         print('  - 기존 이력: ${latestData['existingHistory'] ?? ''}');
-        
+
         // 텍스트 필드에 데이터 설정
         _inspectionResult.text = latestData['inspectionResult'] ?? '';
         _managementItems.text = latestData['managementItems'] ?? '';
@@ -522,7 +644,7 @@ _MockAIPredictionRepository();
         _investigatorOpinion.text = latestData['investigatorOpinion'] ?? '';
         _gradeClassification.text = latestData['gradeClassification'] ?? '';
         _existingHistory.text = latestData['existingHistory'] ?? '';
-        
+
         print('✅ 텍스트 필드 데이터 로드 완료!');
       } else {
         print('📭 저장된 텍스트 데이터가 없습니다.');
@@ -579,29 +701,22 @@ _MockAIPredictionRepository();
 
     if (result == null) return;
 
-    final severity = (result.severityGrade?.trim().isNotEmpty ?? false)
-        ? result.severityGrade
-        : result.autoGrade;
-
-    await _fb.addDamageSurvey(
-      heritageId: heritageId,
-      heritageName: _name,
-      imageBytes: result.imageBytes,
-      detections: result.detections,
-      location: result.location,
-      phenomenon: result.selectedLabel,
-      inspectorOpinion: result.opinion,
-      severityGrade: severity,
-      detailInputs: result.toDetailInputs(),
-    );
-
+    // ImprovedDamageSurveyDialog에서 이미 저장 및 업데이트를 완료했으므로
+    // 여기서는 중복 저장하지 않음 (데이터는 이미 Firebase에 저장됨)
+    // 다이얼로그에서 저장 완료 메시지를 표시했으므로 여기서는 간단한 확인 메시지만 표시
+    
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('손상부 조사 등록 완료')));
+      ).showSnackBar(
+        const SnackBar(
+          content: Text('손상부 조사가 완료되었습니다.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
-
 
   Future<bool?> _confirmDelete(BuildContext context) {
     return showDialog<bool>(
@@ -629,7 +744,6 @@ _MockAIPredictionRepository();
 
   @override
   void dispose() {
-    _detailScrollController.dispose();
     _detailViewModel?.dispose();
     super.dispose();
   }
@@ -703,11 +817,7 @@ _MockAIPredictionRepository();
                   ),
                 );
               },
-              icon: const Icon(
-                Icons.history,
-                size: 16,
-                color: Colors.white,
-              ),
+              icon: const Icon(Icons.history, size: 16, color: Colors.white),
               label: const Text(
                 '기존이력',
                 style: TextStyle(
@@ -735,15 +845,8 @@ _MockAIPredictionRepository();
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            const desktopBreakpoint = 1100.0;
-            const maxContentWidth = 1040.0;
-            final isDesktop = constraints.maxWidth >= desktopBreakpoint;
-            
-            // 화면 배율 100%에서도 내용이 보이도록 최소 높이 보장
-            final screenHeight = MediaQuery.of(context).size.height;
-            final appBarHeight = kToolbarHeight + MediaQuery.of(context).padding.top;
-            final availableHeight = screenHeight - appBarHeight;
-            
+            final isDesktop = constraints.maxWidth >= 1100.0;
+
             final detailSections = _buildDetailSections(
               context: context,
               kind: kind,
@@ -753,26 +856,18 @@ _MockAIPredictionRepository();
               lcto: lcto,
               lcad: lcad,
             );
-            
-            // 100% 배율에서도 확실히 보이도록 높이 보장 (최대한 강력한 설정)
-            final minHeight = math.max(availableHeight, 1200.0);
-            
-            final detailView = _buildDetailScrollView(
-              maxContentWidth: maxContentWidth,
+
+            // ResponsivePage로 감싸서 모든 뷰포트 크기에서 내용이 보이도록 보장
+            return ResponsivePage(
+              maxWidth: 1040.0,
               padding: EdgeInsets.symmetric(
                 horizontal: isDesktop ? 32 : 16,
                 vertical: 24,
               ),
-              showScrollbarThumb: isDesktop,
-              minHeight: minHeight,
-              children: detailSections,
-            );
-
-            // 100% 배율에서도 확실히 보이도록 높이 강제 설정 (최대한 강력한 설정)
-            return SizedBox(
-              height: math.max(availableHeight, 1200.0),
-              width: double.infinity,
-              child: detailView,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: detailSections,
+              ),
             );
           },
         ),
@@ -901,11 +996,6 @@ _MockAIPredictionRepository();
                   heritageName: _name.isEmpty ? '미상' : _name,
                 ),
                 const SectionDivider(),
-                GradeClassificationCard(
-                  value: vm.gradeClassification,
-                  onChanged: vm.updateGradeClassification,
-                ),
-                const SectionDivider(),
                 AIPredictionSection(
                   state: vm.aiPredictionState,
                   actions: AIPredictionActions(
@@ -913,6 +1003,11 @@ _MockAIPredictionRepository();
                     onGenerateMap: vm.generateMap,
                     onSuggest: vm.suggestMitigation,
                   ),
+                ),
+                const SectionDivider(),
+                GradeClassificationCard(
+                  value: vm.gradeClassification,
+                  onChanged: vm.updateGradeClassification,
                 ),
               ],
             );
@@ -941,7 +1036,7 @@ _MockAIPredictionRepository();
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // AI 예측 버튼들
               Row(
                 children: [
@@ -983,7 +1078,7 @@ _MockAIPredictionRepository();
                 ],
               ),
               const SizedBox(height: 12),
-              
+
               // 보고서 생성 버튼
               SizedBox(
                 width: double.infinity,
@@ -1009,6 +1104,128 @@ _MockAIPredictionRepository();
       );
     }
 
+    // 텍스트 입력 필드 추가
+    sections.add(
+      Container(
+        margin: const EdgeInsets.symmetric(vertical: 24),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '📝 텍스트 데이터 입력',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E2A44),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '아래 필드에 데이터를 입력하고 저장 버튼을 눌러주세요.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 24),
+
+            // 1.1 조사 결과
+            TextField(
+              controller: _inspectionResult,
+              decoration: const InputDecoration(
+                labelText: '1.1 조사 결과',
+                hintText: '조사 결과를 입력하세요',
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // 관리사항
+            TextField(
+              controller: _managementItems,
+              decoration: const InputDecoration(
+                labelText: '관리사항',
+                hintText: '관리사항을 입력하세요',
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // 손상부 종합
+            TextField(
+              controller: _damageSummary,
+              decoration: const InputDecoration(
+                labelText: '손상부 종합',
+                hintText: '손상부 종합 내용을 입력하세요',
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // 조사자 의견
+            TextField(
+              controller: _investigatorOpinion,
+              decoration: const InputDecoration(
+                labelText: '조사자 의견',
+                hintText: '조사자 의견을 입력하세요',
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // 등급 분류
+            TextField(
+              controller: _gradeClassification,
+              decoration: const InputDecoration(
+                labelText: '등급 분류',
+                hintText: 'A, B, C, D, E, F 등급을 입력하세요',
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 기존 이력 (새로 추가!)
+            TextField(
+              controller: _existingHistory,
+              decoration: const InputDecoration(
+                labelText: '기존 이력',
+                hintText: '과거 조사 이력이나 관련 기록을 입력하세요',
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Color(0xFFFFFBEB), // 연한 노란색 배경으로 강조
+                prefixIcon: Icon(Icons.history, color: Color(0xFFD97706)),
+              ),
+              maxLines: 4,
+            ),
+          ],
+        ),
+      ),
+    );
+
     // 텍스트 저장 버튼 추가
     sections.add(
       Container(
@@ -1026,37 +1243,34 @@ _MockAIPredictionRepository();
             ),
             const SizedBox(height: 16),
             const Text(
-              '아래 입력 필드들의 데이터를 Firebase에 저장합니다:',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF666666),
-              ),
+              '위 입력 필드들의 데이터를 Firebase에 저장합니다:',
+              style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
             ),
             const SizedBox(height: 8),
             const Text(
-              '• 1.1 조사 결과 • 관리사항 • 손상부 종합 • 조사자 의견 • 기존 이력',
-              style: TextStyle(
-                fontSize: 12,
-                color: Color(0xFF888888),
-              ),
+              '• 1.1 조사 결과 • 관리사항 • 손상부 종합 • 조사자 의견 • 등급 분류 • 기존 이력',
+              style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _isSavingText ? null : _saveTextData,
-              icon: _isSavingText 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save),
+              icon: _isSavingText
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save),
               label: Text(_isSavingText ? '저장 중...' : '텍스트 데이터 저장'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1E2A44),
                 foregroundColor: Colors.white,
                 elevation: 2,
                 shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 24,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -1069,42 +1283,6 @@ _MockAIPredictionRepository();
 
     sections.add(const SizedBox(height: 48));
     return sections;
-  }
-
-  Widget _buildDetailScrollView({
-    required double maxContentWidth,
-    required EdgeInsets padding,
-    required bool showScrollbarThumb,
-    required double minHeight,
-    required List<Widget> children,
-  }) {
-    return SizedBox(
-      height: minHeight,
-      width: double.infinity,
-      child: ScrollConfiguration(
-        behavior: const MaterialScrollBehavior(),
-        child: Scrollbar(
-          controller: _detailScrollController,
-          thumbVisibility: showScrollbarThumb,
-          child: SingleChildScrollView(
-            controller: _detailScrollController,
-            padding: padding,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: maxContentWidth,
-                  minHeight: minHeight,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: children,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
 }
@@ -1205,15 +1383,15 @@ class BasicInfoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-          const Text(
-            '기본 정보',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
+              const Text(
+                '기본 정보',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
                   fontSize: 18,
-              color: Color(0xFF111827),
+                  color: Color(0xFF111827),
                   letterSpacing: -0.3,
-            ),
-          ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1315,6 +1493,9 @@ class HeritagePhotoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 640;
+    final sectionPadding = EdgeInsets.all(isCompact ? 16 : 24);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1328,135 +1509,122 @@ class HeritagePhotoSection extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(24),
+      padding: sectionPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E2A44).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.photo_camera,
-                  color: Color(0xFF1E2A44),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-          const Text(
-            '현황 사진',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-                  fontSize: 18,
-              color: Color(0xFF111827),
-                  letterSpacing: -0.3,
-            ),
-          ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
-            style: TextStyle(
-              color: Color(0xFF6B7280), 
-              fontSize: 14,
-              letterSpacing: -0.2,
-            ),
+          const _SectionTitle(
+            icon: Icons.photo_camera,
+            title: '현황 사진',
+            description: '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 230,
-            child: OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: photosStream,
-              loadingBuilder: (context) => const SkeletonList(itemCount: 3, itemHeight: 120),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          '등록된 사진이 없습니다.',
-                          style: TextStyle(color: Color(0xFF6B7280)),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: onAddPhoto,
-                          icon: const Icon(
-                            Icons.photo_camera_outlined,
-                            color: Color(0xFF1E2A44),
-                          ),
-                          label: const Text(
-                            '사진 등록',
-                            style: TextStyle(color: Color(0xFF1E2A44)),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF1E2A44)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+          OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: photosStream,
+            loadingBuilder: (context) =>
+                const SkeletonList(itemCount: 3, itemHeight: 120),
+            builder: (context, querySnapshot) {
+              if (querySnapshot.docs.isEmpty) {
+                return _EmptyPhotoState(onAddPhoto: onAddPhoto);
+              }
+
+              final docs = querySnapshot.docs
+                  .where(
+                    (doc) =>
+                        ((doc.data())['url'] as String?)?.isNotEmpty ?? false,
+                  )
+                  .toList();
+
+              if (docs.isEmpty) {
+                return _EmptyPhotoState(onAddPhoto: onAddPhoto);
+              }
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final isNarrow = width < 640;
+                  final isVeryNarrow = width < 420;
+                  final buttonAlignment = isNarrow
+                      ? WrapAlignment.start
+                      : WrapAlignment.end;
+
+                  Widget buildHorizontalList() {
+                    final listHeight = isVeryNarrow ? 260.0 : 220.0;
+                    return SizedBox(
+                      height: listHeight,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (_, index) {
+                          final data = docs[index].data();
+                          final title = (data['title'] as String?) ?? '';
+                          final url = (data['url'] as String?) ?? '';
+                          final meta =
+                              '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
+                          final cardWidth = isVeryNarrow ? 180.0 : 200.0;
+                          final thumbnailSize = (cardWidth * 2).round(); // 2x 해상도로 요청
+                          return SizedBox(
+                            width: cardWidth,
+                            child: _PhotoCard(
+                              title: title,
+                              url: _proxyImageUrl(url, maxWidth: thumbnailSize, maxHeight: thumbnailSize),
+                              meta: meta,
+                              onPreview: () => onPreview(url, title),
+                              onDelete: () => onDelete(docs[index].id, url),
+                              thumbnailSize: thumbnailSize,
                             ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                final docs = snapshot.data!.docs
-                    .where(
-                      (doc) =>
-                          ((doc.data())['url'] as String?)?.isNotEmpty ?? false,
-                    )
-                    .toList();
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          '등록된 사진이 없습니다.',
-                          style: TextStyle(color: Color(0xFF6B7280)),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: onAddPhoto,
-                          icon: const Icon(
-                            Icons.photo_camera_outlined,
-                            color: Color(0xFF1E2A44),
-                          ),
-                          label: const Text(
-                            '사진 등록',
-                            style: TextStyle(color: Color(0xFF1E2A44)),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF1E2A44)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return Column(
-                  children: [
-                    // 사진 등록 버튼 (항상 표시)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                          );
+                        },
+                      ),
+                    );
+                  }
+
+                  Widget buildGrid() {
+                    final crossAxisCount = width < 900 ? 3 : 4;
+                    final spacing = width < 900 ? 10.0 : 12.0;
+                    // GridView 카드 크기 계산 (childAspectRatio 0.75 = width/height)
+                    final cardWidth = (width - (spacing * (crossAxisCount + 1))) / crossAxisCount;
+                    final cardHeight = cardWidth / 0.75;
+                    final thumbnailSize = (cardHeight * 2).round(); // 높이 기준 2x 해상도
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: spacing,
+                        mainAxisSpacing: spacing,
+                        childAspectRatio: 0.75,
+                      ),
+                      itemCount: docs.length,
+                      itemBuilder: (_, index) {
+                        final data = docs[index].data();
+                        final title = (data['title'] as String?) ?? '';
+                        final url = (data['url'] as String?) ?? '';
+                        final meta =
+                            '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
+                        return _PhotoCard(
+                          title: title,
+                          url: _proxyImageUrl(url, maxWidth: thumbnailSize, maxHeight: thumbnailSize),
+                          meta: meta,
+                          onPreview: () => onPreview(url, title),
+                          onDelete: () => onDelete(docs[index].id, url),
+                          thumbnailSize: thumbnailSize,
+                        );
+                      },
+                    );
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                        alignment: buttonAlignment,
+                        runAlignment: buttonAlignment,
+                        spacing: 12,
+                        runSpacing: 8,
                         children: [
                           ElevatedButton.icon(
                             onPressed: onAddPhoto,
@@ -1476,7 +1644,9 @@ class HeritagePhotoSection extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1E2A44),
                               elevation: 2,
-                              shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
+                              shadowColor: const Color(
+                                0xFF1E2A44,
+                              ).withOpacity(0.3),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -1488,41 +1658,13 @@ class HeritagePhotoSection extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),
-                    // 사진 목록 - 깔끔한 그리드 레이아웃
-                    Container(
-                      height: 200,
-                      width: double.infinity,
-                      child: GridView.builder(
-                            primary: false,
-                            physics: const BouncingScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.75,
-                        ),
-                            itemCount: docs.length,
-                            itemBuilder: (_, index) {
-                              final data = docs[index].data();
-                              final title = (data['title'] as String?) ?? '';
-                              final url = (data['url'] as String?) ?? '';
-                              final meta =
-                                  '${data['width'] ?? '?'}x${data['height'] ?? '?'} • ${formatBytes(data['bytes'] as num?)}';
-                          return _PhotoCard(
-                                  title: title,
-                                  url: url,
-                                  meta: meta,
-                                  onPreview: () => onPreview(url, title),
-                                  onDelete: () => onDelete(docs[index].id, url),
-                              );
-                            },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                      const SizedBox(height: 16),
+                      isNarrow ? buildHorizontalList() : buildGrid(),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -1535,6 +1677,7 @@ class HeritagePhotoSection extends StatelessWidget {
     required String meta,
     required VoidCallback onPreview,
     required VoidCallback onDelete,
+    int? thumbnailSize,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1564,16 +1707,29 @@ class HeritagePhotoSection extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: double.infinity,
                     height: double.infinity,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: const Color(0xFFF8FAFC),
-                        child: const Icon(
-                          Icons.broken_image, 
-                          size: 40,
-                          color: Color(0xFF9CA3AF),
+                    maxWidth: thumbnailSize,
+                    maxHeight: thumbnailSize,
+                    placeholder: Container(
+                      color: Colors.grey[300],
+                      child: const Center(
+                        child: SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                    ),
+                    errorWidget: Container(
+                      color: const Color(0xFFF8FAFC),
+                      child: const Icon(
+                        Icons.broken_image,
+                        size: 40,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                    ),
                   ),
                   Positioned(
                     top: 6,
@@ -1583,16 +1739,17 @@ class HeritagePhotoSection extends StatelessWidget {
                         color: Colors.red.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                    child: IconButton(
-                      onPressed: onDelete,
+                      child: IconButton(
+                        onPressed: onDelete,
                         icon: const Icon(
-                          Icons.delete_outline, 
+                          Icons.delete_outline,
                           color: Colors.white,
                           size: 16,
                         ),
-                      style: IconButton.styleFrom(
                         padding: const EdgeInsets.all(4),
-                          minimumSize: const Size(28, 28),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
                         ),
                       ),
                     ),
@@ -1604,53 +1761,159 @@ class HeritagePhotoSection extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      color: Color(0xFF111827),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  meta,
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title.isEmpty ? '사진' : title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF6B7280), 
-                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                  const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                    height: 24,
-                  child: ElevatedButton(
-                    onPressed: onPreview,
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E2A44),
-                      foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    child: const Text('미리보기', style: TextStyle(fontSize: 12)),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    meta,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    height: 32,
+                    child: OutlinedButton(
+                      onPressed: onPreview,
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF1E2A44)),
+                        foregroundColor: const Color(0xFF1E2A44),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: const Text('미리보기', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.icon,
+    required this.title,
+    this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 640;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E2A44).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: const Color(0xFF1E2A44), size: 20),
+            ),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                color: Color(0xFF111827),
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
+        ),
+        if (description != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            description!,
+            style: TextStyle(
+              color: const Color(0xFF6B7280),
+              fontSize: isCompact ? 13 : 14,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _EmptyPhotoState extends StatelessWidget {
+  const _EmptyPhotoState({required this.onAddPhoto});
+
+  final VoidCallback onAddPhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 640;
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Text('등록된 사진이 없습니다.', style: TextStyle(color: Color(0xFF6B7280))),
+        const SizedBox(height: 12),
+        Wrap(
+          alignment: WrapAlignment.center,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onAddPhoto,
+              icon: const Icon(
+                Icons.photo_camera_outlined,
+                color: Color(0xFF1E2A44),
+              ),
+              label: Text(
+                '사진 등록',
+                style: TextStyle(
+                  color: const Color(0xFF1E2A44),
+                  fontSize: isCompact ? 13 : 14,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF1E2A44)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 16 : 20,
+                  vertical: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1711,19 +1974,21 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                 ),
               ),
               const SizedBox(width: 12),
-          const Text(
-            '손상부 조사',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
+              const Text(
+                '손상부 조사',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
                   fontSize: 18,
-              color: Color(0xFF111827),
+                  color: Color(0xFF111827),
                   letterSpacing: -0.3,
-            ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               ElevatedButton.icon(
                 onPressed: widget.onAddSurvey,
@@ -1749,7 +2014,6 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
               ElevatedButton.icon(
                 onPressed: _selectedDamage != null ? _openDeepInspection : null,
                 icon: const Icon(
@@ -1762,8 +2026,8 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                   style: const TextStyle(color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedDamage != null 
-                      ? const Color(0xFF4B6CB7) 
+                  backgroundColor: _selectedDamage != null
+                      ? const Color(0xFF4B6CB7)
                       : const Color(0xFF9CA3AF),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
@@ -1787,9 +2051,10 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
             height: 240,
             child: OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: widget.damageStream,
-              loadingBuilder: (context) => const SkeletonList(itemCount: 3, itemHeight: 120),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              loadingBuilder: (context) =>
+                  const SkeletonList(itemCount: 3, itemHeight: 120),
+              builder: (context, querySnapshot) {
+                if (querySnapshot.docs.isEmpty) {
                   return const Center(
                     child: Text(
                       '등록된 손상부 조사가 없습니다.',
@@ -1797,7 +2062,7 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                     ),
                   );
                 }
-                final docs = snapshot.data!.docs
+                final docs = querySnapshot.docs
                     .where(
                       (doc) =>
                           ((doc.data())['imageUrl'] as String?)?.isNotEmpty ??
@@ -1874,7 +2139,10 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
         }
 
         final docs = snapshot.data!.docs
-            .where((doc) => ((doc.data())['imageUrl'] as String?)?.isNotEmpty ?? false)
+            .where(
+              (doc) =>
+                  ((doc.data())['imageUrl'] as String?)?.isNotEmpty ?? false,
+            )
             .toList();
 
         if (docs.isEmpty) {
@@ -1928,19 +2196,49 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                   dataRowMinHeight: 56,
                   columnSpacing: 16,
                   columns: const [
-                    DataColumn(label: Text('선택', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('위치', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('손상 유형', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('등급', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('조사일시', style: TextStyle(fontWeight: FontWeight.bold))),
-                    DataColumn(label: Text('조사자 의견', style: TextStyle(fontWeight: FontWeight.bold))),
+                    DataColumn(
+                      label: Text(
+                        '선택',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        '위치',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        '손상 유형',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        '등급',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        '조사일시',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        '조사자 의견',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ],
                   rows: docs.asMap().entries.map((entry) {
                     final index = entry.key;
                     final doc = entry.value;
                     final data = doc.data();
                     final isSelected = _selectedIndex == index;
-                    
+
                     return DataRow(
                       selected: isSelected,
                       onSelectChanged: (selected) {
@@ -1968,9 +2266,14 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                         DataCell(Text(data['phenomenon']?.toString() ?? '—')),
                         DataCell(
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: _getGradeColor(data['severityGrade']?.toString()),
+                              color: _getGradeColor(
+                                data['severityGrade']?.toString(),
+                              ),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -1983,16 +2286,20 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                             ),
                           ),
                         ),
-                        DataCell(Text(
-                          data['timestamp'] != null 
-                              ? _formatTimestamp(data['timestamp'].toString())
-                              : '—'
-                        )),
-                        DataCell(Text(
-                          data['inspectorOpinion']?.toString() ?? '—',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        )),
+                        DataCell(
+                          Text(
+                            data['timestamp'] != null
+                                ? _formatTimestamp(data['timestamp'].toString())
+                                : '—',
+                          ),
+                        ),
+                        DataCell(
+                          Text(
+                            data['inspectorOpinion']?.toString() ?? '—',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     );
                   }).toList(),
@@ -2007,14 +2314,22 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
 
   Color _getGradeColor(String? grade) {
     switch (grade) {
-      case 'A': return const Color(0xFF4CAF50);
-      case 'B': return const Color(0xFF8BC34A);
-      case 'C1': return const Color(0xFFFFC107);
-      case 'C2': return const Color(0xFFFF9800);
-      case 'D': return const Color(0xFFFF5722);
-      case 'E': return const Color(0xFFF44336);
-      case 'F': return const Color(0xFFD32F2F);
-      default: return const Color(0xFF9CA3AF);
+      case 'A':
+        return const Color(0xFF4CAF50);
+      case 'B':
+        return const Color(0xFF8BC34A);
+      case 'C1':
+        return const Color(0xFFFFC107);
+      case 'C2':
+        return const Color(0xFFFF9800);
+      case 'D':
+        return const Color(0xFFFF5722);
+      case 'E':
+        return const Color(0xFFF44336);
+      case 'F':
+        return const Color(0xFFD32F2F);
+      default:
+        return const Color(0xFF9CA3AF);
     }
   }
 
@@ -2029,11 +2344,12 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
 
   void _openDeepInspection() {
     if (_selectedDamage == null) return;
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DeepInspectionScreen(selectedDamage: _selectedDamage!),
+        builder: (context) =>
+            DeepInspectionScreen(selectedDamage: _selectedDamage!),
       ),
     );
   }
@@ -2068,12 +2384,10 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                     fit: BoxFit.contain,
                     width: double.infinity,
                     height: double.infinity,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image, size: 50),
-                      );
-                    },
+                    errorWidget: Container(
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.broken_image, size: 50),
+                    ),
                   ),
                   Positioned(
                     top: 4,
@@ -2186,8 +2500,6 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
         return Colors.grey;
     }
   }
-
-
 }
 
 class _MockAIPredictionRepository implements AIPredictionRepository {
@@ -2234,8 +2546,6 @@ class _MockAIPredictionRepository implements AIPredictionRepository {
       return MemoryImage(byteData!.buffer.asUint8List());
     });
   }
-
-
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2309,14 +2619,26 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _SurveyRowConfig(key: 'wall', label: '축부(벽체부)', hint: '벽체부 조사 결과를 입력하세요'),
     _SurveyRowConfig(key: 'roof', label: '지붕부', hint: '지붕부 조사 결과를 입력하세요'),
     // 조사결과 기타부 섹션
-    _SurveyRowConfig(key: 'coloring', label: '채색 (단청, 벽화)', hint: '채색 관련 조사 결과를 입력하세요'),
+    _SurveyRowConfig(
+      key: 'coloring',
+      label: '채색 (단청, 벽화)',
+      hint: '채색 관련 조사 결과를 입력하세요',
+    ),
     _SurveyRowConfig(key: 'pest', label: '충해', hint: '충해 관련 조사 결과를 입력하세요'),
     _SurveyRowConfig(key: 'etc', label: '기타', hint: '기타 조사 결과를 입력하세요'),
     // 추가 필드들
     _SurveyRowConfig(key: 'safetyNotes', label: '특기사항', hint: '특기사항을 입력하세요'),
-    _SurveyRowConfig(key: 'investigatorOpinion', label: '조사 종합의견', hint: '조사 종합의견을 입력하세요'),
+    _SurveyRowConfig(
+      key: 'investigatorOpinion',
+      label: '조사 종합의견',
+      hint: '조사 종합의견을 입력하세요',
+    ),
     _SurveyRowConfig(key: 'grade', label: '등급분류', hint: '등급분류를 입력하세요'),
-    _SurveyRowConfig(key: 'investigationDate', label: '조사일시', hint: '조사일시를 입력하세요'),
+    _SurveyRowConfig(
+      key: 'investigationDate',
+      label: '조사일시',
+      hint: '조사일시를 입력하세요',
+    ),
     _SurveyRowConfig(key: 'investigator', label: '조사자', hint: '조사자명을 입력하세요'),
   ];
   static const List<_ConservationRowConfig> _conservationRowConfigs = [
@@ -2363,10 +2685,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   final List<_HistoryImage> _currentPhotos = [];
   final List<_HistoryImage> _damagePhotos = [];
   final Set<_HistoryPhotoKind> _uploadingKinds = <_HistoryPhotoKind>{};
-  
+
   // 손상부 종합 테이블 데이터
   final List<_DamageSummaryRow> _damageSummaryRows = [];
-  
+
   // 간단한 손상부 종합 텍스트 컨트롤러
   final _damageSummaryTextController = TextEditingController();
 
@@ -2378,7 +2700,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Map<String, dynamic> _originalData = {}; // 원본 데이터 저장
   Presence? _mgmtFireSafety;
   Presence? _mgmtElectrical;
-  
+
   // 기본 정보 화면과 동일한 관리사항 변수들
   bool _hasDisasterManual = false;
   bool _hasFireTruckAccess = false;
@@ -2406,21 +2728,27 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   // 1.2 보존 사항 컨트롤러들
   final _preservationFoundationBaseController = TextEditingController();
   final _preservationFoundationBasePhotoController = TextEditingController();
-  final _preservationFoundationCornerstonePhotoController = TextEditingController();
+  final _preservationFoundationCornerstonePhotoController =
+      TextEditingController();
   final _preservationShaftVerticalMembersController = TextEditingController();
-  final _preservationShaftVerticalMembersPhotoController = TextEditingController();
+  final _preservationShaftVerticalMembersPhotoController =
+      TextEditingController();
   final _preservationShaftLintelTiebeamController = TextEditingController();
-  final _preservationShaftLintelTiebeamPhotoController = TextEditingController();
+  final _preservationShaftLintelTiebeamPhotoController =
+      TextEditingController();
   final _preservationShaftBracketSystemController = TextEditingController();
-  final _preservationShaftBracketSystemPhotoController = TextEditingController();
+  final _preservationShaftBracketSystemPhotoController =
+      TextEditingController();
   final _preservationShaftWallGomagiController = TextEditingController();
   final _preservationShaftWallGomagiPhotoController = TextEditingController();
   final _preservationShaftOndolFloorController = TextEditingController();
   final _preservationShaftOndolFloorPhotoController = TextEditingController();
   final _preservationShaftWindowsRailingsController = TextEditingController();
-  final _preservationShaftWindowsRailingsPhotoController = TextEditingController();
+  final _preservationShaftWindowsRailingsPhotoController =
+      TextEditingController();
   final _preservationRoofFramingMembersController = TextEditingController();
-  final _preservationRoofFramingMembersPhotoController = TextEditingController();
+  final _preservationRoofFramingMembersPhotoController =
+      TextEditingController();
   final _preservationRoofRaftersPuyeonController = TextEditingController();
   final _preservationRoofRaftersPuyeonPhotoController = TextEditingController();
   final _preservationRoofRoofTilesController = TextEditingController();
@@ -2497,7 +2825,6 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     // 변경사항 감지를 위한 리스너 추가
     _addChangeListeners();
   }
-
 
   void _handleManagementData(Map<String, dynamic> data) {
     if (!mounted) return;
@@ -2728,20 +3055,17 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     });
   }
 
-
-
-
   Future<void> _saveNow() async {
     print('🚨 BasicInfoScreen._saveNow 함수가 호출되었습니다!');
     debugPrint('🚨 BasicInfoScreen._saveNow 함수가 호출되었습니다!');
-    
+
     _saveDebounce?.cancel();
     final yearKey = _currentYearKey;
     if (yearKey.isEmpty) {
       print('⚠️ yearKey가 비어있습니다. 저장을 건너뜁니다.');
       return;
     }
-    
+
     print('🔄 BasicInfoScreen 저장 시작 - yearKey: $yearKey');
 
     String trim(TextEditingController controller) => controller.text.trim();
@@ -2833,48 +3157,51 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         maxHeight: 1080,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         final Uint8List imageBytes = await image.readAsBytes();
         setState(() {
           _preservationPhotos[photoKey] = imageBytes;
         });
-        
+
         // Firebase에 사진 업로드
         await _uploadPhotoToFirebase(photoKey, imageBytes);
       }
     } catch (e) {
       print('사진 선택 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')));
     }
   }
 
   // Firebase에 사진 업로드
-  Future<void> _uploadPhotoToFirebase(String photoKey, Uint8List imageBytes) async {
+  Future<void> _uploadPhotoToFirebase(
+    String photoKey,
+    Uint8List imageBytes,
+  ) async {
     try {
       final String downloadUrl = await _fb.uploadImage(
         heritageId: widget.heritageId,
         folder: 'preservation_photos',
         bytes: imageBytes,
       );
-      
+
       setState(() {
         _preservationPhotoUrls[photoKey] = downloadUrl;
       });
-      
+
       // 해당 컨트롤러에 사진 URL 업데이트
       _updatePhotoController(photoKey, downloadUrl);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')));
     } catch (e) {
       print('사진 업로드 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')));
     }
   }
 
@@ -2927,9 +3254,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   void _showImageDialog(String photoKey) {
     final String? imageUrl = _preservationPhotoUrls[photoKey];
     final Uint8List? imageBytes = _preservationPhotos[photoKey];
-    
+
     if (imageUrl == null && imageBytes == null) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -2951,8 +3278,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   child: imageBytes != null
                       ? Image.memory(imageBytes, fit: BoxFit.contain)
                       : imageUrl != null
-                          ? OptimizedImage(imageUrl: imageUrl, fit: BoxFit.contain)
-                          : Container(),
+                      ? OptimizedImage(imageUrl: imageUrl, fit: BoxFit.contain)
+                      : Container(),
                 ),
               ),
             ],
@@ -2964,19 +3291,32 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
 
   // 컨트롤러를 기반으로 사진 키 반환
   String _getPhotoKey(TextEditingController controller) {
-    if (controller == _preservationFoundationBasePhotoController) return 'foundationBase';
-    if (controller == _preservationFoundationCornerstonePhotoController) return 'foundationCornerstone';
-    if (controller == _preservationShaftVerticalMembersPhotoController) return 'shaftVerticalMembers';
-    if (controller == _preservationShaftLintelTiebeamPhotoController) return 'shaftLintelTiebeam';
-    if (controller == _preservationShaftBracketSystemPhotoController) return 'shaftBracketSystem';
-    if (controller == _preservationShaftWallGomagiPhotoController) return 'shaftWallGomagi';
-    if (controller == _preservationShaftOndolFloorPhotoController) return 'shaftOndolFloor';
-    if (controller == _preservationShaftWindowsRailingsPhotoController) return 'shaftWindowsRailings';
-    if (controller == _preservationRoofFramingMembersPhotoController) return 'roofFramingMembers';
-    if (controller == _preservationRoofRaftersPuyeonPhotoController) return 'roofRaftersPuyeon';
-    if (controller == _preservationRoofRoofTilesPhotoController) return 'roofRoofTiles';
-    if (controller == _preservationRoofCeilingDanjipPhotoController) return 'roofCeilingDanjip';
-    if (controller == _preservationOtherSpecialNotesPhotoController) return 'otherSpecialNotes';
+    if (controller == _preservationFoundationBasePhotoController)
+      return 'foundationBase';
+    if (controller == _preservationFoundationCornerstonePhotoController)
+      return 'foundationCornerstone';
+    if (controller == _preservationShaftVerticalMembersPhotoController)
+      return 'shaftVerticalMembers';
+    if (controller == _preservationShaftLintelTiebeamPhotoController)
+      return 'shaftLintelTiebeam';
+    if (controller == _preservationShaftBracketSystemPhotoController)
+      return 'shaftBracketSystem';
+    if (controller == _preservationShaftWallGomagiPhotoController)
+      return 'shaftWallGomagi';
+    if (controller == _preservationShaftOndolFloorPhotoController)
+      return 'shaftOndolFloor';
+    if (controller == _preservationShaftWindowsRailingsPhotoController)
+      return 'shaftWindowsRailings';
+    if (controller == _preservationRoofFramingMembersPhotoController)
+      return 'roofFramingMembers';
+    if (controller == _preservationRoofRaftersPuyeonPhotoController)
+      return 'roofRaftersPuyeon';
+    if (controller == _preservationRoofRoofTilesPhotoController)
+      return 'roofRoofTiles';
+    if (controller == _preservationRoofCeilingDanjipPhotoController)
+      return 'roofCeilingDanjip';
+    if (controller == _preservationOtherSpecialNotesPhotoController)
+      return 'otherSpecialNotes';
     return 'unknown';
   }
 
@@ -2986,13 +3326,17 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     for (final controller in _surveyControllers.values) {
       controller.addListener(_onFieldChanged);
     }
-    
+
     // 보존 사항 컨트롤러들에 리스너 추가
     _preservationFoundationBaseController.addListener(_onFieldChanged);
     _preservationFoundationBasePhotoController.addListener(_onFieldChanged);
-    _preservationFoundationCornerstonePhotoController.addListener(_onFieldChanged);
+    _preservationFoundationCornerstonePhotoController.addListener(
+      _onFieldChanged,
+    );
     _preservationShaftVerticalMembersController.addListener(_onFieldChanged);
-    _preservationShaftVerticalMembersPhotoController.addListener(_onFieldChanged);
+    _preservationShaftVerticalMembersPhotoController.addListener(
+      _onFieldChanged,
+    );
     _preservationShaftLintelTiebeamController.addListener(_onFieldChanged);
     _preservationShaftLintelTiebeamPhotoController.addListener(_onFieldChanged);
     _preservationShaftBracketSystemController.addListener(_onFieldChanged);
@@ -3002,7 +3346,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _preservationShaftOndolFloorController.addListener(_onFieldChanged);
     _preservationShaftOndolFloorPhotoController.addListener(_onFieldChanged);
     _preservationShaftWindowsRailingsController.addListener(_onFieldChanged);
-    _preservationShaftWindowsRailingsPhotoController.addListener(_onFieldChanged);
+    _preservationShaftWindowsRailingsPhotoController.addListener(
+      _onFieldChanged,
+    );
     _preservationRoofFramingMembersController.addListener(_onFieldChanged);
     _preservationRoofFramingMembersPhotoController.addListener(_onFieldChanged);
     _preservationRoofRaftersPuyeonController.addListener(_onFieldChanged);
@@ -3030,85 +3376,131 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     for (final controller in _surveyControllers.values) {
       controller.removeListener(_onFieldChanged);
     }
-    
+
     // 보존 사항 컨트롤러들에서 리스너 제거
     _preservationFoundationBaseController.removeListener(_onFieldChanged);
     _preservationFoundationBasePhotoController.removeListener(_onFieldChanged);
-    _preservationFoundationCornerstonePhotoController.removeListener(_onFieldChanged);
+    _preservationFoundationCornerstonePhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationShaftVerticalMembersController.removeListener(_onFieldChanged);
-    _preservationShaftVerticalMembersPhotoController.removeListener(_onFieldChanged);
+    _preservationShaftVerticalMembersPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationShaftLintelTiebeamController.removeListener(_onFieldChanged);
-    _preservationShaftLintelTiebeamPhotoController.removeListener(_onFieldChanged);
+    _preservationShaftLintelTiebeamPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationShaftBracketSystemController.removeListener(_onFieldChanged);
-    _preservationShaftBracketSystemPhotoController.removeListener(_onFieldChanged);
+    _preservationShaftBracketSystemPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationShaftWallGomagiController.removeListener(_onFieldChanged);
     _preservationShaftWallGomagiPhotoController.removeListener(_onFieldChanged);
     _preservationShaftOndolFloorController.removeListener(_onFieldChanged);
     _preservationShaftOndolFloorPhotoController.removeListener(_onFieldChanged);
     _preservationShaftWindowsRailingsController.removeListener(_onFieldChanged);
-    _preservationShaftWindowsRailingsPhotoController.removeListener(_onFieldChanged);
+    _preservationShaftWindowsRailingsPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationRoofFramingMembersController.removeListener(_onFieldChanged);
-    _preservationRoofFramingMembersPhotoController.removeListener(_onFieldChanged);
+    _preservationRoofFramingMembersPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationRoofRaftersPuyeonController.removeListener(_onFieldChanged);
-    _preservationRoofRaftersPuyeonPhotoController.removeListener(_onFieldChanged);
+    _preservationRoofRaftersPuyeonPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationRoofRoofTilesController.removeListener(_onFieldChanged);
     _preservationRoofRoofTilesPhotoController.removeListener(_onFieldChanged);
     _preservationRoofCeilingDanjipController.removeListener(_onFieldChanged);
-    _preservationRoofCeilingDanjipPhotoController.removeListener(_onFieldChanged);
+    _preservationRoofCeilingDanjipPhotoController.removeListener(
+      _onFieldChanged,
+    );
     _preservationOtherSpecialNotesController.removeListener(_onFieldChanged);
-    _preservationOtherSpecialNotesPhotoController.removeListener(_onFieldChanged);
+    _preservationOtherSpecialNotesPhotoController.removeListener(
+      _onFieldChanged,
+    );
   }
 
   // 연도별 데이터 불러오기
   Future<void> _loadYearData() async {
     if (widget.heritageId.isEmpty) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final fb = FirebaseService();
       final yearKey = _selectedYear.replaceAll('년 조사', '');
-      
+
       // Firebase에서 해당 연도 데이터 조회
       final data = await fb.getYearData(widget.heritageId, yearKey);
-      
+
       if (data != null) {
         // 조사 결과 데이터 로드
         final surveyData = data['surveyResults'] as Map<String, dynamic>? ?? {};
         for (final row in _surveyRowConfigs) {
-          _surveyControllers[row.key]?.text = surveyData[row.key]?.toString() ?? '';
+          _surveyControllers[row.key]?.text =
+              surveyData[row.key]?.toString() ?? '';
         }
-        
+
         // 보존 사항 데이터 로드
-        final preservationData = data['preservationItems'] as Map<String, dynamic>? ?? {};
-        _preservationFoundationBaseController.text = preservationData['foundationBase']?.toString() ?? '';
-        _preservationFoundationBasePhotoController.text = preservationData['foundationBasePhoto']?.toString() ?? '';
-        _preservationFoundationCornerstonePhotoController.text = preservationData['foundationCornerstonePhoto']?.toString() ?? '';
-        _preservationShaftVerticalMembersController.text = preservationData['shaftVerticalMembers']?.toString() ?? '';
-        _preservationShaftVerticalMembersPhotoController.text = preservationData['shaftVerticalMembersPhoto']?.toString() ?? '';
-        _preservationShaftLintelTiebeamController.text = preservationData['shaftLintelTiebeam']?.toString() ?? '';
-        _preservationShaftLintelTiebeamPhotoController.text = preservationData['shaftLintelTiebeamPhoto']?.toString() ?? '';
-        _preservationShaftBracketSystemController.text = preservationData['shaftBracketSystem']?.toString() ?? '';
-        _preservationShaftBracketSystemPhotoController.text = preservationData['shaftBracketSystemPhoto']?.toString() ?? '';
-        _preservationShaftWallGomagiController.text = preservationData['shaftWallGomagi']?.toString() ?? '';
-        _preservationShaftWallGomagiPhotoController.text = preservationData['shaftWallGomagiPhoto']?.toString() ?? '';
-        _preservationShaftOndolFloorController.text = preservationData['shaftOndolFloor']?.toString() ?? '';
-        _preservationShaftOndolFloorPhotoController.text = preservationData['shaftOndolFloorPhoto']?.toString() ?? '';
-        _preservationShaftWindowsRailingsController.text = preservationData['shaftWindowsRailings']?.toString() ?? '';
-        _preservationShaftWindowsRailingsPhotoController.text = preservationData['shaftWindowsRailingsPhoto']?.toString() ?? '';
-        _preservationRoofFramingMembersController.text = preservationData['roofFramingMembers']?.toString() ?? '';
-        _preservationRoofFramingMembersPhotoController.text = preservationData['roofFramingMembersPhoto']?.toString() ?? '';
-        _preservationRoofRaftersPuyeonController.text = preservationData['roofRaftersPuyeon']?.toString() ?? '';
-        _preservationRoofRaftersPuyeonPhotoController.text = preservationData['roofRaftersPuyeonPhoto']?.toString() ?? '';
-        _preservationRoofRoofTilesController.text = preservationData['roofRoofTiles']?.toString() ?? '';
-        _preservationRoofRoofTilesPhotoController.text = preservationData['roofRoofTilesPhoto']?.toString() ?? '';
-        _preservationRoofCeilingDanjipController.text = preservationData['roofCeilingDanjip']?.toString() ?? '';
-        _preservationRoofCeilingDanjipPhotoController.text = preservationData['roofCeilingDanjipPhoto']?.toString() ?? '';
-        _preservationOtherSpecialNotesController.text = preservationData['otherSpecialNotes']?.toString() ?? '';
-        _preservationOtherSpecialNotesPhotoController.text = preservationData['otherSpecialNotesPhoto']?.toString() ?? '';
-        
+        final preservationData =
+            data['preservationItems'] as Map<String, dynamic>? ?? {};
+        _preservationFoundationBaseController.text =
+            preservationData['foundationBase']?.toString() ?? '';
+        _preservationFoundationBasePhotoController.text =
+            preservationData['foundationBasePhoto']?.toString() ?? '';
+        _preservationFoundationCornerstonePhotoController.text =
+            preservationData['foundationCornerstonePhoto']?.toString() ?? '';
+        _preservationShaftVerticalMembersController.text =
+            preservationData['shaftVerticalMembers']?.toString() ?? '';
+        _preservationShaftVerticalMembersPhotoController.text =
+            preservationData['shaftVerticalMembersPhoto']?.toString() ?? '';
+        _preservationShaftLintelTiebeamController.text =
+            preservationData['shaftLintelTiebeam']?.toString() ?? '';
+        _preservationShaftLintelTiebeamPhotoController.text =
+            preservationData['shaftLintelTiebeamPhoto']?.toString() ?? '';
+        _preservationShaftBracketSystemController.text =
+            preservationData['shaftBracketSystem']?.toString() ?? '';
+        _preservationShaftBracketSystemPhotoController.text =
+            preservationData['shaftBracketSystemPhoto']?.toString() ?? '';
+        _preservationShaftWallGomagiController.text =
+            preservationData['shaftWallGomagi']?.toString() ?? '';
+        _preservationShaftWallGomagiPhotoController.text =
+            preservationData['shaftWallGomagiPhoto']?.toString() ?? '';
+        _preservationShaftOndolFloorController.text =
+            preservationData['shaftOndolFloor']?.toString() ?? '';
+        _preservationShaftOndolFloorPhotoController.text =
+            preservationData['shaftOndolFloorPhoto']?.toString() ?? '';
+        _preservationShaftWindowsRailingsController.text =
+            preservationData['shaftWindowsRailings']?.toString() ?? '';
+        _preservationShaftWindowsRailingsPhotoController.text =
+            preservationData['shaftWindowsRailingsPhoto']?.toString() ?? '';
+        _preservationRoofFramingMembersController.text =
+            preservationData['roofFramingMembers']?.toString() ?? '';
+        _preservationRoofFramingMembersPhotoController.text =
+            preservationData['roofFramingMembersPhoto']?.toString() ?? '';
+        _preservationRoofRaftersPuyeonController.text =
+            preservationData['roofRaftersPuyeon']?.toString() ?? '';
+        _preservationRoofRaftersPuyeonPhotoController.text =
+            preservationData['roofRaftersPuyeonPhoto']?.toString() ?? '';
+        _preservationRoofRoofTilesController.text =
+            preservationData['roofRoofTiles']?.toString() ?? '';
+        _preservationRoofRoofTilesPhotoController.text =
+            preservationData['roofRoofTilesPhoto']?.toString() ?? '';
+        _preservationRoofCeilingDanjipController.text =
+            preservationData['roofCeilingDanjip']?.toString() ?? '';
+        _preservationRoofCeilingDanjipPhotoController.text =
+            preservationData['roofCeilingDanjipPhoto']?.toString() ?? '';
+        _preservationOtherSpecialNotesController.text =
+            preservationData['otherSpecialNotes']?.toString() ?? '';
+        _preservationOtherSpecialNotesPhotoController.text =
+            preservationData['otherSpecialNotesPhoto']?.toString() ?? '';
+
         // 관리사항 데이터 로드
-        final managementData = data['managementItems'] as Map<String, dynamic>? ?? {};
+        final managementData =
+            data['managementItems'] as Map<String, dynamic>? ?? {};
         _hasDisasterManual = managementData['hasDisasterManual'] == true;
         _hasFireTruckAccess = managementData['hasFireTruckAccess'] == true;
         _hasFireLine = managementData['hasFireLine'] == true;
@@ -3128,24 +3520,27 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _hasInfoCenter = managementData['hasInfoCenter'] == true;
         _hasInfoBoard = managementData['hasInfoBoard'] == true;
         _hasExhibitionMuseum = managementData['hasExhibitionMuseum'] == true;
-        _hasNationalHeritageInterpreter = managementData['hasNationalHeritageInterpreter'] == true;
-        
+        _hasNationalHeritageInterpreter =
+            managementData['hasNationalHeritageInterpreter'] == true;
+
         // 유지보수/수리 이력 데이터 로드
-        final maintenanceData = data['maintenanceHistory'] as Map<String, dynamic>? ?? {};
+        final maintenanceData =
+            data['maintenanceHistory'] as Map<String, dynamic>? ?? {};
         _precisionDiagnosis = maintenanceData['precision_diagnosis'] == true;
         _careProject = maintenanceData['care_project'] == true;
-        _repairRecordController.text = maintenanceData['repair_record']?.toString() ?? '';
-        
+        _repairRecordController.text =
+            maintenanceData['repair_record']?.toString() ?? '';
+
         // 원본 데이터 저장 (변경 감지용)
         _originalData = Map.from(data);
-        
+
         setState(() {
           _hasUnsavedChanges = false;
         });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_selectedYear 데이터를 불러왔습니다.')),
-        );
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$_selectedYear 데이터를 불러왔습니다.')));
       } else {
         // 데이터가 없는 경우 필드 초기화
         _clearAllFields();
@@ -3155,9 +3550,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
     } catch (e) {
       print('연도별 데이터 불러오기 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('데이터 불러오기 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('데이터 불러오기 중 오류가 발생했습니다: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -3181,7 +3576,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _fireSafetyNoteController.clear();
     _electricalPartController.clear();
     _electricalNoteController.clear();
-    
+
     // 보존 사항 필드 초기화
     _preservationFoundationBaseController.clear();
     _preservationFoundationBasePhotoController.clear();
@@ -3208,7 +3603,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _preservationRoofCeilingDanjipPhotoController.clear();
     _preservationOtherSpecialNotesController.clear();
     _preservationOtherSpecialNotesPhotoController.clear();
-    
+
     // 관리사항 체크박스 초기화
     _hasDisasterManual = false;
     _hasFireTruckAccess = false;
@@ -3230,7 +3625,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _hasInfoBoard = false;
     _hasExhibitionMuseum = false;
     _hasNationalHeritageInterpreter = false;
-    
+
     // 유지보수/수리 이력 필드 초기화
     _precisionDiagnosis = false;
     _careProject = false;
@@ -3250,35 +3645,59 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       for (final row in _surveyRowConfigs)
         row.key: _surveyControllers[row.key]!.text.trim(),
     };
-    
+
     final preservationData = <String, dynamic>{
       'foundationBase': _preservationFoundationBaseController.text.trim(),
-      'foundationBasePhoto': _preservationFoundationBasePhotoController.text.trim(),
-      'foundationCornerstonePhoto': _preservationFoundationCornerstonePhotoController.text.trim(),
-      'shaftVerticalMembers': _preservationShaftVerticalMembersController.text.trim(),
-      'shaftVerticalMembersPhoto': _preservationShaftVerticalMembersPhotoController.text.trim(),
-      'shaftLintelTiebeam': _preservationShaftLintelTiebeamController.text.trim(),
-      'shaftLintelTiebeamPhoto': _preservationShaftLintelTiebeamPhotoController.text.trim(),
-      'shaftBracketSystem': _preservationShaftBracketSystemController.text.trim(),
-      'shaftBracketSystemPhoto': _preservationShaftBracketSystemPhotoController.text.trim(),
+      'foundationBasePhoto': _preservationFoundationBasePhotoController.text
+          .trim(),
+      'foundationCornerstonePhoto':
+          _preservationFoundationCornerstonePhotoController.text.trim(),
+      'shaftVerticalMembers': _preservationShaftVerticalMembersController.text
+          .trim(),
+      'shaftVerticalMembersPhoto':
+          _preservationShaftVerticalMembersPhotoController.text.trim(),
+      'shaftLintelTiebeam': _preservationShaftLintelTiebeamController.text
+          .trim(),
+      'shaftLintelTiebeamPhoto': _preservationShaftLintelTiebeamPhotoController
+          .text
+          .trim(),
+      'shaftBracketSystem': _preservationShaftBracketSystemController.text
+          .trim(),
+      'shaftBracketSystemPhoto': _preservationShaftBracketSystemPhotoController
+          .text
+          .trim(),
       'shaftWallGomagi': _preservationShaftWallGomagiController.text.trim(),
-      'shaftWallGomagiPhoto': _preservationShaftWallGomagiPhotoController.text.trim(),
+      'shaftWallGomagiPhoto': _preservationShaftWallGomagiPhotoController.text
+          .trim(),
       'shaftOndolFloor': _preservationShaftOndolFloorController.text.trim(),
-      'shaftOndolFloorPhoto': _preservationShaftOndolFloorPhotoController.text.trim(),
-      'shaftWindowsRailings': _preservationShaftWindowsRailingsController.text.trim(),
-      'shaftWindowsRailingsPhoto': _preservationShaftWindowsRailingsPhotoController.text.trim(),
-      'roofFramingMembers': _preservationRoofFramingMembersController.text.trim(),
-      'roofFramingMembersPhoto': _preservationRoofFramingMembersPhotoController.text.trim(),
+      'shaftOndolFloorPhoto': _preservationShaftOndolFloorPhotoController.text
+          .trim(),
+      'shaftWindowsRailings': _preservationShaftWindowsRailingsController.text
+          .trim(),
+      'shaftWindowsRailingsPhoto':
+          _preservationShaftWindowsRailingsPhotoController.text.trim(),
+      'roofFramingMembers': _preservationRoofFramingMembersController.text
+          .trim(),
+      'roofFramingMembersPhoto': _preservationRoofFramingMembersPhotoController
+          .text
+          .trim(),
       'roofRaftersPuyeon': _preservationRoofRaftersPuyeonController.text.trim(),
-      'roofRaftersPuyeonPhoto': _preservationRoofRaftersPuyeonPhotoController.text.trim(),
+      'roofRaftersPuyeonPhoto': _preservationRoofRaftersPuyeonPhotoController
+          .text
+          .trim(),
       'roofRoofTiles': _preservationRoofRoofTilesController.text.trim(),
-      'roofRoofTilesPhoto': _preservationRoofRoofTilesPhotoController.text.trim(),
+      'roofRoofTilesPhoto': _preservationRoofRoofTilesPhotoController.text
+          .trim(),
       'roofCeilingDanjip': _preservationRoofCeilingDanjipController.text.trim(),
-      'roofCeilingDanjipPhoto': _preservationRoofCeilingDanjipPhotoController.text.trim(),
+      'roofCeilingDanjipPhoto': _preservationRoofCeilingDanjipPhotoController
+          .text
+          .trim(),
       'otherSpecialNotes': _preservationOtherSpecialNotesController.text.trim(),
-      'otherSpecialNotesPhoto': _preservationOtherSpecialNotesPhotoController.text.trim(),
+      'otherSpecialNotesPhoto': _preservationOtherSpecialNotesPhotoController
+          .text
+          .trim(),
     };
-    
+
     final managementData = <String, dynamic>{
       'hasDisasterManual': _hasDisasterManual,
       'hasFireTruckAccess': _hasFireTruckAccess,
@@ -3301,13 +3720,13 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       'hasExhibitionMuseum': _hasExhibitionMuseum,
       'hasNationalHeritageInterpreter': _hasNationalHeritageInterpreter,
     };
-    
+
     final maintenanceData = <String, dynamic>{
       'precision_diagnosis': _precisionDiagnosis,
       'care_project': _careProject,
       'repair_record': _repairRecordController.text.trim(),
     };
-    
+
     return {
       'surveyResults': surveyData,
       'preservationItems': preservationData,
@@ -3319,44 +3738,44 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   // 맵 비교 함수
   bool _mapsEqual(Map<String, dynamic> map1, Map<String, dynamic> map2) {
     if (map1.length != map2.length) return false;
-    
+
     for (final key in map1.keys) {
       if (!map2.containsKey(key)) return false;
       if (map1[key] != map2[key]) return false;
     }
-    
+
     return true;
   }
 
   // 연도별 데이터 저장
   Future<void> _saveYearData() async {
     if (widget.heritageId.isEmpty) return;
-    
+
     setState(() => _isSaving = true);
-    
+
     try {
       final fb = FirebaseService();
       final yearKey = _selectedYear.replaceAll('년 조사', '');
       final currentData = _getCurrentData();
-      
+
       // Firebase에 연도별 데이터 저장
       await fb.saveYearData(widget.heritageId, yearKey, currentData);
-      
+
       // 원본 데이터 업데이트
       _originalData = Map.from(currentData);
-      
+
       setState(() {
         _hasUnsavedChanges = false;
       });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$_selectedYear 데이터가 저장되었습니다.')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$_selectedYear 데이터가 저장되었습니다.')));
     } catch (e) {
       print('연도별 데이터 저장 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('데이터 저장 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('데이터 저장 중 오류가 발생했습니다: $e')));
     } finally {
       setState(() => _isSaving = false);
     }
@@ -3377,13 +3796,15 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Future<void> _saveSurveyData() async {
     print('🚨 1.1 조사 결과 저장 시작!');
     debugPrint('🚨 1.1 조사 결과 저장 시작!');
-    
+
     try {
       final heritageId = widget.heritageId;
       final heritageName = widget.heritageName;
-      
-      print('🔍 1.1 조사 결과 저장 - HeritageId: $heritageId, HeritageName: $heritageName');
-      
+
+      print(
+        '🔍 1.1 조사 결과 저장 - HeritageId: $heritageId, HeritageName: $heritageName',
+      );
+
       // 조사 결과 데이터 수집 (실제 사용자 입력 필드들)
       final surveyData = <String, dynamic>{
         for (final row in _surveyRowConfigs)
@@ -3401,9 +3822,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       await fb.addDetailSurvey(
         heritageId: heritageId,
         heritageName: heritageName,
-        surveyData: {
-          'surveyResults': surveyData,
-        },
+        surveyData: {'surveyResults': surveyData},
       );
 
       print('✅ 1.1 조사 결과 저장 완료!');
@@ -3619,10 +4038,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     _preservationOtherSpecialNotesController.dispose();
     _preservationOtherSpecialNotesPhotoController.dispose();
     _repairRecordController.dispose();
-    
+
     // 리스너 제거
     _removeChangeListeners();
-    
+
     super.dispose();
   }
 
@@ -3640,10 +4059,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             children: [
               const Text(
                 '이력 수정 기록',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -3668,7 +4084,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    edit['title'],
+                                    (edit['title'] as String? ?? ''),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
@@ -3681,16 +4097,16 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: edit['status'] == '완료' 
-                                        ? Colors.green.shade100 
+                                    color: edit['status'] == '완료'
+                                        ? Colors.green.shade100
                                         : Colors.orange.shade100,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    edit['status'],
+                                    (edit['status'] as String? ?? ''),
                                     style: TextStyle(
-                                      color: edit['status'] == '완료' 
-                                          ? Colors.green.shade700 
+                                      color: edit['status'] == '완료'
+                                          ? Colors.green.shade700
                                           : Colors.orange.shade700,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 12,
@@ -3702,14 +4118,22 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                Icon(Icons.person, size: 16, color: Colors.grey[600]),
+                                Icon(
+                                  Icons.person,
+                                  size: 16,
+                                  color: Colors.grey[600],
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '수정자: ${edit['editor']}',
                                   style: TextStyle(color: Colors.grey[700]),
                                 ),
                                 const SizedBox(width: 16),
-                                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                                Icon(
+                                  Icons.access_time,
+                                  size: 16,
+                                  color: Colors.grey[600],
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '수정일: ${edit['date']}',
@@ -3836,7 +4260,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                           DropdownButton<String>(
                             value: _selectedYear,
                             onChanged: (String? newValue) {
-                              if (newValue != null && newValue != _selectedYear) {
+                              if (newValue != null &&
+                                  newValue != _selectedYear) {
                                 setState(() {
                                   _selectedYear = newValue;
                                 });
@@ -3943,7 +4368,8 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: _isEditable && !_isSaving && _hasUnsavedChanges
+                        onPressed:
+                            _isEditable && !_isSaving && _hasUnsavedChanges
                             ? () async {
                                 await _saveYearData();
                               }
@@ -4045,7 +4471,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-      children: [
+        children: [
           // 테이블 헤더
           Container(
             padding: const EdgeInsets.all(12),
@@ -4057,7 +4483,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               ),
             ),
             child: const Row(
-                children: [
+              children: [
                 Expanded(
                   flex: 1,
                   child: Text(
@@ -4079,9 +4505,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                       color: Color(0xFF111827),
                     ),
                   ),
-              ),
-          ],
-        ),
+                ),
+              ],
+            ),
           ),
           // 구조부 섹션
           _buildSurveyTableSection('구조부', [
@@ -4091,16 +4517,25 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           ]),
           // 기타부 섹션
           _buildSurveyTableSection('기타부', [
-            _buildSurveyTableRow('채색 (단청, 벽화)', _surveyControllers['coloring']!),
+            _buildSurveyTableRow(
+              '채색 (단청, 벽화)',
+              _surveyControllers['coloring']!,
+            ),
             _buildSurveyTableRow('충해', _surveyControllers['pest']!),
             _buildSurveyTableRow('기타', _surveyControllers['etc']!),
           ]),
           // 조사 정보 섹션
           _buildSurveyTableSection('조사 정보', [
             _buildSurveyTableRow('특기사항', _surveyControllers['safetyNotes']!),
-            _buildSurveyTableRow('조사 종합의견', _surveyControllers['investigatorOpinion']!),
+            _buildSurveyTableRow(
+              '조사 종합의견',
+              _surveyControllers['investigatorOpinion']!,
+            ),
             _buildSurveyTableRow('등급분류', _surveyControllers['grade']!),
-            _buildSurveyTableRow('조사일시', _surveyControllers['investigationDate']!),
+            _buildSurveyTableRow(
+              '조사일시',
+              _surveyControllers['investigationDate']!,
+            ),
             _buildSurveyTableRow('조사자', _surveyControllers['investigator']!),
           ]),
         ],
@@ -4122,7 +4557,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             ),
           ),
           child: Row(
-                      children: [
+            children: [
               Expanded(
                 child: Text(
                   sectionTitle,
@@ -4133,9 +4568,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   ),
                 ),
               ),
-                      ],
-                    ),
-            ),
+            ],
+          ),
+        ),
         // 섹션 내용
         ...rows,
       ],
@@ -4146,9 +4581,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4260,23 +4693,23 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // 소방 및 안전관리 섹션
           _buildManagementFireSafetySection(),
           const SizedBox(height: 20),
-          
+
           // 전기시설 관리상태 섹션
           _buildManagementElectricalSection(),
           const SizedBox(height: 20),
-          
+
           // 가스시설 관리상태 섹션
           _buildManagementGasSection(),
           const SizedBox(height: 20),
-          
+
           // 안전경비인력 관리상태 섹션
           _buildManagementSecuritySection(),
           const SizedBox(height: 20),
-          
+
           // 돌봄사업 섹션
           _buildManagementCareSection(),
           const SizedBox(height: 20),
@@ -4310,18 +4743,28 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           ),
         ),
         const SizedBox(height: 12),
-        _buildManagementCheckboxRow('방재매뉴얼(소방시설도면 등) 배치 여부', _hasDisasterManual, (value) {
-          setState(() => _hasDisasterManual = value);
-        }),
-        _buildManagementCheckboxRow('소방차의 진입 가능 여부', _hasFireTruckAccess, (value) {
+        _buildManagementCheckboxRow(
+          '방재매뉴얼(소방시설도면 등) 배치 여부',
+          _hasDisasterManual,
+          (value) {
+            setState(() => _hasDisasterManual = value);
+          },
+        ),
+        _buildManagementCheckboxRow('소방차의 진입 가능 여부', _hasFireTruckAccess, (
+          value,
+        ) {
           setState(() => _hasFireTruckAccess = value);
         }),
         _buildManagementCheckboxRow('방화선 여부', _hasFireLine, (value) {
           setState(() => _hasFireLine = value);
         }),
-        _buildManagementCheckboxRow('국보·보물 내에 화재 시 대피 대상 국가유산 유무', _hasEvacTargets, (value) {
-          setState(() => _hasEvacTargets = value);
-        }),
+        _buildManagementCheckboxRow(
+          '국보·보물 내에 화재 시 대피 대상 국가유산 유무',
+          _hasEvacTargets,
+          (value) {
+            setState(() => _hasEvacTargets = value);
+          },
+        ),
         _buildManagementCheckboxRow('정기적인 교육과 훈련 실시 여부', _hasTraining, (value) {
           setState(() => _hasTraining = value);
         }),
@@ -4332,16 +4775,22 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _buildManagementCheckboxWithCountRow('옥외소화전', _hasHydrant, (value) {
           setState(() => _hasHydrant = value);
         }, TextEditingController()),
-        _buildManagementCheckboxWithCountRow('자동화재속보설비', _hasAutoAlarm, (value) {
+        _buildManagementCheckboxWithCountRow('자동화재속보설비', _hasAutoAlarm, (
+          value,
+        ) {
           setState(() => _hasAutoAlarm = value);
         }, TextEditingController()),
         _buildManagementCheckboxWithCountRow('CCTV', _hasCCTV, (value) {
           setState(() => _hasCCTV = value);
         }, TextEditingController()),
-        _buildManagementCheckboxWithCountRow('도난방지카메라', _hasAntiTheftCam, (value) {
+        _buildManagementCheckboxWithCountRow('도난방지카메라', _hasAntiTheftCam, (
+          value,
+        ) {
           setState(() => _hasAntiTheftCam = value);
         }, TextEditingController()),
-        _buildManagementCheckboxWithCountRow('화재감지기', _hasFireDetector, (value) {
+        _buildManagementCheckboxWithCountRow('화재감지기', _hasFireDetector, (
+          value,
+        ) {
           setState(() => _hasFireDetector = value);
         }, TextEditingController()),
       ],
@@ -4351,7 +4800,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementElectricalSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      children: [
         const Text(
           '전기시설',
           style: TextStyle(
@@ -4371,7 +4820,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementGasSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+      children: [
         const Text(
           '가스시설',
           style: TextStyle(
@@ -4401,7 +4850,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           ),
         ),
         const SizedBox(height: 12),
-        _buildManagementCheckboxRow('안전경비인력 배치 여부', _hasSecurityPersonnel, (value) {
+        _buildManagementCheckboxRow('안전경비인력 배치 여부', _hasSecurityPersonnel, (
+          value,
+        ) {
           setState(() => _hasSecurityPersonnel = value);
         }),
         _buildManagementCheckboxRow('관리일지 작성 여부', _hasManagementLog, (value) {
@@ -4414,7 +4865,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementCareSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+      children: [
         const Text(
           '돌봄사업',
           style: TextStyle(
@@ -4453,9 +4904,13 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _buildManagementCheckboxRow('전시관/박물관', _hasExhibitionMuseum, (value) {
           setState(() => _hasExhibitionMuseum = value);
         }),
-        _buildManagementCheckboxRow('국가유산 해설사', _hasNationalHeritageInterpreter, (value) {
-          setState(() => _hasNationalHeritageInterpreter = value);
-        }),
+        _buildManagementCheckboxRow(
+          '국가유산 해설사',
+          _hasNationalHeritageInterpreter,
+          (value) {
+            setState(() => _hasNationalHeritageInterpreter = value);
+          },
+        ),
       ],
     );
   }
@@ -4486,7 +4941,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
   Widget _buildManagementOriginalFunctionSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+      children: [
         const Text(
           '원래기능/활용상태/사용빈도',
           style: TextStyle(
@@ -4501,7 +4956,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildManagementCheckboxRow(String label, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildManagementCheckboxRow(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -4522,17 +4981,22 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                 _buildManagementCheckbox('없음', !value, () => onChanged(false)),
               ],
             ),
-            ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildManagementCheckboxWithCountRow(String label, bool hasItem, ValueChanged<bool> onHasItemChanged, TextEditingController controller) {
+  Widget _buildManagementCheckboxWithCountRow(
+    String label,
+    bool hasItem,
+    ValueChanged<bool> onHasItemChanged,
+    TextEditingController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-          children: [
+        children: [
           Expanded(
             flex: 2,
             child: Text(
@@ -4544,9 +5008,17 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             flex: 1,
             child: Row(
               children: [
-                _buildManagementCheckbox('있음', hasItem, () => onHasItemChanged(true)),
+                _buildManagementCheckbox(
+                  '있음',
+                  hasItem,
+                  () => onHasItemChanged(true),
+                ),
                 const SizedBox(width: 8),
-                _buildManagementCheckbox('없음', !hasItem, () => onHasItemChanged(false)),
+                _buildManagementCheckbox(
+                  '없음',
+                  !hasItem,
+                  () => onHasItemChanged(false),
+                ),
               ],
             ),
           ),
@@ -4563,14 +5035,21 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(4),
-                  borderSide: BorderSide(color: hasItem ? const Color(0xFFD1D5DB) : Colors.grey.shade300),
+                  borderSide: BorderSide(
+                    color: hasItem
+                        ? const Color(0xFFD1D5DB)
+                        : Colors.grey.shade300,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(4),
                   borderSide: const BorderSide(color: Color(0xFF1E2A44)),
                 ),
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
                 fillColor: hasItem ? Colors.white : Colors.grey.shade50,
                 filled: true,
               ),
@@ -4582,7 +5061,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildManagementTextFieldRow(String label, TextEditingController controller) {
+  Widget _buildManagementTextFieldRow(
+    String label,
+    TextEditingController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -4614,7 +5096,10 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   borderSide: const BorderSide(color: Color(0xFF1E2A44)),
                 ),
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
                 fillColor: Colors.white,
                 filled: true,
               ),
@@ -4626,7 +5111,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildManagementCheckbox(String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildManagementCheckbox(
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Row(
@@ -4637,18 +5126,16 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             height: 16,
             decoration: BoxDecoration(
               border: Border.all(
-                color: isSelected ? const Color(0xFF1E2A44) : const Color(0xFFD1D5DB),
+                color: isSelected
+                    ? const Color(0xFF1E2A44)
+                    : const Color(0xFFD1D5DB),
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(3),
               color: isSelected ? const Color(0xFF1E2A44) : Colors.white,
             ),
             child: isSelected
-                ? const Icon(
-                    Icons.check,
-                    size: 12,
-                    color: Colors.white,
-                  )
+                ? const Icon(Icons.check, size: 12, color: Colors.white)
                 : null,
           ),
           const SizedBox(width: 4),
@@ -4656,7 +5143,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: isSelected ? const Color(0xFF1E2A44) : const Color(0xFF6B7280),
+              color: isSelected
+                  ? const Color(0xFF1E2A44)
+                  : const Color(0xFF6B7280),
             ),
           ),
         ],
@@ -4671,7 +5160,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
-                      children: [
+        children: [
           // 테이블 헤더
           Container(
             padding: const EdgeInsets.all(12),
@@ -4728,45 +5217,111 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                     ),
                   ),
                 ),
-                      ],
-                    ),
+              ],
             ),
+          ),
           // ① 기단부 섹션
           _buildPreservationTableSection('① 기단부', [
-            _buildPreservationTableRow('기단부', '기단', _preservationFoundationBaseController, _preservationFoundationBasePhotoController, 
-              surveyContent: '조사내용에서는 부재/위치/현상 순으로 내용을 기입한다.\n해당 현상을 촬영한 사진을 첨부하고, 사진/위치 란에 사진번호를 기입한다.\n사진번호는 부재명과 번호를 같이 기입한다.'),
-            _buildPreservationTableRow('', '초석', TextEditingController(), _preservationFoundationCornerstonePhotoController),
+            _buildPreservationTableRow(
+              '기단부',
+              '기단',
+              _preservationFoundationBaseController,
+              _preservationFoundationBasePhotoController,
+              surveyContent:
+                  '조사내용에서는 부재/위치/현상 순으로 내용을 기입한다.\n해당 현상을 촬영한 사진을 첨부하고, 사진/위치 란에 사진번호를 기입한다.\n사진번호는 부재명과 번호를 같이 기입한다.',
+            ),
+            _buildPreservationTableRow(
+              '',
+              '초석',
+              TextEditingController(),
+              _preservationFoundationCornerstonePhotoController,
+            ),
           ]),
           // ② 축부(벽체부) 섹션
           _buildPreservationTableSection('② 축부(벽체부)', [
-            _buildPreservationTableRow('축부(벽체부)', '기둥 등 수직재 (기둥 등 수직으로 하중을 받는 모든 부재)', 
-              _preservationShaftVerticalMembersController, _preservationShaftVerticalMembersPhotoController),
-            _buildPreservationTableRow('', '인방(引枋: 기둥과 기둥 사이에 놓이는 부재)/창방 등', 
-              _preservationShaftLintelTiebeamController, _preservationShaftLintelTiebeamPhotoController),
-            _buildPreservationTableRow('', '공포', _preservationShaftBracketSystemController, _preservationShaftBracketSystemPhotoController),
-            _buildPreservationTableRow('', '벽체/고막이', _preservationShaftWallGomagiController, _preservationShaftWallGomagiPhotoController),
-            _buildPreservationTableRow('', '구들/마루', _preservationShaftOndolFloorController, _preservationShaftOndolFloorPhotoController),
-            _buildPreservationTableRow('', '창호/난간', _preservationShaftWindowsRailingsController, _preservationShaftWindowsRailingsPhotoController),
+            _buildPreservationTableRow(
+              '축부(벽체부)',
+              '기둥 등 수직재 (기둥 등 수직으로 하중을 받는 모든 부재)',
+              _preservationShaftVerticalMembersController,
+              _preservationShaftVerticalMembersPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '인방(引枋: 기둥과 기둥 사이에 놓이는 부재)/창방 등',
+              _preservationShaftLintelTiebeamController,
+              _preservationShaftLintelTiebeamPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '공포',
+              _preservationShaftBracketSystemController,
+              _preservationShaftBracketSystemPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '벽체/고막이',
+              _preservationShaftWallGomagiController,
+              _preservationShaftWallGomagiPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '구들/마루',
+              _preservationShaftOndolFloorController,
+              _preservationShaftOndolFloorPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '창호/난간',
+              _preservationShaftWindowsRailingsController,
+              _preservationShaftWindowsRailingsPhotoController,
+            ),
           ]),
           // ③ 지붕부 섹션
           _buildPreservationTableSection('③ 지붕부', [
-            _buildPreservationTableRow('지붕부', '지붕 가구재', _preservationRoofFramingMembersController, _preservationRoofFramingMembersPhotoController,
-              surveyContent: '보 부재 등의 조사내용을 기입한다.'),
-            _buildPreservationTableRow('', '서까래/부연 (처마 서까래의 끝에 덧없는 네모지고 짧은 서까래)', 
-              _preservationRoofRaftersPuyeonController, _preservationRoofRaftersPuyeonPhotoController),
-            _buildPreservationTableRow('', '지붕/기와', _preservationRoofRoofTilesController, _preservationRoofRoofTilesPhotoController),
-            _buildPreservationTableRow('', '천장/단집', _preservationRoofCeilingDanjipController, _preservationRoofCeilingDanjipPhotoController),
+            _buildPreservationTableRow(
+              '지붕부',
+              '지붕 가구재',
+              _preservationRoofFramingMembersController,
+              _preservationRoofFramingMembersPhotoController,
+              surveyContent: '보 부재 등의 조사내용을 기입한다.',
+            ),
+            _buildPreservationTableRow(
+              '',
+              '서까래/부연 (처마 서까래의 끝에 덧없는 네모지고 짧은 서까래)',
+              _preservationRoofRaftersPuyeonController,
+              _preservationRoofRaftersPuyeonPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '지붕/기와',
+              _preservationRoofRoofTilesController,
+              _preservationRoofRoofTilesPhotoController,
+            ),
+            _buildPreservationTableRow(
+              '',
+              '천장/단집',
+              _preservationRoofCeilingDanjipController,
+              _preservationRoofCeilingDanjipPhotoController,
+            ),
           ]),
           // 기타사항 섹션
           _buildPreservationTableSection('기타사항', [
-            _buildPreservationTableRow('기타사항', '특기사항', _preservationOtherSpecialNotesController, _preservationOtherSpecialNotesPhotoController),
+            _buildPreservationTableRow(
+              '기타사항',
+              '특기사항',
+              _preservationOtherSpecialNotesController,
+              _preservationOtherSpecialNotesPhotoController,
+            ),
           ]),
         ],
       ),
     );
   }
 
-  Widget _buildPreservationTableSection(String sectionTitle, List<Widget> rows) {
+  Widget _buildPreservationTableSection(
+    String sectionTitle,
+    List<Widget> rows,
+  ) {
     return Column(
       children: [
         // 섹션 헤더
@@ -4800,13 +5355,17 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildPreservationTableRow(String category, String component, TextEditingController surveyController, TextEditingController photoController, {String? surveyContent}) {
+  Widget _buildPreservationTableRow(
+    String category,
+    String component,
+    TextEditingController surveyController,
+    TextEditingController photoController, {
+    String? surveyContent,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4862,10 +5421,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               ),
               maxLines: surveyContent != null ? 5 : 2,
               readOnly: false,
-              style: const TextStyle(
-                fontSize: 13, 
-                color: Color(0xFF374151)
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
             ),
           ),
           const SizedBox(width: 12),
@@ -4878,13 +5434,18 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isEditable ? () => _pickImage(_getPhotoKey(photoController)) : null,
+                    onPressed: _isEditable
+                        ? () => _pickImage(_getPhotoKey(photoController))
+                        : null,
                     icon: const Icon(Icons.camera_alt, size: 16),
                     label: const Text('사진 첨부', style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E2A44),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -4901,14 +5462,20 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xFFD1D5DB)),
                       borderRadius: BorderRadius.circular(6),
-                      color: photoController.text.isNotEmpty ? const Color(0xFFF0F9FF) : Colors.white,
+                      color: photoController.text.isNotEmpty
+                          ? const Color(0xFFF0F9FF)
+                          : Colors.white,
                     ),
                     child: Text(
                       photoController.text.isNotEmpty ? '사진 보기' : '사진 없음',
                       style: TextStyle(
                         fontSize: 12,
-                        color: photoController.text.isNotEmpty ? const Color(0xFF1E2A44) : Colors.grey.shade600,
-                        fontWeight: photoController.text.isNotEmpty ? FontWeight.w500 : FontWeight.normal,
+                        color: photoController.text.isNotEmpty
+                            ? const Color(0xFF1E2A44)
+                            : Colors.grey.shade600,
+                        fontWeight: photoController.text.isNotEmpty
+                            ? FontWeight.w500
+                            : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -5038,15 +5605,15 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             border: TableBorder.all(color: Colors.grey.shade300),
             columnWidths: const {
               0: FixedColumnWidth(100), // 구성 요소
-              1: FixedColumnWidth(80),  // 위치
+              1: FixedColumnWidth(80), // 위치
               2: FixedColumnWidth(100), // 구조적 손상 이격/이완
               3: FixedColumnWidth(100), // 구조적 손상 기울
               4: FixedColumnWidth(100), // 물리적 손상 탈락
               5: FixedColumnWidth(100), // 물리적 손상 갈램
               6: FixedColumnWidth(100), // 생물·화학적 손상 천공
               7: FixedColumnWidth(100), // 생물·화학적 손상 부후
-              8: FixedColumnWidth(80),  // 육안 등급 육안
-              9: FixedColumnWidth(80),  // 실험실 등급 실험실
+              8: FixedColumnWidth(80), // 육안 등급 육안
+              9: FixedColumnWidth(80), // 실험실 등급 실험실
               10: FixedColumnWidth(80), // 최종 등급 최종
             },
             children: [
@@ -5069,7 +5636,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               if (_damageSummaryRows.isEmpty)
                 const TableRow(
                   children: [
-                    _DamageTableCell('행을 추가해 주세요.', isHeader: false, colSpan: 11),
+                    _DamageTableCell(
+                      '행을 추가해 주세요.',
+                      isHeader: false,
+                      colSpan: 11,
+                    ),
                   ],
                 )
               else
@@ -5133,27 +5704,21 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // 정밀진단 실시 여부
-          _buildMaintenanceCheckboxRow(
-            '정밀진단 실시 여부',
-            _precisionDiagnosis,
-            (value) {
-              setState(() => _precisionDiagnosis = value);
-            },
-          ),
+          _buildMaintenanceCheckboxRow('정밀진단 실시 여부', _precisionDiagnosis, (
+            value,
+          ) {
+            setState(() => _precisionDiagnosis = value);
+          }),
           const SizedBox(height: 16),
-          
+
           // 돌봄사업 수행 여부
-          _buildMaintenanceCheckboxRow(
-            '돌봄사업 수행 여부',
-            _careProject,
-            (value) {
-              setState(() => _careProject = value);
-            },
-          ),
+          _buildMaintenanceCheckboxRow('돌봄사업 수행 여부', _careProject, (value) {
+            setState(() => _careProject = value);
+          }),
           const SizedBox(height: 16),
-          
+
           // 수리 기록
           _buildMaintenanceTextFieldRow(
             '수리 기록',
@@ -5165,7 +5730,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildMaintenanceCheckboxRow(String label, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildMaintenanceCheckboxRow(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -5183,7 +5752,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               children: [
                 _buildMaintenanceCheckbox('실시', value, () => onChanged(true)),
                 const SizedBox(width: 8),
-                _buildMaintenanceCheckbox('미실시', !value, () => onChanged(false)),
+                _buildMaintenanceCheckbox(
+                  '미실시',
+                  !value,
+                  () => onChanged(false),
+                ),
               ],
             ),
           ),
@@ -5192,7 +5765,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildMaintenanceCheckbox(String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildMaintenanceCheckbox(
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Row(
@@ -5204,17 +5781,15 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: isSelected ? const Color(0xFF1E2A44) : const Color(0xFFD1D5DB),
+                color: isSelected
+                    ? const Color(0xFF1E2A44)
+                    : const Color(0xFFD1D5DB),
                 width: 2,
               ),
               color: isSelected ? const Color(0xFF1E2A44) : Colors.white,
             ),
             child: isSelected
-                ? const Icon(
-                    Icons.check,
-                    size: 12,
-                    color: Colors.white,
-                  )
+                ? const Icon(Icons.check, size: 12, color: Colors.white)
                 : null,
           ),
           const SizedBox(width: 6),
@@ -5222,7 +5797,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
             label,
             style: TextStyle(
               fontSize: 14,
-              color: isSelected ? const Color(0xFF1E2A44) : const Color(0xFF6B7280),
+              color: isSelected
+                  ? const Color(0xFF1E2A44)
+                  : const Color(0xFF6B7280),
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
@@ -5231,7 +5808,11 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     );
   }
 
-  Widget _buildMaintenanceTextFieldRow(String label, TextEditingController controller, String hintText) {
+  Widget _buildMaintenanceTextFieldRow(
+    String label,
+    TextEditingController controller,
+    String hintText,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
@@ -5650,10 +6231,7 @@ class _HistoryImage {
 // ═══════════════════════════════════════════════════════════════
 
 class DeepInspectionScreen extends StatefulWidget {
-  const DeepInspectionScreen({
-    super.key,
-    required this.selectedDamage,
-  });
+  const DeepInspectionScreen({super.key, required this.selectedDamage});
 
   final Map<String, dynamic> selectedDamage;
 
@@ -5662,8 +6240,10 @@ class DeepInspectionScreen extends StatefulWidget {
 }
 
 class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
-  final TextEditingController _detailedOpinionController = TextEditingController();
-  final TextEditingController _recommendationController = TextEditingController();
+  final TextEditingController _detailedOpinionController =
+      TextEditingController();
+  final TextEditingController _recommendationController =
+      TextEditingController();
   final TextEditingController _priorityController = TextEditingController();
   String _selectedPriority = '중';
   bool _isSaving = false;
@@ -5672,9 +6252,12 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
   void initState() {
     super.initState();
     // 기존 데이터로 폼 초기화
-    _detailedOpinionController.text = widget.selectedDamage['inspectorOpinion']?.toString() ?? '';
-    _recommendationController.text = widget.selectedDamage['recommendation']?.toString() ?? '';
-    _priorityController.text = widget.selectedDamage['priority']?.toString() ?? '중';
+    _detailedOpinionController.text =
+        widget.selectedDamage['inspectorOpinion']?.toString() ?? '';
+    _recommendationController.text =
+        widget.selectedDamage['recommendation']?.toString() ?? '';
+    _priorityController.text =
+        widget.selectedDamage['priority']?.toString() ?? '중';
   }
 
   @override
@@ -5702,11 +6285,11 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
             // 선택된 손상 정보 카드
             _buildSelectedDamageCard(),
             const SizedBox(height: 24),
-            
+
             // 심화조사 폼
             _buildInspectionForm(),
             const SizedBox(height: 24),
-            
+
             // 저장 버튼
             _buildSaveButton(),
           ],
@@ -5738,9 +6321,19 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildInfoRow('위치', widget.selectedDamage['location']?.toString() ?? '—'),
-                      _buildInfoRow('손상 유형', widget.selectedDamage['phenomenon']?.toString() ?? '—'),
-                      _buildInfoRow('등급', widget.selectedDamage['severityGrade']?.toString() ?? '—'),
+                      _buildInfoRow(
+                        '위치',
+                        widget.selectedDamage['location']?.toString() ?? '—',
+                      ),
+                      _buildInfoRow(
+                        '손상 유형',
+                        widget.selectedDamage['phenomenon']?.toString() ?? '—',
+                      ),
+                      _buildInfoRow(
+                        '등급',
+                        widget.selectedDamage['severityGrade']?.toString() ??
+                            '—',
+                      ),
                     ],
                   ),
                 ),
@@ -5757,11 +6350,10 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
                       child: AspectRatio(
                         aspectRatio: 4 / 3,
                         child: OptimizedImage(
-                          imageUrl: widget.selectedDamage['imageUrl'].toString(),
+                          imageUrl: widget.selectedDamage['imageUrl']
+                              .toString(),
                           fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.image_not_supported);
-                          },
+                          errorWidget: const Icon(Icons.image_not_supported),
                         ),
                       ),
                     ),
@@ -5818,7 +6410,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 상세 의견
             TextFormField(
               controller: _detailedOpinionController,
@@ -5831,7 +6423,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
               maxLines: 4,
             ),
             const SizedBox(height: 16),
-            
+
             // 권고사항
             TextFormField(
               controller: _recommendationController,
@@ -5844,7 +6436,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-            
+
             // 우선순위
             DropdownButtonFormField<String>(
               value: _selectedPriority,
@@ -5876,9 +6468,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
         backgroundColor: const Color(0xFF1E2A44),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: _isSaving
           ? const SizedBox(
@@ -5891,10 +6481,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
             )
           : const Text(
               '심화조사 결과 저장',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
     );
   }
@@ -5918,7 +6505,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
 
       // Firebase에 업데이트된 데이터 저장
       // TODO: 실제 Firebase 저장 로직 구현
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -6553,7 +7140,7 @@ class _DeepDamageInspectionDialogState
                               child: OptimizedImage(
                                 imageUrl: damageImageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                errorWidget: Container(
                                   color: Colors.grey.shade200,
                                   child: const Center(
                                     child: Icon(
@@ -6644,7 +7231,6 @@ class _DeepDamageInspectionDialogState
                       ),
 
                       const SizedBox(height: 30),
-
 
                       const SizedBox(height: 30),
                     ],
@@ -6766,12 +7352,18 @@ class _DeepDamageInspectionDialogState
 class _DamageSummaryRow {
   final TextEditingController componentController = TextEditingController();
   final TextEditingController locationController = TextEditingController();
-  final TextEditingController structuralSeparationController = TextEditingController();
-  final TextEditingController structuralTiltController = TextEditingController();
-  final TextEditingController physicalDetachmentController = TextEditingController();
-  final TextEditingController physicalCrackingController = TextEditingController();
-  final TextEditingController biologicalPerforationController = TextEditingController();
-  final TextEditingController biologicalDecayController = TextEditingController();
+  final TextEditingController structuralSeparationController =
+      TextEditingController();
+  final TextEditingController structuralTiltController =
+      TextEditingController();
+  final TextEditingController physicalDetachmentController =
+      TextEditingController();
+  final TextEditingController physicalCrackingController =
+      TextEditingController();
+  final TextEditingController biologicalPerforationController =
+      TextEditingController();
+  final TextEditingController biologicalDecayController =
+      TextEditingController();
   final TextEditingController visualGradeController = TextEditingController();
   final TextEditingController labGradeController = TextEditingController();
   final TextEditingController finalGradeController = TextEditingController();
@@ -6781,13 +7373,41 @@ class _DamageSummaryRow {
       children: [
         _DamageTableCell('', isHeader: false, controller: componentController),
         _DamageTableCell('', isHeader: false, controller: locationController),
-        _DamageTableCell('', isHeader: false, controller: structuralSeparationController),
-        _DamageTableCell('', isHeader: false, controller: structuralTiltController),
-        _DamageTableCell('', isHeader: false, controller: physicalDetachmentController),
-        _DamageTableCell('', isHeader: false, controller: physicalCrackingController),
-        _DamageTableCell('', isHeader: false, controller: biologicalPerforationController),
-        _DamageTableCell('', isHeader: false, controller: biologicalDecayController),
-        _DamageTableCell('', isHeader: false, controller: visualGradeController),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: structuralSeparationController,
+        ),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: structuralTiltController,
+        ),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: physicalDetachmentController,
+        ),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: physicalCrackingController,
+        ),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: biologicalPerforationController,
+        ),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: biologicalDecayController,
+        ),
+        _DamageTableCell(
+          '',
+          isHeader: false,
+          controller: visualGradeController,
+        ),
         _DamageTableCell('', isHeader: false, controller: labGradeController),
         _DamageTableCell('', isHeader: false, controller: finalGradeController),
       ],

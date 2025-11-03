@@ -24,7 +24,6 @@ class LocationStatusCard extends StatelessWidget {
   final Future<void> Function(String docId, String url) onDelete;
   final String Function(num? bytes) formatBytes;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -33,22 +32,35 @@ class LocationStatusCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(
+        MediaQuery.of(context).size.width < 640 ? 16 : 18,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '위치 현황',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: Color(0xFF111827),
-            ),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: const [
+              Icon(Icons.place_outlined, color: Color(0xFF1E2A44), size: 20),
+              Text(
+                '위치 현황',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
-            style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+            style: TextStyle(
+              color: const Color(0xFF6B7280),
+              fontSize: MediaQuery.of(context).size.width < 640 ? 13 : 14,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -139,9 +151,16 @@ class LocationStatusCard extends StatelessWidget {
                   children: [
                     // 사진 등록 버튼 (항상 표시)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Wrap(
+                        alignment: MediaQuery.of(context).size.width < 640
+                            ? WrapAlignment.start
+                            : WrapAlignment.end,
+                        spacing: 12,
+                        runSpacing: 8,
                         children: [
                           OutlinedButton.icon(
                             onPressed: onAddPhoto,
@@ -172,7 +191,8 @@ class LocationStatusCard extends StatelessWidget {
                     Container(
                       height: 200, // 고정 높이
                       width: double.infinity, // 전체 너비 사용
-                      child: ClipRect( // 오버플로우 완전 차단
+                      child: ClipRect(
+                        // 오버플로우 완전 차단
                         child: ScrollConfiguration(
                           behavior: const MaterialScrollBehavior(),
                           child: ListView.builder(
@@ -231,7 +251,8 @@ class LocationStatusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded( // AspectRatio 대신 Expanded 사용
+          Expanded(
+            // AspectRatio 대신 Expanded 사용
             flex: 3, // 3:2 비율로 조정
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(

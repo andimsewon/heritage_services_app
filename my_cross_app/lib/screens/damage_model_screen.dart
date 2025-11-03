@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import '../ui/widgets/section.dart';
 import '../ui/widgets/yellow_nav_button.dart';
+import '../widgets/responsive_page.dart';
 import 'damage_map_preview_screen.dart';
 
 class DamageModelScreen extends StatefulWidget {
@@ -31,13 +32,12 @@ class _DamageModelScreenState extends State<DamageModelScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('손상 예측 / 적용모델 / 작동관리 방안')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: ListView(
-              children: [
+      body: ResponsivePage(
+        maxWidth: 900.0,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
                 // ────────────────────────────────────────────────
                 // (1) 손상 예측: 예상 손상등급 (A~F 선택)
                 // ────────────────────────────────────────────────
@@ -133,9 +133,7 @@ class _DamageModelScreenState extends State<DamageModelScreen> {
                     ),
                   ],
                 )
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );

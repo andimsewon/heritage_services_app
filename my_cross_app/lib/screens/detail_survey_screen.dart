@@ -3,11 +3,13 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../ui/widgets/section.dart';
 import '../ui/widgets/attach_tile.dart';
 import '../ui/widgets/yellow_nav_button.dart';
 import '../services/firebase_service.dart';
 import '../widgets/skeleton_loader.dart';
+import '../widgets/responsive_page.dart';
 import 'damage_model_screen.dart';
 import 'damage_part_dialog.dart';
 import 'detail_sections/survey_sections_panel.dart';
@@ -662,13 +664,12 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                 ],
               ),
             )
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Padding(
-                  padding: EdgeInsets.all(horizontalPadding),
-                  child: ListView(
-                    children: [
+          : ResponsivePage(
+              maxWidth: 1100.0,
+              padding: EdgeInsets.all(horizontalPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 // (1) 기록개요
                 Section(
                   title: '기록개요',
@@ -938,9 +939,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                     ),
                   ],
                 ),
-                    ],
-                  ),
-                ),
+                ],
               ),
             ),
     );

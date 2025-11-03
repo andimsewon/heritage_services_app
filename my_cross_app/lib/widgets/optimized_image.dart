@@ -8,6 +8,8 @@ class OptimizedImage extends StatelessWidget {
   final String imageUrl;
   final double? width;
   final double? height;
+  final int? maxWidth;
+  final int? maxHeight;
   final BoxFit fit;
   final BorderRadius? borderRadius;
   final Widget? placeholder;
@@ -20,6 +22,8 @@ class OptimizedImage extends StatelessWidget {
     required this.imageUrl,
     this.width,
     this.height,
+    this.maxWidth,
+    this.maxHeight,
     this.fit = BoxFit.cover,
     this.borderRadius,
     this.placeholder,
@@ -30,13 +34,19 @@ class OptimizedImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 메모리 캐시 크기 계산 (maxWidth/maxHeight 우선, 없으면 width/height 사용)
+    final memCacheWidth = maxWidth ?? width?.toInt();
+    final memCacheHeight = maxHeight ?? height?.toInt();
+    
     Widget imageWidget = CachedNetworkImage(
       imageUrl: imageUrl,
       width: width,
       height: height,
       fit: fit,
-      memCacheWidth: width?.toInt(),
-      memCacheHeight: height?.toInt(),
+      memCacheWidth: memCacheWidth,
+      memCacheHeight: memCacheHeight,
+      maxWidthDiskCache: maxWidth ?? 1920, // 디스크 캐시 최대 크기
+      maxHeightDiskCache: maxHeight ?? 1920,
       fadeInDuration: fadeInDuration,
       placeholder: (context, url) => placeholder ?? _buildSkeletonPlaceholder(),
       errorWidget: (context, url, error) => errorWidget ?? _buildErrorWidget(),
@@ -219,13 +229,11 @@ class _LazyImageLoaderState extends State<LazyImageLoader> {
 
 // VisibilityDetector는 별도 패키지가 필요하므로 간단한 구현
 class VisibilityDetector extends StatefulWidget {
-  final Key key;
   final Widget child;
-  final Function(VisibilityInfo) onVisibilityChanged;
+  final ValueChanged<VisibilityInfo> onVisibilityChanged;
 
   const VisibilityDetector({
     super.key,
-    required this.key,
     required this.child,
     required this.onVisibilityChanged,
   });

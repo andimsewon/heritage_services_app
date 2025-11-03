@@ -1,8 +1,5 @@
 // lib/main.dart
 // 앱 전체 진입점: Firebase 초기화 + 라우팅 정의
-import 'dart:html' as html;
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -22,11 +19,6 @@ import 'widgets/secure_context_warning.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (kIsWeb) {
-    _registerViewportResyncListener();
-    _fixViewportSize();
-  }
 
   // ✅ Firebase 초기화 (중복 방지)
   try {
@@ -166,117 +158,4 @@ class HeritageApp extends StatelessWidget {
       ),
     );
   }
-}
-
-void _registerViewportResyncListener() {
-  void recalcViewport() {
-    final width = (html.window.innerWidth ?? 0).toDouble();
-    final height = (html.window.innerHeight ?? 0).toDouble();
-    ui.window.onMetricsChanged?.call();
-    debugPrint('📐 Flutter viewport recalculated: ${width}x$height');
-  }
-
-  html.window.addEventListener('flutter-resize', (event) {
-    recalcViewport();
-    _fixViewportSize(); // 화면 크기 변경시 뷰포트 수정
-  });
-
-  // 첫 진입 시에도 뷰포트를 동기화해 회색 화면 방지
-  recalcViewport();
-}
-
-/// 🔥 반응형 웹 문제 완전 해결을 위한 강력한 뷰포트 크기 수정
-void _fixViewportSize() {
-  // DOM 요소들의 크기를 강제로 100%로 설정
-  html.document.documentElement!.style
-    ..setProperty('width', '100vw', 'important')
-    ..setProperty('height', '100vh', 'important')
-    ..setProperty('min-width', '100vw', 'important')
-    ..setProperty('min-height', '100vh', 'important')
-    ..setProperty('max-width', '100vw', 'important')
-    ..setProperty('max-height', '100vh', 'important')
-    ..setProperty('overflow', 'hidden', 'important')
-    ..setProperty('position', 'fixed', 'important')
-    ..setProperty('top', '0', 'important')
-    ..setProperty('left', '0', 'important')
-    ..setProperty('right', '0', 'important')
-    ..setProperty('bottom', '0', 'important')
-    ..setProperty('margin', '0', 'important')
-    ..setProperty('padding', '0', 'important');
-
-  html.document.body!.style
-    ..setProperty('width', '100vw', 'important')
-    ..setProperty('height', '100vh', 'important')
-    ..setProperty('min-width', '100vw', 'important')
-    ..setProperty('min-height', '100vh', 'important')
-    ..setProperty('max-width', '100vw', 'important')
-    ..setProperty('max-height', '100vh', 'important')
-    ..setProperty('margin', '0', 'important')
-    ..setProperty('padding', '0', 'important')
-    ..setProperty('overflow', 'hidden', 'important')
-    ..setProperty('position', 'fixed', 'important')
-    ..setProperty('top', '0', 'important')
-    ..setProperty('left', '0', 'important')
-    ..setProperty('right', '0', 'important')
-    ..setProperty('bottom', '0', 'important');
-
-  // Flutter 관련 요소들도 강제로 100% 크기 설정
-  final flutterContainer = html.document.getElementById('flutter-container');
-  if (flutterContainer != null) {
-    flutterContainer.style
-      ..setProperty('width', '100vw', 'important')
-      ..setProperty('height', '100vh', 'important')
-      ..setProperty('min-width', '100vw', 'important')
-      ..setProperty('min-height', '100vh', 'important')
-      ..setProperty('max-width', '100vw', 'important')
-      ..setProperty('max-height', '100vh', 'important')
-      ..setProperty('position', 'fixed', 'important')
-      ..setProperty('top', '0', 'important')
-      ..setProperty('left', '0', 'important')
-      ..setProperty('right', '0', 'important')
-      ..setProperty('bottom', '0', 'important')
-      ..setProperty('z-index', '1', 'important');
-  }
-
-  // Flutter 뷰 요소들 찾아서 크기 설정
-  final flutterElements = html.document.querySelectorAll('flutter-view, flt-glass-pane, flt-scene-host, flt-platform-view');
-  for (final element in flutterElements) {
-    element.style
-      ..setProperty('width', '100vw', 'important')
-      ..setProperty('height', '100vh', 'important')
-      ..setProperty('min-width', '100vw', 'important')
-      ..setProperty('min-height', '100vh', 'important')
-      ..setProperty('max-width', '100vw', 'important')
-      ..setProperty('max-height', '100vh', 'important')
-      ..setProperty('position', 'absolute', 'important')
-      ..setProperty('top', '0', 'important')
-      ..setProperty('left', '0', 'important')
-      ..setProperty('right', '0', 'important')
-      ..setProperty('bottom', '0', 'important')
-      ..setProperty('transform', 'scale(1)', 'important')
-      ..setProperty('transform-origin', 'top left', 'important')
-      ..setProperty('overflow', 'hidden', 'important');
-  }
-
-  // CanvasKit 캔버스 요소 최적화
-  final canvasElements = html.document.querySelectorAll('canvas');
-  for (final canvas in canvasElements) {
-    canvas.style
-      ..setProperty('width', '100vw', 'important')
-      ..setProperty('height', '100vh', 'important')
-      ..setProperty('min-width', '100vw', 'important')
-      ..setProperty('min-height', '100vh', 'important')
-      ..setProperty('max-width', '100vw', 'important')
-      ..setProperty('max-height', '100vh', 'important')
-      ..setProperty('position', 'absolute', 'important')
-      ..setProperty('top', '0', 'important')
-      ..setProperty('left', '0', 'important')
-      ..setProperty('right', '0', 'important')
-      ..setProperty('bottom', '0', 'important')
-      ..setProperty('display', 'block', 'important')
-      ..setProperty('outline', 'none', 'important')
-      ..setProperty('border', 'none', 'important');
-  }
-
-  debugPrint('🔧 강력한 반응형 뷰포트 크기 수정 완료');
 }

@@ -788,7 +788,7 @@ class FirebaseService {
   }
 
   /// 손상부 조사 데이터 저장
-  Future<void> saveDamageSurvey({
+  Future<String> saveDamageSurvey({
     required String heritageId,
     required Map<String, dynamic> data,
   }) async {
@@ -805,8 +805,32 @@ class FirebaseService {
       });
       
       debugPrint('✅ 손상부 조사 데이터 저장 완료: ${docRef.id}');
+      return docRef.id;
     } catch (e) {
       debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 손상부 조사 데이터 업데이트
+  Future<void> updateDamageSurvey({
+    required String heritageId,
+    required String docId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      debugPrint('🔍 손상부 조사 데이터 업데이트 시작: $heritageId/$docId');
+      
+      final docRef = _fs.collection('heritages').doc(heritageId).collection('damage_surveys').doc(docId);
+      
+      await docRef.update({
+        ...data,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      debugPrint('✅ 손상부 조사 데이터 업데이트 완료: $docId');
+    } catch (e) {
+      debugPrint('❌ 손상부 조사 데이터 업데이트 실패: $e');
       rethrow;
     }
   }
