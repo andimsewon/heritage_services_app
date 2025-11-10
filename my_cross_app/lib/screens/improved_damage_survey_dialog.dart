@@ -340,6 +340,7 @@ class _ImprovedDamageSurveyDialogState
   Future<void> _updateDamageSurveyData(String docId, String imageUrl) async {
     try {
       final updateData = {
+        'imageUrl': imageUrl, // imageUrl도 업데이트에 포함
         'partName': _selectedPartName ?? '',
         'direction': _selectedDirection ?? '',
         'position': _selectedPosition ?? '',
@@ -351,6 +352,7 @@ class _ImprovedDamageSurveyDialogState
         'humidity': _humidityController.text.trim(),
         'severityGrade': _severityGrade,
         'damageTypes': _selectedDamageTypes.toList(),
+        'detections': _detections, // 감지 결과도 업데이트
         'selectedLabel': _selectedLabel,
         'selectedConfidence': _selectedConfidence,
         'autoGrade': _autoGrade,
@@ -497,56 +499,93 @@ class _ImprovedDamageSurveyDialogState
     if (confirm != true) return;
 
     // 최종 저장: 사용자가 입력한 모든 정보를 반영하여 업데이트
-    if (_savedDocId != null && _savedImageUrl != null) {
-      try {
-        await _updateDamageSurveyData(_savedDocId!, _savedImageUrl!);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('손상부 조사 데이터가 저장되었습니다.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint('❌ 최종 저장 실패: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('저장 중 오류가 발생했습니다: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return; // 저장 실패 시 다이얼로그 닫지 않음
+    try {
+      String? imageUrl = _savedImageUrl;
+      
+      // 사진이 선택되었지만 아직 업로드되지 않은 경우 업로드
+      if (_imageBytes != null && imageUrl == null) {
+        debugPrint('📸 사진을 Firebase Storage에 업로드 중...');
+        imageUrl = await _fb.uploadImage(
+          heritageId: widget.heritageId,
+          folder: 'damage_surveys',
+          bytes: _imageBytes!,
+        );
+        _savedImageUrl = imageUrl;
+        debugPrint('✅ 사진 업로드 완료: $imageUrl');
       }
+      
+      // 이미 저장된 문서가 있으면 업데이트
+      if (_savedDocId != null && imageUrl != null) {
+        await _updateDamageSurveyData(_savedDocId!, imageUrl);
+        debugPrint('✅ 기존 문서 업데이트 완료: ${_savedDocId}');
+      } 
+      // 새로 저장해야 하는 경우
+      else if (_imageBytes != null && imageUrl != null) {
+        // AI 감지 결과가 없으면 빈 배열로 저장
+        final detections = _detections.isNotEmpty
+            ? List<Map<String, dynamic>>.from(_detections)
+            : <Map<String, dynamic>>[];
+        
+        // 새 문서 생성 및 저장
+        _savedDocId = await _saveDamageSurveyData(imageUrl, detections);
+        debugPrint('✅ 새 문서 저장 완료: $_savedDocId');
+      }
+      // 사진이 없는 경우 텍스트만 저장
+      else if (_imageBytes == null) {
+        await _saveTextDataOnly();
+        debugPrint('✅ 텍스트 데이터만 저장 완료');
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('손상부 조사 데이터가 저장되었습니다.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ 최종 저장 실패: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('저장 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return; // 저장 실패 시 다이얼로그 닫지 않음
     }
 
-    final result = DamageDetectionResult(
-      imageBytes: _imageBytes!,
-      detections: _detections,
-      selectedLabel: _selectedLabel,
-      selectedConfidence: _selectedConfidence,
-      location: _locationController.text.trim().isEmpty
-          ? null
-          : _locationController.text.trim(),
-      damagePart: _partController.text.trim().isEmpty
-          ? null
-          : _partController.text.trim(),
-      temperature: _temperatureController.text.trim().isEmpty
-          ? null
-          : _temperatureController.text.trim(),
-      humidity: _humidityController.text.trim().isEmpty
-          ? null
-          : _humidityController.text.trim(),
-      opinion: _opinionController.text.trim().isEmpty
-          ? null
-          : _opinionController.text.trim(),
-      severityGrade: _severityGrade,
-      autoGrade: _autoGrade,
-      autoExplanation: _autoExplanation,
-      selectedDamageTypes: _selectedDamageTypes.toList(),
-    );
+    // 결과 반환 (사진이 있는 경우에만)
+    DamageDetectionResult? result;
+    if (_imageBytes != null) {
+      result = DamageDetectionResult(
+        imageBytes: _imageBytes!,
+        detections: _detections,
+        selectedLabel: _selectedLabel,
+        selectedConfidence: _selectedConfidence,
+        location: _locationController.text.trim().isEmpty
+            ? null
+            : _locationController.text.trim(),
+        damagePart: _partController.text.trim().isEmpty
+            ? null
+            : _partController.text.trim(),
+        temperature: _temperatureController.text.trim().isEmpty
+            ? null
+            : _temperatureController.text.trim(),
+        humidity: _humidityController.text.trim().isEmpty
+            ? null
+            : _humidityController.text.trim(),
+        opinion: _opinionController.text.trim().isEmpty
+            ? null
+            : _opinionController.text.trim(),
+        severityGrade: _severityGrade,
+        autoGrade: _autoGrade,
+        autoExplanation: _autoExplanation,
+        selectedDamageTypes: _selectedDamageTypes.toList(),
+      );
+    }
 
     if (mounted) {
       Navigator.pop(context, result);

@@ -16,6 +16,7 @@ import 'screens/detail_survey_screen.dart';
 import 'screens/damage_model_screen.dart';
 import 'screens/damage_map_preview_screen.dart';
 import 'widgets/secure_context_warning.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,35 +85,7 @@ class HeritageApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: '국가유산 모니터링',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlue),
-          inputDecorationTheme: const InputDecorationTheme(
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          // 버튼들을 사각형 형태로 통일
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-          ),
-          filledButtonTheme: FilledButtonThemeData(
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-          ),
-          outlinedButtonTheme: OutlinedButtonThemeData(
-            style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-          ),
-          chipTheme: const ChipThemeData(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(6))),
-          ),
-          // 웹 환경에서 시스템 폰트 사용
-          fontFamily: kIsWeb ? 'system-ui' : null,
-        ),
+        theme: AppTheme.light(isWeb: kIsWeb),
         // 마우스 드래그로도 스크롤 가능하도록 설정 (웹의 가로 스크롤 UX 개선)
         scrollBehavior: const MaterialScrollBehavior().copyWith(
           dragDevices: {

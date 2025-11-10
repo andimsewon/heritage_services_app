@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/heritage_detail_models.dart';
 import '../../theme.dart';
-import '../widgets/grade_badge.dart';
 import '../components/section_card.dart';
+import '../widgets/grade_badge.dart';
 
 class GradeClassificationCard extends StatelessWidget {
   const GradeClassificationCard({
@@ -42,7 +42,9 @@ class GradeClassificationCard extends StatelessWidget {
     final description = value.summary ?? '조사자 의견을 입력하면 자동으로 요약됩니다.';
 
     return SectionCard(
+      sectionNumber: 10,
       title: '등급 분류',
+      sectionDescription: '문화재 보존 상태 등급을 분류합니다',
       action: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -79,19 +81,24 @@ class GradeClassificationCard extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 720;
-          final content = [
-            Expanded(
-              flex: 3,
-              child: _SummaryPanel(description: description),
-            ),
-            const SizedBox(width: 24),
-            Expanded(flex: 2, child: _GradePanel(value: value)),
-          ];
+          // constraints.maxWidth가 무한대일 수 있으므로 MediaQuery도 함께 사용
+          final screenWidth = MediaQuery.of(context).size.width;
+          final availableWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : screenWidth;
+          final isWide = availableWidth >= 720;
+
           if (isWide) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: content,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _SummaryPanel(description: description),
+                ),
+                const SizedBox(width: 24),
+                Expanded(flex: 2, child: _GradePanel(value: value)),
+              ],
             );
           }
           return Column(

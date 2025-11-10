@@ -26,7 +26,6 @@ import '../ui/heritage_detail/damage_summary_table.dart';
 import '../ui/heritage_detail/grade_classification_card.dart';
 import '../ui/heritage_detail/inspection_result_card.dart';
 import '../ui/heritage_detail/investigator_opinion_field.dart';
-import '../ui/widgets/section_divider.dart';
 import '../viewmodels/heritage_detail_view_model.dart';
 import '../utils/date_formatter.dart';
 import 'improved_damage_survey_dialog.dart';
@@ -1052,6 +1051,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             );
           },
           formatBytes: _formatBytes,
+          sectionNumber: 2,
           title: '위치 현황',
           description: '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
           icon: Icons.location_on,
@@ -1075,6 +1075,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             );
           },
           formatBytes: _formatBytes,
+          sectionNumber: 3,
         ),
       ),
       const SizedBox(height: 24),
@@ -1105,7 +1106,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
           },
         ),
       ),
-      const SectionDivider(),
       const SizedBox(height: 24),
     ];
 
@@ -1118,6 +1118,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const SizedBox(height: 24),
                 Container(
                   key: _sectionKeys['inspectionResult'],
                   child: InspectionResultCard(
@@ -1127,7 +1128,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
                 ),
-                const SectionDivider(),
+                const SizedBox(height: 24),
                 Container(
                   key: _sectionKeys['management'],
                   child: ManagementItemsCard(
@@ -1135,7 +1136,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
                 ),
-                const SectionDivider(),
+                const SizedBox(height: 24),
                 Container(
                   key: _sectionKeys['damageSummary'],
                   child: DamageSummaryTable(
@@ -1145,7 +1146,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
                 ),
-                const SectionDivider(),
+                const SizedBox(height: 24),
                 Container(
                   key: _sectionKeys['investigatorOpinion'],
                   child: InvestigatorOpinionField(
@@ -1155,7 +1156,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
                 ),
-                const SectionDivider(),
+                const SizedBox(height: 24),
                 Container(
                   key: _sectionKeys['aiPrediction'],
                   child: AIPredictionSection(
@@ -1167,7 +1168,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     ),
                   ),
                 ),
-                const SectionDivider(),
+                const SizedBox(height: 24),
                 Container(
                   key: _sectionKeys['gradeClassification'],
                   child: GradeClassificationCard(
@@ -1270,182 +1271,188 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       );
     }
 
-    // 텍스트 입력 필드 추가
-    sections.add(
-      Container(
-        margin: const EdgeInsets.symmetric(vertical: 24),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              '📝 텍스트 데이터 입력',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1E2A44),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '아래 필드에 데이터를 입력하고 저장 버튼을 눌러주세요.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-            ),
-            const SizedBox(height: 24),
+    // 화면 크기가 충분히 클 때만 텍스트 입력 필드 추가
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isLargeScreen = screenWidth >= 1024; // 1024px 이상일 때만 표시
 
-            // 1.1 조사 결과
-            TextField(
-              controller: _inspectionResult,
-              decoration: const InputDecoration(
-                labelText: '1.1 조사 결과',
-                hintText: '조사 결과를 입력하세요',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
+    if (isLargeScreen) {
+      // 텍스트 입력 필드 추가
+      sections.add(
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 24),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            // 관리사항
-            TextField(
-              controller: _managementItems,
-              decoration: const InputDecoration(
-                labelText: '관리사항',
-                hintText: '관리사항을 입력하세요',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            // 손상부 종합
-            TextField(
-              controller: _damageSummary,
-              decoration: const InputDecoration(
-                labelText: '손상부 종합',
-                hintText: '손상부 종합 내용을 입력하세요',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            // 조사자 의견
-            TextField(
-              controller: _investigatorOpinion,
-              decoration: const InputDecoration(
-                labelText: '조사자 의견',
-                hintText: '조사자 의견을 입력하세요',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            // 등급 분류
-            TextField(
-              controller: _gradeClassification,
-              decoration: const InputDecoration(
-                labelText: '등급 분류',
-                hintText: 'A, B, C, D, E, F 등급을 입력하세요',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 기존 이력 (새로 추가!)
-            TextField(
-              controller: _existingHistory,
-              decoration: const InputDecoration(
-                labelText: '기존 이력',
-                hintText: '과거 조사 이력이나 관련 기록을 입력하세요',
-                border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Color(0xFFFFFBEB), // 연한 노란색 배경으로 강조
-                prefixIcon: Icon(Icons.history, color: Color(0xFFD97706)),
-              ),
-              maxLines: 4,
-            ),
-          ],
-        ),
-      ),
-    );
-
-    // 텍스트 저장 버튼 추가
-    sections.add(
-      Container(
-        margin: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              '텍스트 데이터 저장',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1E2A44),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '위 입력 필드들의 데이터를 Firebase에 저장합니다:',
-              style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '• 1.1 조사 결과 • 관리사항 • 손상부 종합 • 조사자 의견 • 등급 분류 • 기존 이력',
-              style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _isSavingText ? null : _saveTextData,
-              icon: _isSavingText
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save),
-              label: Text(_isSavingText ? '저장 중...' : '텍스트 데이터 저장'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E2A44),
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 24,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                '📝 텍스트 데이터 입력',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E2A44),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                '아래 필드에 데이터를 입력하고 저장 버튼을 눌러주세요.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+              ),
+              const SizedBox(height: 24),
+
+              // 1.1 조사 결과
+              TextField(
+                controller: _inspectionResult,
+                decoration: const InputDecoration(
+                  labelText: '1.1 조사 결과',
+                  hintText: '조사 결과를 입력하세요',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+
+              // 관리사항
+              TextField(
+                controller: _managementItems,
+                decoration: const InputDecoration(
+                  labelText: '관리사항',
+                  hintText: '관리사항을 입력하세요',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+
+              // 손상부 종합
+              TextField(
+                controller: _damageSummary,
+                decoration: const InputDecoration(
+                  labelText: '손상부 종합',
+                  hintText: '손상부 종합 내용을 입력하세요',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+
+              // 조사자 의견
+              TextField(
+                controller: _investigatorOpinion,
+                decoration: const InputDecoration(
+                  labelText: '조사자 의견',
+                  hintText: '조사자 의견을 입력하세요',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+
+              // 등급 분류
+              TextField(
+                controller: _gradeClassification,
+                decoration: const InputDecoration(
+                  labelText: '등급 분류',
+                  hintText: 'A, B, C, D, E, F 등급을 입력하세요',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 기존 이력 (새로 추가!)
+              TextField(
+                controller: _existingHistory,
+                decoration: const InputDecoration(
+                  labelText: '기존 이력',
+                  hintText: '과거 조사 이력이나 관련 기록을 입력하세요',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Color(0xFFFFFBEB), // 연한 노란색 배경으로 강조
+                  prefixIcon: Icon(Icons.history, color: Color(0xFFD97706)),
+                ),
+                maxLines: 4,
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+
+      // 텍스트 저장 버튼 추가
+      sections.add(
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                '텍스트 데이터 저장',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E2A44),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '위 입력 필드들의 데이터를 Firebase에 저장합니다:',
+                style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '• 1.1 조사 결과 • 관리사항 • 손상부 종합 • 조사자 의견 • 등급 분류 • 기존 이력',
+                style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _isSavingText ? null : _saveTextData,
+                icon: _isSavingText
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                label: Text(_isSavingText ? '저장 중...' : '텍스트 데이터 저장'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E2A44),
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 24,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     sections.add(const SizedBox(height: 48));
     return sections;
@@ -1672,8 +1679,22 @@ class BasicInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 정기조사 지침 기준: 소재지는 lcad 우선, 없으면 lcto
-    final location = lcad.trim().isNotEmpty ? lcad : lcto;
+    // 정기조사 지침 기준에 맞춰 소재지(지역)/주소(상세)를 분리
+    final trimmedLcad = lcad.trim();
+    final trimmedLcto = lcto.trim();
+    
+    // 소재지: 지역만 표시 (lcto에서 첫 번째 공백 이전 부분만 추출)
+    String regionLocation = '';
+    if (trimmedLcto.isNotEmpty) {
+      // 첫 번째 공백 이전의 부분만 추출 (예: "서울 중구..." -> "서울")
+      final firstSpaceIndex = trimmedLcto.indexOf(' ');
+      regionLocation = firstSpaceIndex > 0 
+          ? trimmedLcto.substring(0, firstSpaceIndex)
+          : trimmedLcto;
+    }
+    
+    // 주소: 상세 주소 표시
+    final detailAddress = trimmedLcad.isNotEmpty ? trimmedLcad : trimmedLcto;
 
     return Container(
       decoration: BoxDecoration(
@@ -1707,13 +1728,28 @@ class BasicInfoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                '기본 정보',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: Color(0xFF111827),
-                  letterSpacing: -0.3,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '1. 기본 정보',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: Color(0xFF111827),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '문화유산의 기본 정보를 확인합니다',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1731,8 +1767,12 @@ class BasicInfoCard extends StatelessWidget {
           _buildOverviewRow('종목', kind.isEmpty ? '-' : kind),
           const SizedBox(height: 12),
 
-          // 소재지
-          _buildOverviewRow('소재지', location.isEmpty ? '-' : location),
+          // 소재지 (지역)
+          _buildOverviewRow('소재지', regionLocation.isEmpty ? '-' : regionLocation),
+          const SizedBox(height: 12),
+
+          // 주소 (상세)
+          _buildOverviewRow('주소', detailAddress.isEmpty ? '-' : detailAddress),
           const SizedBox(height: 12),
 
           // 관리번호
@@ -1810,6 +1850,7 @@ class HeritagePhotoSection extends StatelessWidget {
     this.title = '현황 사진',
     this.description = '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
     this.icon = Icons.photo_camera,
+    this.sectionNumber,
   });
 
   final Stream<QuerySnapshot<Map<String, dynamic>>> photosStream;
@@ -1820,6 +1861,7 @@ class HeritagePhotoSection extends StatelessWidget {
   final String title;
   final String description;
   final IconData icon;
+  final int? sectionNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -1843,7 +1885,7 @@ class HeritagePhotoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionTitle(icon: icon, title: title, description: description),
+          _SectionTitle(icon: icon, title: title, description: description, sectionNumber: sectionNumber),
           const SizedBox(height: 16),
           OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: photosStream,
@@ -2155,11 +2197,13 @@ class _SectionTitle extends StatelessWidget {
     required this.icon,
     required this.title,
     this.description,
+    this.sectionNumber,
   });
 
   final IconData icon;
   final String title;
   final String? description;
+  final int? sectionNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -2182,7 +2226,7 @@ class _SectionTitle extends StatelessWidget {
               child: Icon(icon, color: const Color(0xFF1E2A44), size: 20),
             ),
             Text(
-              title,
+              sectionNumber != null ? '$sectionNumber. $title' : title,
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
@@ -2314,13 +2358,31 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                '손상부 조사',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: Color(0xFF111827),
-                  letterSpacing: -0.3,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '4. 손상부 조사',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: Color(0xFF111827),
+                        letterSpacing: -0.3,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      softWrap: false,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '손상부를 조사하고 기록합니다',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

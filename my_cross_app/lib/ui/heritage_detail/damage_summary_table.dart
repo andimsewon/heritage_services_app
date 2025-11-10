@@ -82,7 +82,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     final columns = _buildColumns();
 
     return SectionCard(
+      sectionNumber: 7,
       title: '손상부 종합',
+      sectionDescription: '구조적, 물리적, 생물·화학적 손상을 종합적으로 분석합니다',
       action: SectionButtonGroup(
         spacing: 8,
         buttons: [

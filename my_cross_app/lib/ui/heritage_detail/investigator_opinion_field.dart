@@ -90,7 +90,9 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionCard(
+          sectionNumber: 8,
           title: '조사자 의견',
+          sectionDescription: '조사자의 종합적인 의견을 기록합니다',
           action: SectionButton.filled(
             label: _isSaving ? '저장 중...' : '저장',
             onPressed: _isSaving ? () {} : () => _handleSave(),

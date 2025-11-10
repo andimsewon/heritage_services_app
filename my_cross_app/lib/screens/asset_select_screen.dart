@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../data/heritage_api.dart';
 import '../services/firebase_service.dart';
 import '../env.dart';
@@ -56,6 +57,9 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   int _totalCount = 0;
   bool _loading = false;
   String _curKeyword = '';
+  
+  // 상세 주소 캐싱 (성능 최적화)
+  final Map<String, String> _detailAddressCache = {};
 
   @override
   void initState() {
@@ -191,6 +195,84 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
 
   void _onSearch() => _fetch(reset: true);
 
+  String _resolveCustomDetailAddress(
+    Map<String, dynamic> data,
+    String fallback,
+  ) {
+    final candidates = [
+      data['ccbaLcad'],
+      data['lcad'],
+      data['ccbaLcto'],
+      data['lcto'],
+    ];
+
+    for (final candidate in candidates) {
+      final value = (candidate as String? ?? '').trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return fallback;
+  }
+
+  // 상세 주소 가져오기 (캐싱 사용) - 기본 정보 화면과 동일한 로직
+  Future<String> _getDetailAddress(HeritageRow row) async {
+    final cacheKey = '${row.ccbaKdcd}_${row.ccbaAsno}_${row.ccbaCtcd}';
+
+    // 캐시에 있으면 반환
+    if (_detailAddressCache.containsKey(cacheKey)) {
+      return _detailAddressCache[cacheKey]!;
+    }
+
+    Map<String, dynamic>? extractItem(Map<String, dynamic> payload) {
+      dynamic candidate = payload['item'];
+      if (candidate == null && payload['result'] is Map<String, dynamic>) {
+        candidate = (payload['result'] as Map<String, dynamic>)['item'];
+      }
+
+      if (candidate is Map<String, dynamic>) return candidate;
+      if (candidate is List) {
+        for (final element in candidate) {
+          if (element is Map<String, dynamic>) {
+            return element;
+          }
+        }
+      }
+      return null;
+    }
+
+    try {
+      // 상세 정보 가져오기
+      final detail = await _api.fetchDetail(
+        ccbaKdcd: row.ccbaKdcd,
+        ccbaAsno: row.ccbaAsno,
+        ccbaCtcd: row.ccbaCtcd,
+      );
+
+      // 소재지 정보 추출 - 기본 정보 화면과 동일한 로직
+      // 정기조사 지침 기준: 소재지는 lcad 우선, 없으면 lcto
+      final item = extractItem(detail);
+      if (item != null) {
+        final lcto = (item['ccbaLcto'] as String? ?? '').trim();
+        final lcad = (item['ccbaLcad'] as String? ?? '').trim();
+
+        // 기본 정보 화면과 동일: lcad 우선, 없으면 lcto
+        final fullAddress = lcad.isNotEmpty ? lcad : lcto;
+
+        // 캐시에 저장
+        if (fullAddress.isNotEmpty) {
+          _detailAddressCache[cacheKey] = fullAddress;
+          return fullAddress;
+        }
+      }
+    } catch (e) {
+      debugPrint('상세 주소 가져오기 실패: $e');
+    }
+
+    // 실패 시 기본 주소 반환
+    return row.sojaeji.isNotEmpty ? row.sojaeji : row.addr;
+  }
+
   void _goToPage(int page) {
     final totalPages = _totalPages;
     if (page < 1 || page > totalPages || page == _page) return;
@@ -216,269 +298,96 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   }
 
   Widget _buildFilterCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 720;
+    Widget buildDropdown({
+      required String label,
+      required String? value,
+      required Map<String, String> options,
+      required ValueChanged<String?> onChanged,
+    }) {
+      return DropdownButtonFormField<String>(
+        value: value ?? '',
+        items: options.entries
+            .map((e) => DropdownMenuItem<String>(value: e.key, child: Text(e.value)))
+            .toList(),
+        onChanged: onChanged,
+        decoration: InputDecoration(labelText: label),
+      );
+    }
 
-          Widget buildDropdown({
-            required String label,
-            required String? value,
-            required Map<String, String> options,
-            required ValueChanged<String?> onChanged,
-          }) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFD1D5DB)),
-                    borderRadius: BorderRadius.circular(8),
-                    color: const Color(0xFFF9FAFB),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: value ?? '',
-                      isDense: true,
-                      isExpanded: true,
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-                      items: options.entries
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(
-                                e.value,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: onChanged,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
+    Widget buildSearchField({required bool dense}) {
+      return TextFormField(
+        controller: _keyword,
+        textInputAction: TextInputAction.search,
+        onFieldSubmitted: (_) => _onSearch(),
+        decoration: InputDecoration(
+          isDense: dense,
+          labelText: '검색어',
+          hintText: '유산명, 소재지 등',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: IconButton(
+            tooltip: '검색',
+            onPressed: _onSearch,
+            icon: const Icon(Icons.arrow_outward_rounded),
+          ),
+        ),
+      );
+    }
 
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: buildDropdown(
-                        label: '종목',
-                        value: _kind,
-                        options: _kindOptions,
-                        onChanged: (v) => setState(() => _kind = v),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: buildDropdown(
-                        label: '지역',
-                        value: _region,
-                        options: _regionOptions,
-                        onChanged: (v) => setState(() => _region = v),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _keyword,
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Colors.grey,
-                            size: 20,
-                          ),
-                          hintText: '조건 (유산명 등)',
-                          hintStyle: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 12,
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFD1D5DB),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFD1D5DB),
-                            ),
-                          ),
-                        ),
-                        onSubmitted: (_) => _onSearch(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      height: 42,
-                      width: 42,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.search,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onPressed: _onSearch,
-                        padding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 720;
+            if (isCompact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: 160,
-                    child: buildDropdown(
-                      label: '종목',
-                      value: _kind,
-                      options: _kindOptions,
-                      onChanged: (v) => setState(() => _kind = v),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(child: buildDropdown(label: '종목', value: _kind, options: _kindOptions, onChanged: (v) => setState(() => _kind = v))),
+                      const SizedBox(width: 12),
+                      Expanded(child: buildDropdown(label: '지역', value: _region, options: _regionOptions, onChanged: (v) => setState(() => _region = v))),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 160,
-                    child: buildDropdown(
-                      label: '지역',
-                      value: _region,
-                      options: _regionOptions,
-                      onChanged: (v) => setState(() => _region = v),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '검색어',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _keyword,
-                                decoration: InputDecoration(
-                                  prefixIcon: const Icon(
-                                    Icons.search,
-                                    color: Colors.grey,
-                                    size: 20,
-                                  ),
-                                  hintText: '조건 (유산명 등)',
-                                  hintStyle: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                    horizontal: 12,
-                                  ),
-                                  filled: true,
-                                  fillColor: const Color(0xFFF9FAFB),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFD1D5DB),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFD1D5DB),
-                                    ),
-                                  ),
-                                ),
-                                onSubmitted: (_) => _onSearch(),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              height: 42,
-                              width: 42,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.search,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                onPressed: _onSearch,
-                                padding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 16),
+                  buildSearchField(dense: true),
                 ],
-              ),
-            ],
-          );
-        },
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                SizedBox(
+                  width: 200,
+                  child: buildDropdown(label: '종목', value: _kind, options: _kindOptions, onChanged: (v) => setState(() => _kind = v)),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 200,
+                  child: buildDropdown(label: '지역', value: _region, options: _regionOptions, onChanged: (v) => setState(() => _region = v)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(child: buildSearchField(dense: false)),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
+
   Widget _buildTableHeader(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      color: Theme.of(
-        context,
-      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: const Row(
         children: [
           _CellHeader('종목', flex: 2),
@@ -495,24 +404,24 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     if (totalItems == 0) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 40),
+        padding: const EdgeInsets.symmetric(vertical: 48),
         children: [
-          SizedBox(
-            height: 200,
-            child: Center(
-              child: _loading
-                  ? const CircularProgressIndicator()
-                  : const Text('데이터가 없습니다'),
-            ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.travel_explore_outlined, size: 32, color: Colors.grey),
+              SizedBox(height: 12),
+              Text('검색 결과가 없습니다'),
+            ],
           ),
         ],
       );
     }
 
-    final EdgeInsetsGeometry padding = tableLayout
+    final padding = tableLayout
         ? EdgeInsets.zero
-        : const EdgeInsets.symmetric(vertical: 4);
-    final Widget separator = tableLayout
+        : const EdgeInsets.symmetric(vertical: 6);
+    final separator = tableLayout
         ? const Divider(height: 0)
         : const SizedBox(height: 12);
 
@@ -521,40 +430,69 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       padding: padding,
       itemCount: totalItems,
       separatorBuilder: (_, __) => separator,
-      itemBuilder: (context, i) {
-        if (i < _customRows.length) {
-          final m = _customRows[i];
+      itemBuilder: (context, index) {
+        if (index < _customRows.length) {
+          final data = _customRows[index];
+          final location = (data['sojaeji'] as String? ?? '').trim();
+          final fallback = (data['addr'] as String? ?? '').trim();
+          final detailAddress = _resolveCustomDetailAddress(
+            data,
+            location.isNotEmpty ? location : fallback,
+          );
+          final region = fallback.isNotEmpty ? fallback : location;
+
           if (tableLayout) {
             return _CustomRow(
-              data: m,
-              onTap: () => _openCustomHeritageDialog(m),
-              onDelete: () => _confirmDeleteCustom(m),
+              data: data,
+              region: region,
+              detailAddress: detailAddress,
+              onTap: () => _openCustomHeritageDialog(data),
+              onDelete: () => _confirmDeleteCustom(data),
             );
           }
 
           return _HeritageListCard(
-            badge: m['kindName'] as String? ?? '',
-            title: m['name'] as String? ?? '',
-            location: m['sojaeji'] as String? ?? '',
-            address: m['addr'] as String? ?? '',
-            onTap: () => _openCustomHeritageDialog(m),
-            onDelete: () => _confirmDeleteCustom(m),
+            badge: data['kindName'] as String? ?? '',
+            title: data['name'] as String? ?? '',
+            location: region.isNotEmpty ? region : null,
+            address: detailAddress,
+            onTap: () => _openCustomHeritageDialog(data),
+            onDelete: () => _confirmDeleteCustom(data),
             isCustom: true,
           );
         }
 
-        final r = _rows[i - _customRows.length];
+        final row = _rows[index - _customRows.length];
+        final addrText = row.addr.trim();
+        final sojaejiText = row.sojaeji.trim();
+        final region = addrText.isNotEmpty ? addrText : sojaejiText;
+        final detailFallback = sojaejiText.isNotEmpty ? sojaejiText : addrText;
         if (tableLayout) {
           return InkWell(
-            onTap: () => _openApiHeritageDialog(r),
+            onTap: () => _openApiHeritageDialog(row),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  _Cell(r.kindName, flex: 2),
-                  _Cell(r.name, flex: 4),
-                  _Cell(r.sojaeji, flex: 3),
-                  _Cell(r.addr, flex: 3),
+                  _Cell(row.kindName, flex: 2),
+                  _Cell(row.name, flex: 4),
+                  _Cell(region, flex: 3),
+                  Expanded(
+                    flex: 3,
+                    child: FutureBuilder<String>(
+                      future: _getDetailAddress(row),
+                      builder: (context, snapshot) {
+                        final detail = snapshot.hasData && snapshot.data!.trim().isNotEmpty
+                            ? snapshot.data!.trim()
+                            : detailFallback;
+                        return Text(
+                          detail.isNotEmpty ? detail : '주소 정보 없음',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -562,11 +500,13 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         }
 
         return _HeritageListCard(
-          badge: r.kindName,
-          title: r.name,
-          location: r.sojaeji,
-          address: r.addr,
-          onTap: () => _openApiHeritageDialog(r),
+          badge: row.kindName,
+          title: row.name,
+          location: region,
+          address: detailFallback,
+          row: row,
+          getDetailAddress: _getDetailAddress,
+          onTap: () => _openApiHeritageDialog(row),
         );
       },
     );
@@ -574,16 +514,12 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
 
   Widget _buildPagination() {
     final totalPages = _totalPages;
-    if (totalPages <= 1) {
-      return const SizedBox.shrink();
-    }
+    if (totalPages <= 1) return const SizedBox.shrink();
 
     final current = _page;
     final startPage = ((current - 1) ~/ 5) * 5 + 1;
     int endPage = startPage + 4;
-    if (endPage > totalPages) {
-      endPage = totalPages;
-    }
+    if (endPage > totalPages) endPage = totalPages;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
@@ -613,9 +549,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
               label: '다음',
               onPressed: _loading
                   ? null
-                  : () => _goToPage(
-                      endPage < totalPages ? endPage + 1 : totalPages,
-                    ),
+                  : () => _goToPage(endPage < totalPages ? endPage + 1 : totalPages),
             ),
           if (endPage < totalPages)
             _PaginationButton(
@@ -626,6 +560,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       ),
     );
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -767,11 +703,76 @@ class _Cell extends StatelessWidget {
   }
 }
 
+// 상세 주소를 비동기로 가져와서 표시하는 셀
+class _LocationCell extends StatefulWidget {
+  final HeritageRow row;
+  final Future<String> Function(HeritageRow) getDetailAddress;
+
+  const _LocationCell({
+    required this.row,
+    required this.getDetailAddress,
+  });
+
+  @override
+  State<_LocationCell> createState() => _LocationCellState();
+}
+
+class _LocationCellState extends State<_LocationCell> {
+  String? _cachedAddress;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 초기 주소 표시 (sojaeji 또는 addr)
+    _cachedAddress = widget.row.sojaeji.isNotEmpty 
+        ? widget.row.sojaeji 
+        : widget.row.addr;
+    
+    // 배경에서 상세 주소 가져오기
+    _loadDetailAddress();
+  }
+
+  Future<void> _loadDetailAddress() async {
+    if (_isLoading) return;
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final detailAddress = await widget.getDetailAddress(widget.row);
+      if (mounted && detailAddress != _cachedAddress) {
+        setState(() {
+          _cachedAddress = detailAddress;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _cachedAddress ?? '',
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: Colors.black, // 검정색으로 변경
+      ),
+    );
+  }
+}
+
 class _HeritageListCard extends StatelessWidget {
   const _HeritageListCard({
     required this.badge,
     required this.title,
-    required this.location,
+    this.location,
+    this.row,
+    this.getDetailAddress,
     required this.address,
     required this.onTap,
     this.onDelete,
@@ -780,7 +781,9 @@ class _HeritageListCard extends StatelessWidget {
 
   final String badge;
   final String title;
-  final String location;
+  final String? location; // 커스텀 항목용
+  final HeritageRow? row; // API 항목용
+  final Future<String> Function(HeritageRow)? getDetailAddress;
   final String address;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
@@ -789,6 +792,35 @@ class _HeritageListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final regionText = (location ?? '').trim();
+    final detailFallback = address.trim();
+    final labelStyle = (theme.textTheme.bodySmall ?? const TextStyle(fontSize: 12)).copyWith(
+      fontWeight: FontWeight.w600,
+      color: Colors.grey.shade600,
+    );
+    final valueStyle = (theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 14)).copyWith(
+      color: Colors.grey.shade700,
+    );
+
+    Widget buildInfoText({
+      required String label,
+      required String value,
+      Color? valueColor,
+    }) {
+      return Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '$label  ', style: labelStyle),
+            TextSpan(
+              text: value,
+              style: valueStyle.copyWith(
+                color: valueColor ?? valueStyle.color,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -831,22 +863,47 @@ class _HeritageListCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (location.trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  location,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 4),
-              Text(
-                address.isEmpty ? '주소 정보 없음' : address,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
+              const SizedBox(height: 6),
+              buildInfoText(
+                label: '소재지',
+                value: regionText.isNotEmpty ? regionText : '소재지 정보 없음',
+                valueColor: regionText.isNotEmpty
+                    ? Colors.grey.shade700
+                    : Colors.grey.shade400,
               ),
+              const SizedBox(height: 4),
+              if (row != null && getDetailAddress != null)
+                FutureBuilder<String>(
+                  future: getDetailAddress!(row!),
+                  builder: (context, snapshot) {
+                    final detailValue = snapshot.hasData && snapshot.data!.trim().isNotEmpty
+                        ? snapshot.data!.trim()
+                        : detailFallback;
+                    final hasDetail = detailValue.isNotEmpty;
+                    final waiting = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
+                    final displayText = waiting
+                        ? '주소 불러오는 중…'
+                        : (hasDetail ? detailValue : '주소 정보 없음');
+                    final valueColor = waiting
+                        ? Colors.grey.shade500
+                        : hasDetail
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade400;
+                    return buildInfoText(
+                      label: '주소',
+                      value: displayText,
+                      valueColor: valueColor,
+                    );
+                  },
+                )
+              else
+                buildInfoText(
+                  label: '주소',
+                  value: detailFallback.isNotEmpty ? detailFallback : '주소 정보 없음',
+                  valueColor: detailFallback.isNotEmpty
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade400,
+                ),
             ],
           ),
         ),
@@ -888,16 +945,25 @@ class _ChipLabel extends StatelessWidget {
 
 class _CustomRow extends StatelessWidget {
   final Map<String, dynamic> data;
+  final String region;
+  final String detailAddress;
   final VoidCallback onTap;
   final VoidCallback onDelete;
   const _CustomRow({
     required this.data,
+    required this.region,
+    required this.detailAddress,
     required this.onTap,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 소재지(지역): addr 우선 사용, 없으면 입력된 소재지 텍스트 사용
+    final displayRegion = region.isNotEmpty 
+        ? region 
+        : (data['addr'] as String? ?? '');
+    
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -906,16 +972,17 @@ class _CustomRow extends StatelessWidget {
           children: [
             _Cell('${data['kindName'] as String? ?? ''} (내 추가)', flex: 2),
             _Cell(data['name'] as String? ?? '', flex: 4),
-            _Cell(data['sojaeji'] as String? ?? '', flex: 3),
+            _Cell(displayRegion, flex: 3),
             Expanded(
-              flex: 3,
+              flex: 5,
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      data['addr'] as String? ?? '',
+                      detailAddress.isNotEmpty ? detailAddress : '주소 정보 없음',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.black),
                     ),
                   ),
                   IconButton(

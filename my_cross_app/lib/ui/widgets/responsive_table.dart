@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 /// Wraps wide tabular content so that it keeps a readable minimum width on
 /// smaller viewports. When the available width drops below [minWidth], the
@@ -23,12 +23,19 @@ class ResponsiveTable extends StatelessWidget {
         final maxWidth = constraints.maxWidth;
 
         if (maxWidth.isFinite && maxWidth < minWidth) {
-          return SingleChildScrollView(
+          return Scrollbar(
             controller: controller,
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: minWidth),
-              child: child,
+            thumbVisibility: true,
+            thickness: 8,
+            radius: const Radius.circular(12),
+            child: SingleChildScrollView(
+              controller: controller,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 4),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: minWidth),
+                child: child,
+              ),
             ),
           );
         }

@@ -22,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pw = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // ── 임시 관리자 자격 (필요하면 여기서 바꿔라)
   static const _devAdminId = 'admin@heritage.local';
   static const _devAdminPw = 'admin123!';
 
@@ -36,123 +35,200 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _tryLogin() async {
+  Future<void> _tryLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _loading = true);
 
-    // ── 임시 검증: 하드코드 관리자 자격만 통과
     final ok = _id.text.trim() == _devAdminId && _pw.text == _devAdminPw;
 
-    await Future.delayed(const Duration(milliseconds: 250)); // UX용 살짝 딜레이
+    await Future.delayed(const Duration(milliseconds: 250));
 
+    if (!mounted) return;
     setState(() => _loading = false);
 
     if (ok) {
-      if (!mounted) return;
       Navigator.pushReplacementNamed(context, HomeScreen.route);
     } else {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인 실패: ID 또는 PW를 확인하세요. (데모는 관리자 계정만 허용)')),
+        const SnackBar(
+          content: Text('로그인 실패: ID 또는 PW를 확인하세요. (데모는 관리자 계정만 허용)'),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Card(
-                      elevation: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                '국가유산 모니터링\n조사·등록 시스템',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _id,
-                                autofillHints: const [AutofillHints.username, AutofillHints.email],
-                                decoration: const InputDecoration(
-                                  labelText: 'ID (이메일 형식 권장)',
-                                  prefixIcon: Icon(Icons.person_outline),
-                                ),
-                                validator: (v) =>
-                                (v == null || v.isEmpty) ? 'ID를 입력하세요' : null,
-                              ),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller: _pw,
-                                obscureText: _obscure,
-                                autofillHints: const [AutofillHints.password],
-                                decoration: InputDecoration(
-                                  labelText: 'PW',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  suffixIcon: IconButton(
-                                    tooltip: _obscure ? '표시' : '숨김',
-                                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                                    onPressed: () => setState(() => _obscure = !_obscure),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF8FAFF), Color(0xFFEFF3FB)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(28),
+                          child: Form(
+                            key: _formKey,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            child: AutofillGroup(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    '국가유산 모니터링',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      color: theme.colorScheme.onSurface,
+                                    ),
                                   ),
-                                ),
-                                validator: (v) =>
-                                (v == null || v.isEmpty) ? 'PW를 입력하세요' : null,
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '조사·등록 시스템에 접속해 현황을 작성하고 관리할 수 있습니다.',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 28),
+                                  _FieldLabel('ID (이메일 형식 권장)', theme: theme),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    controller: _id,
+                                    textInputAction: TextInputAction.next,
+                                    autofillHints: const [
+                                      AutofillHints.username,
+                                      AutofillHints.email,
+                                    ],
+                                    keyboardType: TextInputType.emailAddress,
+                                    validator: (v) =>
+                                        (v == null || v.isEmpty) ? 'ID를 입력하세요' : null,
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _FieldLabel('PW', theme: theme),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    controller: _pw,
+                                    obscureText: _obscure,
+                                    textInputAction: TextInputAction.done,
+                                    autofillHints: const [AutofillHints.password],
+                                    onFieldSubmitted: (_) => _tryLogin(),
+                                    validator: (v) =>
+                                        (v == null || v.isEmpty) ? 'PW를 입력하세요' : null,
+                                    decoration: InputDecoration(
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscure ? '표시' : '숨기기',
+                                        icon: Icon(
+                                          _obscure
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                        ),
+                                        onPressed: () =>
+                                            setState(() => _obscure = !_obscure),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 28),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 200),
+                                    child: _loading
+                                        ? const Center(
+                                            child: SizedBox(
+                                              width: 36,
+                                              height: 36,
+                                              child: CircularProgressIndicator(),
+                                            ),
+                                          )
+                                        : YellowNavButton(
+                                            key: const ValueKey('loginButton'),
+                                            label: '로그인',
+                                            onTap: _tryLogin,
+                                          ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextButton.icon(
+                                    onPressed: () => Navigator.pushReplacementNamed(
+                                      context,
+                                      HomeScreen.route,
+                                    ),
+                                    icon: const Icon(Icons.door_front_door_outlined),
+                                    label: const Text('건너뛰고 둘러보기 (데모)'),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const Divider(),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF4F6FB),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          '데모 계정',
+                                          style: theme.textTheme.titleSmall,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        SelectableText(
+                                          'ID  admin@heritage.local\nPW  admin123!',
+                                          textAlign: TextAlign.center,
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 16),
-                              _loading
-                                  ? const Center(child: CircularProgressIndicator())
-                                  : YellowNavButton(
-                                label: '로그인',
-                                onTap: _tryLogin,
-                              ),
-                              const SizedBox(height: 6),
-
-                              // (선택) 데모 편의: 건너뛰기 버튼 — 필요 없으면 지워도 됨
-                              TextButton.icon(
-                                onPressed: () => Navigator.pushReplacementNamed(
-                                  context,
-                                  HomeScreen.route,
-                                ),
-                                icon: const Icon(Icons.door_front_door_outlined),
-                                label: const Text('건너뛰고 둘러보기(데모)'),
-                              ),
-
-                              const SizedBox(height: 12),
-                              const Divider(),
-                              const Text(
-                                '데모 계정: admin@heritage.local / admin123!',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.label, {required this.theme});
+  final String label;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
