@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:my_cross_app/features/heritage_detail/presentation/widgets/detail_sections/section11_investigation.dart';
+import 'package:my_cross_app/features/heritage_detail/presentation/widgets/detail_sections/section12_conservation.dart';
+import 'package:my_cross_app/features/heritage_detail/presentation/widgets/detail_sections/section13_management.dart';
 import 'package:my_cross_app/models/survey_models.dart';
-import 'package:my_cross_app/screens/detail_sections/section11_investigation.dart';
-import 'package:my_cross_app/screens/detail_sections/section12_conservation.dart';
-import 'package:my_cross_app/screens/detail_sections/section13_management.dart';
 
 void main() {
   group('Survey Sections Widget Tests', () {

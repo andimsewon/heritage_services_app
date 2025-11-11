@@ -46,7 +46,7 @@ flutter run -d chrome
 my_cross_app/
 ├── cors_proxy.js          # CORS 프록시 서버
 ├── package.json           # Node.js 의존성
-├── lib/env.dart           # 환경 설정 (웹에서 프록시 사용)
+├── lib/core/config/env.dart # 환경 설정 (웹에서 프록시 사용)
 └── WEB_CORS_SETUP.md      # 이 가이드
 ```
 

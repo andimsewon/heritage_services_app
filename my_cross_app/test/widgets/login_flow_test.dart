@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:my_cross_app/main.dart';
-import 'package:my_cross_app/screens/home_screen.dart';
+import 'package:my_cross_app/app/app.dart';
+import 'package:my_cross_app/features/dashboard/presentation/home_screen.dart';
 
 void main() {
   testWidgets('admin credentials navigate to home', (tester) async {

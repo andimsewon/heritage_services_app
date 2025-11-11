@@ -35,16 +35,12 @@
 heritage_services_app/
 ├─ my_cross_app/                 # Flutter 앱
 │  ├─ lib/
-│  │  ├─ env.dart               # PROXY_BASE 환경값(프록시 주소)
-│  │  ├─ data/heritage_api.dart # 프록시 REST 클라이언트
-│  │  └─ screens/
-│  │     ├─ login_screen.dart
-│  │     ├─ home_screen.dart
-│  │     ├─ asset_select_screen.dart     # ③ 국가 유산 검색 (종목/지역/조건)
-│  │     ├─ basic_info_screen.dart       # ④ 기본개요 (상세 API)
-│  │     ├─ detail_survey_screen.dart    # ⑤ 상세조사(골격)
-│  │     ├─ damage_model_screen.dart     # ⑥ 손상예측/모델(골격)
-│  │     └─ damage_map_preview_screen.dart# ⑦ 손상지도(골격)
+│  │  ├─ app/                    # HeritageApp, Router
+│  │  ├─ core/                   # Env, shared services & widgets
+│  │  ├─ features/               # 흐름별 화면/위젯/로직 (auth, heritage 등)
+│  │  ├─ models/                 # 공통 데이터 모델
+│  │  ├─ utils/                  # 날짜 포맷 등 헬퍼
+│  │  └─ main.dart               # 앱 진입점
 │  ├─ pubspec.yaml
 │  └─ (android/ ios/ web/ 등 Flutter 표준)
 └─ server/                      # FastAPI 프록시 (XML→JSON, CORS 해결)
@@ -256,9 +252,9 @@ docker run -p 8080:8080 heritage-api
 ## 🔌 주요 코드
 
 * `server/main.py`: 목록/상세 API 프록시, XML→JSON 변환
-* `lib/data/heritage_api.dart`: 프록시 호출 래퍼
-* `lib/screens/asset_select_screen.dart`: 국가유산 검색 리스트
-* `lib/screens/basic_info_screen.dart`: 상세정보 표시
+* `lib/features/heritage_list/data/heritage_api.dart`: 프록시 호출 래퍼
+* `lib/features/heritage_list/presentation/asset_select_screen.dart`: 국가유산 검색 리스트
+* `lib/features/heritage_detail/presentation/basic_info_screen.dart`: 상세정보 표시
 
 ---
 

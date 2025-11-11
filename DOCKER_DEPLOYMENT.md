@@ -37,7 +37,7 @@ heritage_services_app/
 │
 └── my_cross_app/
     └── lib/
-        └── env.dart            # ✅ Docker 엔드포인트로 업데이트됨
+        └── core/config/env.dart   # ✅ Docker 엔드포인트로 업데이트됨
 ```
 
 ---
@@ -212,7 +212,7 @@ services:
       - "9000:8080"  # 호스트 포트:컨테이너 포트
 ```
 
-**Flutter env.dart 수정:**
+**Flutter Env 설정(`lib/core/config/env.dart`) 수정:**
 ```dart
 static const String dockerPort = '9000';
 ```
