@@ -50,11 +50,18 @@ class _SectionNavigationItem {
 }
 
 const List<_SectionNavigationItem> _sectionNavigationItems = [
+  // 현장 조사 탭
   _SectionNavigationItem(
     key: 'basicInfo',
     title: '기본 정보',
     shortTitle: '기본',
     icon: Icons.info_outline,
+  ),
+  _SectionNavigationItem(
+    key: 'metaInfo',
+    title: '메타 정보',
+    shortTitle: '메타',
+    icon: Icons.description,
   ),
   _SectionNavigationItem(
     key: 'location',
@@ -74,6 +81,13 @@ const List<_SectionNavigationItem> _sectionNavigationItems = [
     shortTitle: '손상',
     icon: Icons.build,
   ),
+  // 조사자 의견 탭
+  _SectionNavigationItem(
+    key: 'preservationHistory',
+    title: '보존관리 이력',
+    shortTitle: '이력',
+    icon: Icons.history,
+  ),
   _SectionNavigationItem(
     key: 'inspectionResult',
     title: '조사 결과',
@@ -81,11 +95,18 @@ const List<_SectionNavigationItem> _sectionNavigationItems = [
     icon: Icons.assignment,
   ),
   _SectionNavigationItem(
+    key: 'preservationItems',
+    title: '보존 사항',
+    shortTitle: '보존',
+    icon: Icons.construction,
+  ),
+  _SectionNavigationItem(
     key: 'management',
     title: '관리사항',
     shortTitle: '관리',
     icon: Icons.manage_accounts,
   ),
+  // 종합진단 탭
   _SectionNavigationItem(
     key: 'damageSummary',
     title: '손상부 종합',
@@ -99,16 +120,16 @@ const List<_SectionNavigationItem> _sectionNavigationItems = [
     icon: Icons.edit_note,
   ),
   _SectionNavigationItem(
-    key: 'aiPrediction',
-    title: 'AI 예측',
-    shortTitle: 'AI',
-    icon: Icons.psychology,
-  ),
-  _SectionNavigationItem(
     key: 'gradeClassification',
     title: '등급 분류',
     shortTitle: '등급',
     icon: Icons.grade,
+  ),
+  _SectionNavigationItem(
+    key: 'aiPrediction',
+    title: 'AI 예측',
+    shortTitle: 'AI',
+    icon: Icons.psychology,
   ),
 ];
 
@@ -167,7 +188,7 @@ class BasicInfoScreen extends StatefulWidget {
   State<BasicInfoScreen> createState() => _BasicInfoScreenState();
 }
 
-class _BasicInfoScreenState extends State<BasicInfoScreen> {
+class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _args;
   Map<String, dynamic>? _detail; // 상세 API 원본(JSON)
   bool _loading = true;
@@ -183,12 +204,16 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
   // 섹션 네비게이션용 키 및 스크롤 컨트롤러
   final ScrollController _mainScrollController = ScrollController();
+  TabController? _tabController;
   final Map<String, GlobalKey> _sectionKeys = {
     'basicInfo': GlobalKey(),
+    'metaInfo': GlobalKey(),
     'location': GlobalKey(),
     'photos': GlobalKey(),
     'damageSurvey': GlobalKey(),
+    'preservationHistory': GlobalKey(),
     'inspectionResult': GlobalKey(),
+    'preservationItems': GlobalKey(),
     'management': GlobalKey(),
     'damageSummary': GlobalKey(),
     'investigatorOpinion': GlobalKey(),
@@ -197,6 +222,17 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   };
 
   String _activeSectionKey = 'basicInfo';
+  int _currentTabIndex = 0; // 0: 현장 조사, 1: 조사자 의견, 2: 종합진단
+  
+  // 탭별 섹션 캐싱 (성능 최적화)
+  List<Widget>? _cachedFieldSurveySections;
+  List<Widget>? _cachedInvestigatorOpinionSections;
+  List<Widget>? _cachedComprehensiveDiagnosisSections;
+
+  // 메타 정보 컨트롤러
+  final _metaDateController = TextEditingController();
+  final _metaOrganizationController = TextEditingController();
+  final _metaInvestigatorController = TextEditingController();
 
   // 조사 결과 필드들
   final _inspectionResult = TextEditingController();
@@ -286,6 +322,13 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         heritageId =
             "${_args?['ccbaKdcd']}_${_args?['ccbaAsno']}_${_args?['ccbaCtcd']}";
       }
+      _tabController = TabController(length: 3, vsync: this);
+      _tabController!.addListener(() {
+        if (!_tabController!.indexIsChanging) {
+          setState(() => _currentTabIndex = _tabController!.index);
+          _scrollToTabSection(_tabController!.index);
+        }
+      });
       _detailViewModel ??= HeritageDetailViewModel(
         heritageId: heritageId,
         aiRepository: _aiPredictionRepository,
@@ -833,6 +876,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   void dispose() {
     _detailViewModel?.dispose();
     _mainScrollController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
@@ -847,6 +891,27 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         curve: Curves.easeInOut,
         alignment: 0.08,
       );
+    }
+  }
+
+  // 탭 전환 시 해당 섹션으로 스크롤
+  void _scrollToTabSection(int tabIndex) {
+    String? firstSectionKey;
+    switch (tabIndex) {
+      case 0: // 현장 조사
+        firstSectionKey = 'basicInfo';
+        break;
+      case 1: // 조사자 의견
+        firstSectionKey = 'preservationHistory';
+        break;
+      case 2: // 종합진단
+        firstSectionKey = 'damageSummary';
+        break;
+    }
+    if (firstSectionKey != null) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _scrollToSection(firstSectionKey!);
+      });
     }
   }
 
@@ -880,16 +945,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       ['result', 'item', 'ccbaLcad'],
       ['item', 'ccbaLcad'],
     ]);
-
-    final detailSections = _buildDetailSections(
-      context: context,
-      kind: kind,
-      asdt: asdt,
-      owner: owner,
-      admin: admin,
-      lcto: lcto,
-      lcad: lcad,
-    );
 
     return Scaffold(
       appBar: AppBar(
@@ -952,6 +1007,26 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             ),
           ),
         ],
+        bottom: _tabController != null
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Container(
+                  color: Colors.white,
+                  child: TabBar(
+                    controller: _tabController!,
+                    labelColor: const Color(0xFF1E2A44),
+                    unselectedLabelColor: const Color(0xFF6B7280),
+                    indicatorColor: const Color(0xFF1E2A44),
+                    indicatorWeight: 3,
+                    tabs: const [
+                      Tab(text: '현장 조사'),
+                      Tab(text: '조사자 의견'),
+                      Tab(text: '종합진단'),
+                    ],
+                  ),
+                ),
+              )
+            : null,
       ),
       backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
@@ -960,48 +1035,100 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             final isDesktopLayout = constraints.maxWidth >= 1100;
             final horizontalPadding = constraints.maxWidth < 720 ? 16.0 : 24.0;
 
+            // 현재 탭에 맞는 섹션 가져오기 (캐싱 사용)
+            List<Widget> currentSections;
+            switch (_currentTabIndex) {
+              case 0: // 현장 조사
+                currentSections = _cachedFieldSurveySections ??= _buildFieldSurveySections(
+                  context: context,
+                  kind: kind,
+                  asdt: asdt,
+                  owner: owner,
+                  admin: admin,
+                  lcto: lcto,
+                  lcad: lcad,
+                );
+                break;
+              case 1: // 조사자 의견
+                currentSections = _cachedInvestigatorOpinionSections ??= _buildInvestigatorOpinionSections(
+                  context: context,
+                );
+                break;
+              case 2: // 종합진단
+                currentSections = _cachedComprehensiveDiagnosisSections ??= _buildComprehensiveDiagnosisSections(
+                  context: context,
+                );
+                break;
+              default:
+                currentSections = [];
+            }
+
             if (isDesktopLayout) {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSideNavigationMenu(),
                   Expanded(
-                    child: ResponsivePage(
-                      controller: _mainScrollController,
-                      maxWidth: 1040.0,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: horizontalPadding,
-                        vertical: 24,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          ...detailSections,
-                          const SizedBox(height: 24),
-                        ],
-                      ),
+                    child: Column(
+                      children: [
+                        // 고정된 네비게이션 바
+                        Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: _buildTopNavigationBar(),
+                        ),
+                        // 탭 내용
+                        Expanded(
+                          child: ResponsivePage(
+                            controller: _mainScrollController,
+                            maxWidth: 1040.0,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
+                              vertical: 24,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ...currentSections,
+                                const SizedBox(height: 24),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               );
             }
 
-            return ResponsivePage(
-              controller: _mainScrollController,
-              maxWidth: 1040.0,
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: 24,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildTopNavigationBar(),
-                  const SizedBox(height: 16),
-                  ...detailSections,
-                  const SizedBox(height: 24),
-                ],
-              ),
+            return Column(
+              children: [
+                // 고정된 네비게이션 바
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: _buildTopNavigationBar(),
+                ),
+                // 탭 내용
+                Expanded(
+                  child: ResponsivePage(
+                    controller: _mainScrollController,
+                    maxWidth: 1040.0,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: 24,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ...currentSections,
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -1010,7 +1137,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  List<Widget> _buildDetailSections({
+  // 현장 조사 섹션 (탭 0)
+  List<Widget> _buildFieldSurveySections({
     required BuildContext context,
     required String kind,
     required String asdt,
@@ -1020,6 +1148,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
     required String lcad,
   }) {
     final sections = <Widget>[
+      // 1. 기본 정보
       Container(
         key: _sectionKeys['basicInfo'],
         child: BasicInfoCard(
@@ -1034,6 +1163,13 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         ),
       ),
       const SizedBox(height: 24),
+      // 2. 메타 정보 (조사 일자, 조사 기관, 조사자)
+      Container(
+        key: _sectionKeys['metaInfo'],
+        child: _buildMetaInfoSection(),
+      ),
+      const SizedBox(height: 24),
+      // 3. 위치 현황
       Container(
         key: _sectionKeys['location'],
         child: HeritagePhotoSection(
@@ -1051,13 +1187,14 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             );
           },
           formatBytes: _formatBytes,
-          sectionNumber: 2,
+          sectionNumber: 3,
           title: '위치 현황',
           description: '위성사진, 배치도 등 위치 관련 자료를 등록하세요.',
           icon: Icons.location_on,
         ),
       ),
       const SizedBox(height: 24),
+      // 4. 현황 사진
       Container(
         key: _sectionKeys['photos'],
         child: HeritagePhotoSection(
@@ -1075,10 +1212,11 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             );
           },
           formatBytes: _formatBytes,
-          sectionNumber: 3,
+          sectionNumber: 4,
         ),
       ),
       const SizedBox(height: 24),
+      // 5. 손상부 조사
       Container(
         key: _sectionKeys['damageSurvey'],
         child: DamageSurveySection(
@@ -1109,6 +1247,105 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
       const SizedBox(height: 24),
     ];
 
+    // 텍스트 입력 필드는 제거 (현장 조사 탭에는 포함되지 않음)
+    sections.add(const SizedBox(height: 48));
+    return sections;
+  }
+
+  // 메타 정보 섹션 빌드
+  Widget _buildMetaInfoSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E2A44).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.description,
+                  color: Color(0xFF1E2A44),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                '2. 메타 정보',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _metaDateController,
+            decoration: const InputDecoration(
+              labelText: '조사 일자',
+              hintText: 'YYYY-MM-DD',
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Color(0xFFF8FAFC),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _metaOrganizationController,
+            decoration: const InputDecoration(
+              labelText: '조사 기관',
+              hintText: '기관명',
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Color(0xFFF8FAFC),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _metaInvestigatorController,
+            decoration: const InputDecoration(
+              labelText: '조사자',
+              hintText: '성명',
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Color(0xFFF8FAFC),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  // 조사자 의견 섹션 편집 가능 여부
+  bool _isInvestigatorOpinionEditable = false;
+  bool _isInvestigatorOpinionSaved = false;
+
+  // 조사자 의견 섹션 (탭 1)
+  List<Widget> _buildInvestigatorOpinionSections({
+    required BuildContext context,
+  }) {
+    final sections = <Widget>[];
+    
     if (_detailViewModel != null) {
       sections.add(
         AnimatedBuilder(
@@ -1118,25 +1355,601 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 보존관리 이력
+                Container(
+                  key: _sectionKeys['preservationHistory'],
+                  child: _buildPreservationHistorySection(context),
+                ),
                 const SizedBox(height: 24),
+                // 조사 결과
                 Container(
                   key: _sectionKeys['inspectionResult'],
                   child: InspectionResultCard(
                     value: vm.inspectionResult,
-                    onChanged: vm.updateInspectionResult,
+                    onChanged: _isInvestigatorOpinionEditable ? vm.updateInspectionResult : null,
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
                 ),
                 const SizedBox(height: 24),
+                // 보존 사항 (손상부 조사 정보 자동 연결)
+                Container(
+                  key: _sectionKeys['preservationItems'],
+                  child: _buildPreservationItemsSection(context, vm),
+                ),
+                const SizedBox(height: 24),
+                // 관리사항
                 Container(
                   key: _sectionKeys['management'],
                   child: ManagementItemsCard(
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
+                    isReadOnly: !_isInvestigatorOpinionEditable,
                   ),
                 ),
                 const SizedBox(height: 24),
+                // 저장/수정 버튼 및 수정 이력 버튼
+                _buildInvestigatorOpinionActionBar(context),
+              ],
+            );
+          },
+        ),
+      );
+    } else {
+      sections.add(
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Text(
+              '조사자 의견을 입력하려면 데이터를 먼저 로드해주세요.',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
+          ),
+        ),
+      );
+    }
+    
+    sections.add(const SizedBox(height: 48));
+    return sections;
+  }
+
+  // 보존관리 이력 섹션 (불러오기 버튼 포함)
+  Widget _buildPreservationHistorySection(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2A44).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.history,
+                      color: Color(0xFF1E2A44),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    '보존관리 이력',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      color: Color(0xFF111827),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // 기존 이력에서 불러오기
+                  showDialog(
+                    context: context,
+                    builder: (_) => HeritageHistoryDialog(
+                      heritageId: heritageId,
+                      heritageName: _name,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.download, size: 16),
+                label: const Text('불러오기'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E2A44),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '기존 이력에서 데이터를 불러와 동기화합니다.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 보존 사항 섹션 (손상부 조사 정보 자동 연결)
+  Widget _buildPreservationItemsSection(BuildContext context, HeritageDetailViewModel vm) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E2A44).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.construction,
+                  color: Color(0xFF1E2A44),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                '보존 사항',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: Color(0xFF111827),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '손상부 조사 정보가 자동으로 연결됩니다.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 손상부 조사 정보 표시
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _fb.damageStream(heritageId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              
+              if (snapshot.hasError) {
+                return Text('오류: ${snapshot.error}');
+              }
+              
+              final docs = snapshot.data?.docs ?? [];
+              
+              if (docs.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: const Text(
+                    '등록된 손상부 조사가 없습니다.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                );
+              }
+              
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: docs.map((doc) {
+                  final data = doc.data();
+                  final location = data['location'] as String? ?? '';
+                  final part = data['damagePart'] as String? ?? data['partName'] as String? ?? '';
+                  final phenomenon = data['phenomenon'] as String? ?? '';
+                  final severity = data['severityGrade'] as String? ?? '';
+                  
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (location.isNotEmpty || part.isNotEmpty)
+                          Text(
+                            '${location.isNotEmpty ? location : ''}${location.isNotEmpty && part.isNotEmpty ? ' / ' : ''}${part.isNotEmpty ? part : ''}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                        if (phenomenon.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '현상: $phenomenon',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                        if (severity.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '등급: $severity',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 조사자 의견 액션 바 (저장/수정 버튼, 수정 이력 버튼)
+  Widget _buildInvestigatorOpinionActionBar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => _showEditHistoryDialog(context),
+            icon: const Icon(Icons.history, size: 16),
+            label: const Text('수정 이력'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (!_isInvestigatorOpinionEditable && _isInvestigatorOpinionSaved)
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _isInvestigatorOpinionEditable = true;
+                });
+              },
+              icon: const Icon(Icons.edit, size: 16),
+              label: const Text('수정'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  // 변경된 필드 추적
+                  final changedFields = <String>[];
+                  
+                  // 조사 결과 저장
+                  if (_detailViewModel != null) {
+                    await _fb.saveInvestigatorOpinionSection(
+                      heritageId: heritageId,
+                      sectionType: 'inspectionResult',
+                      data: {
+                        'inspectionResult': _detailViewModel!.inspectionResult,
+                      },
+                      editor: '현재 사용자', // TODO: 실제 사용자 정보로 교체
+                      changedFields: ['조사 결과'],
+                    );
+                    changedFields.add('조사 결과');
+                  }
+                  
+                  // 관리사항은 ManagementItemsCard에서 자체적으로 저장하므로 여기서는 수정 이력만 기록
+                  changedFields.add('관리사항');
+                  
+                  // 수정 이력 저장
+                  if (changedFields.isNotEmpty) {
+                    await _fb.saveEditHistory(
+                      heritageId: heritageId,
+                      sectionType: 'investigatorOpinion',
+                      editor: '현재 사용자', // TODO: 실제 사용자 정보로 교체
+                      changedFields: changedFields,
+                    );
+                  }
+                  
+                  setState(() {
+                    _isInvestigatorOpinionSaved = true;
+                    _isInvestigatorOpinionEditable = false;
+                  });
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('저장되었습니다')),
+                    );
+                  }
+                } catch (e) {
+                  debugPrint('❌ 저장 실패: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.save, size: 16),
+              label: const Text('저장'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E2A44),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // 수정 이력 다이얼로그 표시
+  void _showEditHistoryDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: 600,
+          constraints: const BoxConstraints(maxHeight: 600),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '수정 이력',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _fb.editHistoryStream(heritageId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text('오류: ${snapshot.error}'),
+                      );
+                    }
+                    
+                    final docs = snapshot.data?.docs ?? [];
+                    
+                    if (docs.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            '수정 이력이 없습니다.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: docs.length,
+                      separatorBuilder: (context, index) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final doc = docs[index];
+                        final data = doc.data();
+                        final timestamp = data['timestamp'] as Timestamp?;
+                        final createdAt = data['createdAt'] as String?;
+                        final editor = data['editor'] as String? ?? '알 수 없음';
+                        final changedFields = (data['changedFields'] as List<dynamic>?)
+                            ?.map((e) => e.toString())
+                            .toList() ?? [];
+                        
+                        String dateStr = '날짜 없음';
+                        if (timestamp != null) {
+                          final date = timestamp.toDate();
+                          dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                        } else if (createdAt != null) {
+                          try {
+                            final date = DateTime.parse(createdAt);
+                            dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                          } catch (e) {
+                            dateStr = createdAt;
+                          }
+                        }
+                        
+                        return _buildEditHistoryItem(
+                          date: dateStr,
+                          editor: editor,
+                          changes: changedFields,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('닫기'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 수정 이력 항목 빌드
+  Widget _buildEditHistoryItem({
+    required String date,
+    required String editor,
+    required List<String> changes,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  '완료',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '수정일: $date',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '수정자: $editor',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '변경된 필드: ${changes.join(', ')}',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 종합진단 섹션 (탭 2)
+  List<Widget> _buildComprehensiveDiagnosisSections({
+    required BuildContext context,
+  }) {
+    final sections = <Widget>[];
+    
+    if (_detailViewModel != null) {
+      sections.add(
+        AnimatedBuilder(
+          animation: _detailViewModel!,
+          builder: (context, _) {
+            final vm = _detailViewModel!;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. 손상부 종합
                 Container(
                   key: _sectionKeys['damageSummary'],
                   child: DamageSummaryTable(
@@ -1147,6 +1960,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // 2. 조사자 의견 (읽기 전용)
                 Container(
                   key: _sectionKeys['investigatorOpinion'],
                   child: InvestigatorOpinionField(
@@ -1157,6 +1971,16 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // 3. 등급 분류
+                Container(
+                  key: _sectionKeys['gradeClassification'],
+                  child: GradeClassificationCard(
+                    value: vm.gradeClassification,
+                    onChanged: vm.updateGradeClassification,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // 4. AI 예측 기능
                 Container(
                   key: _sectionKeys['aiPrediction'],
                   child: AIPredictionSection(
@@ -1168,23 +1992,15 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                Container(
-                  key: _sectionKeys['gradeClassification'],
-                  child: GradeClassificationCard(
-                    value: vm.gradeClassification,
-                    onChanged: vm.updateGradeClassification,
-                  ),
-                ),
               ],
             );
           },
         ),
       );
     } else {
-      // _detailViewModel이 null일 때도 AI 섹션 표시
       sections.add(
         Container(
+          key: _sectionKeys['aiPrediction'],
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
@@ -1203,8 +2019,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // AI 예측 버튼들
               Row(
                 children: [
                   Expanded(
@@ -1245,8 +2059,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-
-              // 보고서 생성 버튼
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -1269,198 +2081,72 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
           ),
         ),
       );
-    }
-
-    // 화면 크기가 충분히 클 때만 텍스트 입력 필드 추가
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isLargeScreen = screenWidth >= 1024; // 1024px 이상일 때만 표시
-
-    if (isLargeScreen) {
-      // 텍스트 입력 필드 추가
+      sections.add(const SizedBox(height: 24));
       sections.add(
         Container(
-          margin: const EdgeInsets.symmetric(vertical: 24),
-          padding: const EdgeInsets.all(20),
+          key: _sectionKeys['gradeClassification'],
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                '📝 텍스트 데이터 입력',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E2A44),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '아래 필드에 데이터를 입력하고 저장 버튼을 눌러주세요.',
-                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-              ),
-              const SizedBox(height: 24),
-
-              // 1.1 조사 결과
-              TextField(
-                controller: _inspectionResult,
-                decoration: const InputDecoration(
-                  labelText: '1.1 조사 결과',
-                  hintText: '조사 결과를 입력하세요',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-
-              // 관리사항
-              TextField(
-                controller: _managementItems,
-                decoration: const InputDecoration(
-                  labelText: '관리사항',
-                  hintText: '관리사항을 입력하세요',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-
-              // 손상부 종합
-              TextField(
-                controller: _damageSummary,
-                decoration: const InputDecoration(
-                  labelText: '손상부 종합',
-                  hintText: '손상부 종합 내용을 입력하세요',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-
-              // 조사자 의견
-              TextField(
-                controller: _investigatorOpinion,
-                decoration: const InputDecoration(
-                  labelText: '조사자 의견',
-                  hintText: '조사자 의견을 입력하세요',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-
-              // 등급 분류
-              TextField(
-                controller: _gradeClassification,
-                decoration: const InputDecoration(
-                  labelText: '등급 분류',
-                  hintText: 'A, B, C, D, E, F 등급을 입력하세요',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // 기존 이력 (새로 추가!)
-              TextField(
-                controller: _existingHistory,
-                decoration: const InputDecoration(
-                  labelText: '기존 이력',
-                  hintText: '과거 조사 이력이나 관련 기록을 입력하세요',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Color(0xFFFFFBEB), // 연한 노란색 배경으로 강조
-                  prefixIcon: Icon(Icons.history, color: Color(0xFFD97706)),
-                ),
-                maxLines: 4,
-              ),
-            ],
-          ),
-        ),
-      );
-
-      // 텍스트 저장 버튼 추가
-      sections.add(
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                '텍스트 데이터 저장',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E2A44),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                '위 입력 필드들의 데이터를 Firebase에 저장합니다:',
-                style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '• 1.1 조사 결과 • 관리사항 • 손상부 종합 • 조사자 의견 • 등급 분류 • 기존 이력',
-                style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _isSavingText ? null : _saveTextData,
-                icon: _isSavingText
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save),
-                label: Text(_isSavingText ? '저장 중...' : '텍스트 데이터 저장'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E2A44),
-                  foregroundColor: Colors.white,
-                  elevation: 2,
-                  shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 24,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
+          child: const Center(
+            child: Text(
+              '등급 분류를 확인하려면 데이터를 먼저 로드해주세요.',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
           ),
         ),
       );
     }
-
+    
     sections.add(const SizedBox(height: 48));
     return sections;
   }
 
   // 사이드 네비게이션 메뉴 빌드
   Widget _buildSideNavigationMenu() {
-    final navItems = _sectionNavigationItems;
+    // 현재 탭에 맞는 섹션만 필터링
+    final currentTabSections = <String>[];
+    switch (_currentTabIndex) {
+      case 0: // 현장 조사
+        currentTabSections.addAll([
+          'basicInfo',
+          'metaInfo',
+          'location',
+          'photos',
+          'damageSurvey',
+        ]);
+        break;
+      case 1: // 조사자 의견
+        currentTabSections.addAll([
+          'preservationHistory',
+          'inspectionResult',
+          'preservationItems',
+          'management',
+        ]);
+        break;
+      case 2: // 종합진단
+        currentTabSections.addAll([
+          'damageSummary',
+          'investigatorOpinion',
+          'gradeClassification',
+          'aiPrediction',
+        ]);
+        break;
+    }
+    
+    final navItems = _sectionNavigationItems
+        .where((item) => currentTabSections.contains(item.key))
+        .toList();
 
     final itemWidgets = <Widget>[];
     for (var i = 0; i < navItems.length; i++) {
@@ -1560,6 +2246,40 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
 
   // 상단 네비게이션 바 (모바일/태블릿용)
   Widget _buildTopNavigationBar() {
+    // 현재 탭에 맞는 섹션만 필터링
+    final currentTabSections = <String>[];
+    switch (_currentTabIndex) {
+      case 0: // 현장 조사
+        currentTabSections.addAll([
+          'basicInfo',
+          'metaInfo',
+          'location',
+          'photos',
+          'damageSurvey',
+        ]);
+        break;
+      case 1: // 조사자 의견
+        currentTabSections.addAll([
+          'preservationHistory',
+          'inspectionResult',
+          'preservationItems',
+          'management',
+        ]);
+        break;
+      case 2: // 종합진단
+        currentTabSections.addAll([
+          'damageSummary',
+          'investigatorOpinion',
+          'gradeClassification',
+          'aiPrediction',
+        ]);
+        break;
+    }
+    
+    final navItems = _sectionNavigationItems
+        .where((item) => currentTabSections.contains(item.key))
+        .toList();
+    
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1575,7 +2295,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
-          children: _sectionNavigationItems.asMap().entries.map((entry) {
+          children: navItems.asMap().entries.map((entry) {
             final index = entry.key;
             final item = entry.value;
             final isActive = item.key == _activeSectionKey;

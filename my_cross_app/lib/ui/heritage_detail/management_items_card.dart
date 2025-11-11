@@ -10,10 +10,12 @@ class ManagementItemsCard extends StatefulWidget {
     super.key,
     this.heritageId = '',
     this.heritageName = '',
+    this.isReadOnly = false,
   });
 
   final String heritageId;
   final String heritageName;
+  final bool isReadOnly;
 
   @override
   State<ManagementItemsCard> createState() => _ManagementItemsCardState();
@@ -230,8 +232,8 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
               final isMobile = constraints.maxWidth < 600;
               return Align(
                 alignment: isMobile ? Alignment.center : Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: _isSaving ? null : _saveManagementItems,
+                  child: FilledButton.icon(
+                  onPressed: (widget.isReadOnly || _isSaving) ? null : _saveManagementItems,
                   icon: _isSaving
                       ? const SizedBox(
                           width: 16,
@@ -534,14 +536,17 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+              style: TextStyle(
+                fontSize: 14,
+                color: widget.isReadOnly ? const Color(0xFF9CA3AF) : const Color(0xFF374151),
+              ),
             ),
           ),
           Row(
             children: [
-              _buildCheckbox('있음', value, () => onChanged(true)),
+              _buildCheckbox('있음', value, widget.isReadOnly ? () {} : () => onChanged(true)),
               const SizedBox(width: 16),
-              _buildCheckbox('없음', !value, () => onChanged(false)),
+              _buildCheckbox('없음', !value, widget.isReadOnly ? () {} : () => onChanged(false)),
             ],
           ),
         ],
@@ -565,9 +570,9 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
             flex: 1,
             child: Row(
               children: [
-                _buildCheckbox('있음', hasItem, () => onHasItemChanged(true)),
+                _buildCheckbox('있음', hasItem, widget.isReadOnly ? () {} : () => onHasItemChanged(true)),
                 const SizedBox(width: 8),
-                _buildCheckbox('없음', !hasItem, () => onHasItemChanged(false)),
+                _buildCheckbox('없음', !hasItem, widget.isReadOnly ? () {} : () => onHasItemChanged(false)),
               ],
             ),
           ),
@@ -575,7 +580,7 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
             flex: 1,
             child: TextField(
               controller: controller,
-              enabled: hasItem,
+              enabled: !widget.isReadOnly && hasItem,
               decoration: InputDecoration(
                 hintText: '현황(개수 등)',
                 border: OutlineInputBorder(
@@ -643,11 +648,15 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+          style: TextStyle(
+            fontSize: 14,
+            color: widget.isReadOnly ? const Color(0xFF9CA3AF) : const Color(0xFF374151),
+          ),
         ),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
+          enabled: !widget.isReadOnly,
           decoration: InputDecoration(
             hintText: hint,
             border: OutlineInputBorder(
@@ -662,9 +671,13 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFF1E2A44)),
             ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
             isDense: true,
             contentPadding: const EdgeInsets.all(12),
-            fillColor: Colors.white,
+            fillColor: widget.isReadOnly ? Colors.grey.shade50 : Colors.white,
             filled: true,
           ),
           maxLines: 2,

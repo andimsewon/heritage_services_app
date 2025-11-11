@@ -835,4 +835,108 @@ class FirebaseService {
     }
   }
 
+  /// 조사자 의견 섹션 수정 이력 저장
+  Future<void> saveEditHistory({
+    required String heritageId,
+    required String sectionType, // 'inspectionResult', 'preservationItems', 'management'
+    required String editor,
+    required List<String> changedFields,
+  }) async {
+    try {
+      debugPrint('📝 수정 이력 저장 시작: $heritageId/$sectionType');
+      
+      final col = _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('edit_history');
+      
+      await col.add({
+        'sectionType': sectionType,
+        'editor': editor,
+        'changedFields': changedFields,
+        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+      
+      debugPrint('✅ 수정 이력 저장 완료');
+    } catch (e) {
+      debugPrint('❌ 수정 이력 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 조사자 의견 섹션 수정 이력 조회
+  Stream<QuerySnapshot<Map<String, dynamic>>> editHistoryStream(String heritageId) {
+    return _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('edit_history')
+        .orderBy('timestamp', descending: true)
+        .limit(50)
+        .snapshots();
+  }
+
+  /// 조사자 의견 섹션 데이터 저장 (수정 이력 포함)
+  Future<void> saveInvestigatorOpinionSection({
+    required String heritageId,
+    required String sectionType,
+    required Map<String, dynamic> data,
+    String? editor,
+    List<String>? changedFields,
+  }) async {
+    try {
+      debugPrint('💾 조사자 의견 섹션 저장 시작: $heritageId/$sectionType');
+      
+      final docRef = _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('investigator_opinion')
+          .doc(sectionType);
+      
+      await docRef.set({
+        ...data,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastEditor': editor ?? '현재 사용자',
+      }, SetOptions(merge: true));
+      
+      // 수정 이력 저장
+      if (editor != null && changedFields != null && changedFields.isNotEmpty) {
+        await saveEditHistory(
+          heritageId: heritageId,
+          sectionType: sectionType,
+          editor: editor,
+          changedFields: changedFields,
+        );
+      }
+      
+      debugPrint('✅ 조사자 의견 섹션 저장 완료');
+    } catch (e) {
+      debugPrint('❌ 조사자 의견 섹션 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 조사자 의견 섹션 데이터 조회
+  Future<Map<String, dynamic>?> getInvestigatorOpinionSection({
+    required String heritageId,
+    required String sectionType,
+  }) async {
+    try {
+      final doc = await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('investigator_opinion')
+          .doc(sectionType)
+          .get();
+      
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ 조사자 의견 섹션 조회 실패: $e');
+      return null;
+    }
+  }
+
 }

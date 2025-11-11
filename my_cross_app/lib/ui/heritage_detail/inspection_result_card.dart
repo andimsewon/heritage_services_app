@@ -13,13 +13,13 @@ class InspectionResultCard extends StatefulWidget {
   const InspectionResultCard({
     super.key,
     required this.value,
-    required this.onChanged,
+    this.onChanged,
     this.heritageId = '',
     this.heritageName = '',
   });
 
   final InspectionResult value;
-  final ValueChanged<InspectionResult> onChanged;
+  final ValueChanged<InspectionResult>? onChanged;
   final String heritageId;
   final String heritageName;
 
@@ -252,7 +252,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
               return Align(
                 alignment: isMobile ? Alignment.center : Alignment.centerRight,
                 child: FilledButton.icon(
-                  onPressed: _isSaving ? null : _saveInspectionResult,
+                  onPressed: (widget.onChanged == null || _isSaving) ? null : _saveInspectionResult,
                   icon: _isSaving
                       ? const SizedBox(
                           width: 16,
@@ -589,7 +589,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _pickImage(_getPhotoKey(photoController)),
+                    onPressed: widget.onChanged != null ? () => _pickImage(_getPhotoKey(photoController)) : null,
                     icon: const Icon(Icons.camera_alt, size: 14),
                     label: const Text(
                       '사진 첨부',
@@ -741,6 +741,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
             flex: 3,
             child: TextField(
               controller: controller,
+              enabled: widget.onChanged != null,
               decoration: InputDecoration(
                 hintText: '내용을 입력하세요',
                 border: OutlineInputBorder(
@@ -755,13 +756,20 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                   borderRadius: BorderRadius.circular(6),
                   borderSide: const BorderSide(color: Color(0xFF1E2A44)),
                 ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
                 isDense: true,
                 contentPadding: const EdgeInsets.all(8),
-                fillColor: Colors.white,
+                fillColor: widget.onChanged != null ? Colors.white : Colors.grey.shade50,
                 filled: true,
               ),
               maxLines: label == '특기사항' || label == '조사 종합의견' ? 4 : 2,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
+              style: TextStyle(
+                fontSize: 13,
+                color: widget.onChanged != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+              ),
             ),
           ),
         ],
@@ -819,6 +827,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   }
 
   void _handleChanged(String key) {
+    if (widget.onChanged == null) return;
     final updated = widget.value.copyWith(
       foundation: key == 'foundation'
           ? _foundationController.text
@@ -826,7 +835,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       wall: key == 'wall' ? _wallController.text : widget.value.wall,
       roof: key == 'roof' ? _roofController.text : widget.value.roof,
     );
-    widget.onChanged(updated);
+    widget.onChanged!(updated);
   }
 
   // 컨트롤러를 기반으로 사진 키 반환
