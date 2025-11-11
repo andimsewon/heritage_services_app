@@ -84,19 +84,19 @@ const List<_SectionNavigationItem> _sectionNavigationItems = [
   // 조사자 의견 탭
   _SectionNavigationItem(
     key: 'preservationHistory',
-    title: '보존관리 이력',
+    title: '1. 보존관리 이력',
     shortTitle: '이력',
     icon: Icons.history,
   ),
   _SectionNavigationItem(
     key: 'inspectionResult',
-    title: '조사 결과',
+    title: '2. 조사 결과',
     shortTitle: '조사',
     icon: Icons.assignment,
   ),
   _SectionNavigationItem(
     key: 'preservationItems',
-    title: '보존 사항',
+    title: '3. 보존 사항',
     shortTitle: '보존',
     icon: Icons.construction,
   ),
@@ -3083,7 +3083,7 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      '4. 손상부 조사',
+                      '5. 손상부 조사',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 18,

@@ -175,7 +175,7 @@ class _ManagementItemsCardState extends State<ManagementItemsCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '6. 관리사항',
+                '4. 관리사항',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 18,

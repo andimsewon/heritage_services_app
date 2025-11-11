@@ -199,6 +199,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     Map<String, dynamic> data,
     String fallback,
   ) {
+    // 수동으로 등록한 항목의 경우 상세 주소는 별도 필드에서만 가져옴
+    // sojaeji는 소재지로만 사용되므로 상세 주소로 사용하지 않음
     final candidates = [
       data['ccbaLcad'],
       data['lcad'],
@@ -212,7 +214,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         return value;
       }
     }
-    return fallback;
+    // fallback이 비어있으면 빈 문자열 반환 (sojaeji를 상세 주소로 사용하지 않음)
+    return fallback.isNotEmpty ? fallback : '';
   }
 
   // 상세 주소 가져오기 (캐싱 사용) - 기본 정보 화면과 동일한 로직
@@ -388,12 +391,14 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          _CellHeader('종목', flex: 2),
-          _CellHeader('유산명', flex: 4),
-          _CellHeader('소재지', flex: 3),
-          _CellHeader('주소', flex: 3),
+          const _CellHeader('종목', flex: 2),
+          const _CellHeader('유산명', flex: 4),
+          const _CellHeader('소재지', flex: 3),
+          const Expanded(flex: 3, child: Text('주소', style: TextStyle(fontWeight: FontWeight.bold))),
+          // 삭제 버튼 공간을 위한 고정 너비 (40px)
+          const SizedBox(width: 40),
         ],
       ),
     );
@@ -433,13 +438,18 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       itemBuilder: (context, index) {
         if (index < _customRows.length) {
           final data = _customRows[index];
-          final location = (data['sojaeji'] as String? ?? '').trim();
-          final fallback = (data['addr'] as String? ?? '').trim();
+          // 수동으로 등록한 항목의 경우 sojaeji에 입력한 값 그대로를 소재지로 표시
+          // sojaeji 필드를 직접 사용하여 사용자가 입력한 값 그대로 표시
+          final sojaejiValue = (data['sojaeji'] as String? ?? '').trim();
+          final addrValue = (data['addr'] as String? ?? '').trim();
+          // 상세 주소는 별도 필드(lcto, lcad 등)에서만 가져오고, sojaeji는 절대 사용하지 않음
           final detailAddress = _resolveCustomDetailAddress(
             data,
-            location.isNotEmpty ? location : fallback,
+            '', // fallback을 빈 문자열로 전달하여 sojaeji가 상세 주소로 사용되지 않도록 함
           );
-          final region = fallback.isNotEmpty ? fallback : location;
+          // 수동 등록 항목: sojaeji를 우선 사용 (입력한 값 그대로 표시)
+          // sojaeji가 비어있을 때만 addr을 fallback으로 사용
+          final region = sojaejiValue.isNotEmpty ? sojaejiValue : addrValue;
 
           if (tableLayout) {
             return _CustomRow(
@@ -493,6 +503,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                       },
                     ),
                   ),
+                  // 삭제 버튼이 없는 API 항목도 동일한 공간(40px) 확보하여 정렬 유지
+                  const SizedBox(width: 40),
                 ],
               ),
             ),
@@ -959,10 +971,13 @@ class _CustomRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 소재지(지역): addr 우선 사용, 없으면 입력된 소재지 텍스트 사용
-    final displayRegion = region.isNotEmpty 
-        ? region 
-        : (data['addr'] as String? ?? '');
+    // 수동 등록 항목: sojaeji에 입력한 값 그대로를 소재지로 표시
+    // region은 이미 sojaeji를 우선 사용하도록 설정되어 있지만,
+    // 혹시 모를 경우를 대비해 sojaeji를 직접 확인
+    final sojaejiValue = (data['sojaeji'] as String? ?? '').trim();
+    final displayRegion = sojaejiValue.isNotEmpty 
+        ? sojaejiValue 
+        : (region.isNotEmpty ? region : '');
     
     return InkWell(
       onTap: onTap,
@@ -973,24 +988,29 @@ class _CustomRow extends StatelessWidget {
             _Cell('${data['kindName'] as String? ?? ''} (내 추가)', flex: 2),
             _Cell(data['name'] as String? ?? '', flex: 4),
             _Cell(displayRegion, flex: 3),
+            // 주소 열: flex: 3으로 헤더와 일치
             Expanded(
-              flex: 5,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      detailAddress.isNotEmpty ? detailAddress : '주소 정보 없음',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.black),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '삭제',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: onDelete,
-                  ),
-                ],
+              flex: 3,
+              child: Text(
+                detailAddress.isNotEmpty ? detailAddress : '주소 정보 없음',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.black),
+              ),
+            ),
+            // 삭제 버튼: 고정 너비 (40px)로 정렬 유지
+            SizedBox(
+              width: 40,
+              child: IconButton(
+                tooltip: '삭제',
+                icon: const Icon(Icons.delete_outline),
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
+                onPressed: onDelete,
               ),
             ),
           ],

@@ -211,7 +211,7 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '5. 조사 결과',
+                '2. 조사 결과',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
