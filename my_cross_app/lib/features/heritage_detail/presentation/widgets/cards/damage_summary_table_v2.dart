@@ -471,13 +471,18 @@ class DamageSummaryTableV2 extends StatelessWidget {
   }
 
   Widget _gradeCell(String label, String grade, Color bgColor, bool isMobile) {
+    // Color에서 shade를 얻기 위해 MaterialColor로 변환하거나 직접 색상 계산
+    final lightColor = Color.lerp(bgColor, Colors.white, 0.9) ?? bgColor;
+    final borderColor = Color.lerp(bgColor, Colors.black, 0.3) ?? bgColor;
+    final textColor = Color.lerp(bgColor, Colors.black, 0.8) ?? Colors.black;
+    
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 1),
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         decoration: BoxDecoration(
-          color: bgColor.shade100,
-          border: Border.all(color: bgColor.shade300),
+          color: lightColor,
+          border: Border.all(color: borderColor),
         ),
         child: Text(
           grade,
@@ -485,7 +490,7 @@ class DamageSummaryTableV2 extends StatelessWidget {
           style: TextStyle(
             fontSize: isMobile ? 10 : 12,
             fontWeight: FontWeight.bold,
-            color: bgColor.shade900,
+            color: textColor,
           ),
         ),
       ),

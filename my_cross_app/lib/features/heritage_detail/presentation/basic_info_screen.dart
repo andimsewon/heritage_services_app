@@ -973,6 +973,37 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
       ['item', 'ccbaLcad'],
     ]);
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth < 720 ? 16.0 : 24.0;
+
+    // 현재 탭에 맞는 섹션 가져오기 (캐싱 사용)
+    List<Widget> currentSections;
+    switch (_currentTabIndex) {
+      case 0: // 현장 조사
+        currentSections = _cachedFieldSurveySections ??= _buildFieldSurveySections(
+          context: context,
+          kind: kind,
+          asdt: asdt,
+          owner: owner,
+          admin: admin,
+          lcto: lcto,
+          lcad: lcad,
+        );
+        break;
+      case 1: // 조사자 의견
+        currentSections = _cachedInvestigatorOpinionSections ??= _buildInvestigatorOpinionSections(
+          context: context,
+        );
+        break;
+      case 2: // 종합진단
+        currentSections = _cachedComprehensiveDiagnosisSections ??= _buildComprehensiveDiagnosisSections(
+          context: context,
+        );
+        break;
+      default:
+        currentSections = [];
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E2A44),
@@ -1057,107 +1088,24 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
       ),
       backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktopLayout = constraints.maxWidth >= 1100;
-            final horizontalPadding = constraints.maxWidth < 720 ? 16.0 : 24.0;
-
-            // 현재 탭에 맞는 섹션 가져오기 (캐싱 사용)
-            List<Widget> currentSections;
-            switch (_currentTabIndex) {
-              case 0: // 현장 조사
-                currentSections = _cachedFieldSurveySections ??= _buildFieldSurveySections(
-                  context: context,
-                  kind: kind,
-                  asdt: asdt,
-                  owner: owner,
-                  admin: admin,
-                  lcto: lcto,
-                  lcad: lcad,
-                );
-                break;
-              case 1: // 조사자 의견
-                currentSections = _cachedInvestigatorOpinionSections ??= _buildInvestigatorOpinionSections(
-                  context: context,
-                );
-                break;
-              case 2: // 종합진단
-                currentSections = _cachedComprehensiveDiagnosisSections ??= _buildComprehensiveDiagnosisSections(
-                  context: context,
-                );
-                break;
-              default:
-                currentSections = [];
-            }
-
-            if (isDesktopLayout) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSideNavigationMenu(),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        // 고정된 네비게이션 바
-                        Container(
-                          color: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: _buildTopNavigationBar(),
-                        ),
-                        // 탭 내용
-                        Expanded(
-                          child: ResponsivePage(
-                            controller: _mainScrollController,
-                            maxWidth: 1040.0,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                              vertical: 24,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                ...currentSections,
-                                const SizedBox(height: 24),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-
-            return Column(
-              children: [
-                // 고정된 네비게이션 바
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: _buildTopNavigationBar(),
-                ),
-                // 탭 내용
-                Expanded(
-                  child: ResponsivePage(
-                    controller: _mainScrollController,
-                    maxWidth: 1040.0,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: horizontalPadding,
-                      vertical: 24,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ...currentSections,
-                        const SizedBox(height: 24),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+        child: ResponsivePage(
+          controller: _mainScrollController,
+          maxWidth: 1040.0,
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 24,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildTopNavigationBar(),
+              ),
+              ...currentSections,
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -1254,10 +1202,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
           sectionNumber: _sectionNumberFor('damageSurvey'),
           damageStream: _fb.damageStream(heritageId),
           onAddSurvey: () => _openDamageDetectionDialog(),
-          onDeepInspection: () async {
+          onDeepInspection: (selectedDamage) async {
             final result = await showDialog(
               context: context,
-              builder: (_) => const DeepDamageInspectionDialog(),
+              builder: (_) => DeepDamageInspectionDialog(selectedDamage: selectedDamage),
             );
             if (result != null && result['saved'] == true && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -2150,138 +2098,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
     return sections;
   }
 
-  // 사이드 네비게이션 메뉴 빌드
-  Widget _buildSideNavigationMenu() {
-    // 현재 탭에 맞는 섹션만 필터링
-    final currentTabSections = <String>[];
-    switch (_currentTabIndex) {
-      case 0: // 현장 조사
-        currentTabSections.addAll([
-          'basicInfo',
-          'metaInfo',
-          'location',
-          'photos',
-          'damageSurvey',
-        ]);
-        break;
-      case 1: // 조사자 의견
-        currentTabSections.addAll([
-          'preservationHistory',
-          'inspectionResult',
-          'preservationItems',
-          'management',
-        ]);
-        break;
-      case 2: // 종합진단
-        currentTabSections.addAll([
-          'damageSummary',
-          'investigatorOpinion',
-          'gradeClassification',
-          'aiPrediction',
-        ]);
-        break;
-    }
-    
-    final navItems = _sectionNavigationItems
-        .where((item) => currentTabSections.contains(item.key))
-        .toList();
-
-    final itemWidgets = <Widget>[];
-    for (var i = 0; i < navItems.length; i++) {
-      final item = navItems[i];
-      final isActive = item.key == _activeSectionKey;
-
-      itemWidgets.add(
-        InkWell(
-          onTap: () => _scrollToSection(item.key),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeInOut,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: BoxDecoration(
-              color: isActive ? const Color(0xFFE8EEF9) : Colors.transparent,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  item.icon,
-                  size: 20,
-                  color: isActive
-                      ? const Color(0xFF1E2A44)
-                      : const Color(0xFF4B5563),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _numberedTitle(item.key, item.title),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive
-                          ? const Color(0xFF1E2A44)
-                          : const Color(0xFF374151),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      if (i != navItems.length - 1) {
-        itemWidgets.add(
-          const Divider(
-            height: 0,
-            thickness: 1,
-            indent: 20,
-            endIndent: 20,
-            color: Color(0xFFE5E7EB),
-          ),
-        );
-      }
-    }
-
-    return Container(
-      width: 248,
-      margin: const EdgeInsets.only(right: 24, left: 8, top: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1E2A44),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: const Text(
-              '목차',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          ...itemWidgets,
-        ],
-      ),
-    );
-  }
-
   // 상단 네비게이션 바 (모바일/태블릿용)
   Widget _buildTopNavigationBar() {
     // 현재 탭에 맞는 섹션만 필터링
@@ -3077,7 +2893,7 @@ class DamageSurveySection extends StatefulWidget {
 
   final Stream<QuerySnapshot<Map<String, dynamic>>> damageStream;
   final VoidCallback onAddSurvey;
-  final Future<void> Function() onDeepInspection;
+  final Future<void> Function(Map<String, dynamic> selectedDamage) onDeepInspection;
   final Future<void> Function(String docId, String imageUrl) onDelete;
 
   @override
@@ -3510,16 +3326,9 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
     }
   }
 
-  void _openDeepInspection() {
+  Future<void> _openDeepInspection() async {
     if (_selectedDamage == null) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            DeepInspectionScreen(selectedDamage: _selectedDamage!),
-      ),
-    );
+    await widget.onDeepInspection(_selectedDamage!);
   }
 
   Widget _DamageCard({
@@ -8284,7 +8093,8 @@ class DamageDetectionResult {
 // ═══════════════════════════════════════════════════════════════
 
 class DeepDamageInspectionDialog extends StatefulWidget {
-  const DeepDamageInspectionDialog({super.key});
+  final Map<String, dynamic> selectedDamage;
+  const DeepDamageInspectionDialog({super.key, required this.selectedDamage});
 
   @override
   State<DeepDamageInspectionDialog> createState() =>
@@ -8333,7 +8143,9 @@ class _DeepDamageInspectionDialogState
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: OptimizedImage(
-                                imageUrl: damageImageUrl,
+                                imageUrl: widget.selectedDamage['imageUrl'] as String? ?? 
+                                    widget.selectedDamage['url'] as String? ?? 
+                                    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800',
                                 fit: BoxFit.cover,
                                 errorWidget: Container(
                                   color: Colors.grey.shade200,
@@ -8486,11 +8298,9 @@ class _DeepDamageInspectionDialogState
                         
                         if (heritageId.isNotEmpty) {
                           final docId = widget.selectedDamage['docId'] as String?;
-                          final dataToSave = {
-                            ...widget.selectedDamage,
-                            'heritageName': heritageName,
-                            'updatedAt': DateTime.now().toIso8601String(),
-                          };
+                          final dataToSave = Map<String, dynamic>.from(widget.selectedDamage)
+                            ..['heritageName'] = heritageName
+                            ..['updatedAt'] = DateTime.now().toIso8601String();
                           
                           if (docId != null && docId.isNotEmpty) {
                             await fb.updateDamageSurvey(

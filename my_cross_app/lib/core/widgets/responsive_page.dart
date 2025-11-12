@@ -9,7 +9,6 @@ class ResponsivePage extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   final EdgeInsets padding;
-
   final ScrollController? controller;
 
   const ResponsivePage({
@@ -24,7 +23,7 @@ class ResponsivePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Align(
+        Widget content = Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
@@ -35,6 +34,15 @@ class ResponsivePage extends StatelessWidget {
             ),
           ),
         );
+
+        if (constraints.maxHeight.isFinite) {
+          content = SizedBox(
+            height: constraints.maxHeight,
+            child: content,
+          );
+        }
+
+        return content;
       },
     );
   }
