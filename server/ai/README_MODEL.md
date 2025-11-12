@@ -11,6 +11,8 @@ server/ai/hanok_damage_model.pth
 server/ai/hanok_damage_model.pt
 ```
 
+> `hanok_damage_model.*` 파일명이 기본 모델 파일로 우선 선택됩니다. `best_model.*` 파일도 대체 경로로 자동 탐색합니다.
+
 ### 방법 2: 환경변수로 경로 지정
 ```bash
 export MODEL_PATH="/path/to/your/model.pth"
@@ -29,8 +31,9 @@ export MODEL_PATH="/path/to/hanok_damage_model_1108"
 다음 순서로 모델 파일을 자동으로 찾습니다:
 
 1. **환경변수 `MODEL_PATH`** (파일 또는 폴더 경로)
-2. **`server/ai/` 디렉토리**의 `.pth` 또는 `.pt` 파일
-3. **기본 파일명**: `hanok_damage_model.pt` 또는 `hanok_damage_model.pth`
+2. **`server/ai/` 디렉토리의 `hanok_damage_model.pth` / `hanok_damage_model.pt`** (기본 모델 파일, 우선순위 1)
+3. **`server/ai/` 디렉토리의 `best_model.pth` / `best_model.pt`** (대체 경로)
+4. **그 외 `server/ai/`의 `.pth` 또는 `.pt` 파일** 가운데 가장 최근 파일
 
 ## 📋 모델 파일 형식
 
@@ -55,8 +58,11 @@ export MODEL_PATH="/path/to/hanok_damage_model_1108"
 
 ### 예시 1: 기본 위치에 모델 파일 배치
 ```bash
-# 모델 파일을 server/ai/ 디렉토리에 복사
-cp /path/to/best_model.pth server/ai/hanok_damage_model.pth
+# 모델 파일을 server/ai/ 디렉토리에 복사 (기본 파일명 사용)
+cp /path/to/model.pth server/ai/hanok_damage_model.pth
+
+# 또는 best_model.pth로도 사용 가능 (대체 경로)
+cp /path/to/model.pth server/ai/best_model.pth
 
 # 서버 실행
 cd server
@@ -66,6 +72,10 @@ python main.py
 ### 예시 2: 환경변수로 모델 경로 지정
 ```bash
 # 단일 파일
+export MODEL_PATH="/home/user/models/hanok_damage_model.pth"
+python main.py
+
+# 또는 다른 파일명
 export MODEL_PATH="/home/user/models/best_model.pth"
 python main.py
 

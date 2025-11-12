@@ -22,7 +22,7 @@ server/
 │   ├── model.py                # CustomDeta 모델
 │   ├── service.py              # 추론 로직
 │   ├── loader.py               # 모델 로딩 관리
-│   └── hanok_damage_model.pt   # PyTorch 모델 (552MB)
+│   └── hanok_damage_model.pth  # PyTorch 모델 (기본 파일명)
 │
 └── common/                      # 공통 모듈
     ├── __init__.py
@@ -256,7 +256,7 @@ WantedBy=multi-user.target
 
 ## ⚠️ 주의사항
 
-1. **모델 파일**: `ai/hanok_damage_model.pt` (552MB)가 반드시 있어야 AI 기능 동작
+1. **모델 파일**: `ai/hanok_damage_model.pth` (또는 `ai/best_model.pth`)가 반드시 있어야 AI 기능 동작
 2. **메모리**: AI 모델 로딩 시 최소 1GB RAM 필요
 3. **CORS**: 프로덕션 환경에서는 반드시 특정 도메인으로 제한
 4. **인증**: 현재 인증 없음. 프로덕션에서는 JWT/OAuth 등 추가 필요
@@ -266,7 +266,7 @@ WantedBy=multi-user.target
 ### AI 모델 로드 실패
 ```bash
 # 모델 파일 경로 확인
-ls -lh ai/hanok_damage_model.pt
+ls -lh ai/hanok_damage_model.pth
 
 # Python 경로 문제 시
 export PYTHONPATH="${PYTHONPATH}:/home/dbs0510/heritage_services_app/server"

@@ -141,13 +141,14 @@ curl -X OPTIONS "http://localhost:8080/ai/damage/infer" \
 
 모델 파일은 다음 위치 중 하나에 있어야 합니다:
 
-1. `server/ai/best_model.pth` (기본값)
-2. `server/hanok_damage_model_1108/best_model.pth`
-3. 환경변수 `MODEL_PATH`로 지정한 경로
+1. `server/ai/hanok_damage_model.pth` (기본값, 우선순위 1)
+2. `server/ai/best_model.pth` (대체 경로)
+3. `server/hanok_damage_model_1108/best_model.pth` (노트북 경로)
+4. 환경변수 `MODEL_PATH`로 지정한 경로
 
 환경변수로 지정:
 ```bash
-export MODEL_PATH="/absolute/path/to/best_model.pth"
+export MODEL_PATH="/absolute/path/to/hanok_damage_model.pth"
 uvicorn main:app --reload
 ```
 

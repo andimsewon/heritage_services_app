@@ -14,10 +14,12 @@ from torchvision.ops import nms
 # 노트북과 동일한 설정값
 # 모델 경로: 환경변수 또는 기본값 (server 폴더 기준)
 # 1. 환경변수 MODEL_PATH 확인
-# 2. ai/best_model.pth (현재 위치)
-# 3. hanok_damage_model_1108/best_model.pth (노트북 경로)
+# 2. ai/hanok_damage_model.pth (기본 모델 파일)
+# 3. ai/best_model.pth (대체 경로)
+# 4. hanok_damage_model_1108/best_model.pth (노트북 경로)
 _default_paths = [
-    "ai/best_model.pth",  # 현재 위치
+    "ai/hanok_damage_model.pth",  # 기본 모델 파일
+    "ai/best_model.pth",  # 대체 경로
     "hanok_damage_model_1108/best_model.pth",  # 노트북 경로
 ]
 MODEL_PATH = os.getenv("MODEL_PATH", _default_paths[0])
