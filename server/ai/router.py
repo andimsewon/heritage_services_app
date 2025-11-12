@@ -4,7 +4,7 @@ AI Detection API 라우터
 """
 from fastapi import APIRouter, UploadFile, File
 from .service import detect_damage
-from .loader import is_model_loaded, get_id2label, get_model
+from .loader import is_model_loaded, get_id2label, get_id2label_korean, get_model
 
 router = APIRouter(tags=["AI Detection"])
 
@@ -25,11 +25,13 @@ async def ai_model_status():
 
     model = get_model()
     id2label = get_id2label()
+    id2label_korean = get_id2label_korean()
 
     return {
         "status": "loaded",
         "available": True,
         "labels": id2label,
+        "labels_korean": id2label_korean,  # 한글 레이블 추가
         "num_classes": len(id2label) if id2label else 0,
         "device": str(next(model.parameters()).device)
     }
