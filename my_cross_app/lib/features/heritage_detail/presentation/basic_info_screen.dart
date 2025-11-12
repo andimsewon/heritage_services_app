@@ -7672,13 +7672,40 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
       updatedDamage.addAll(inspectionData);
 
       // Firebase에 업데이트된 데이터 저장
-      // TODO: 실제 Firebase 저장 로직 구현
+      final fb = FirebaseService();
+      final heritageId = widget.selectedDamage['heritageId'] as String? ?? '';
+      final heritageName = widget.selectedDamage['heritageName'] as String? ?? '미상';
+      
+      if (heritageId.isNotEmpty) {
+        // 손상부 조사 데이터 업데이트
+        final docId = widget.selectedDamage['docId'] as String?;
+        if (docId != null && docId.isNotEmpty) {
+          await fb.updateDamageSurvey(
+            heritageId: heritageId,
+            docId: docId,
+            data: {
+              'detailInputs': inspectionData,
+              'updatedAt': DateTime.now().toIso8601String(),
+            },
+          );
+        } else {
+          // 새 문서로 저장
+          await fb.saveDamageSurvey(
+            heritageId: heritageId,
+            data: {
+              ...updatedDamage,
+              'heritageName': heritageName,
+            },
+          );
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('심화조사 결과가 저장되었습니다.'),
+            content: Text('✅ 심화조사 결과가 저장되었습니다.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
         Navigator.pop(context, {'saved': true});
@@ -8412,9 +8439,34 @@ class _DeepDamageInspectionDialogState
                 children: [
                   ElevatedButton(
                     onPressed: () {
-                      // TODO: 등급 산출 로직
+                      // 등급 산출 로직: AI 감지 결과와 손상 정보를 기반으로 등급 계산
+                      final detections = widget.selectedDamage['detections'] as List<dynamic>? ?? [];
+                      final severityGrade = widget.selectedDamage['severityGrade'] as String? ?? 'C';
+                      
+                      // 감지된 손상 수와 신뢰도 기반 등급 계산
+                      String calculatedGrade = severityGrade;
+                      if (detections.isNotEmpty) {
+                        final avgConfidence = detections
+                            .map((d) => (d['score'] as num?)?.toDouble() ?? 0.0)
+                            .reduce((a, b) => a + b) / detections.length;
+                        
+                        if (avgConfidence > 0.8) {
+                          calculatedGrade = 'A';
+                        } else if (avgConfidence > 0.6) {
+                          calculatedGrade = 'B';
+                        } else if (avgConfidence > 0.4) {
+                          calculatedGrade = 'C';
+                        } else {
+                          calculatedGrade = 'D';
+                        }
+                      }
+                      
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('등급 산출 기능 준비 중')),
+                        SnackBar(
+                          content: Text('등급 산출 완료: $calculatedGrade'),
+                          backgroundColor: Colors.blue,
+                          duration: const Duration(seconds: 2),
+                        ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -8425,9 +8477,64 @@ class _DeepDamageInspectionDialogState
                     child: const Text('등급 산출'),
                   ),
                   ElevatedButton(
-                    onPressed: () {
-                      // TODO: 저장 로직
-                      Navigator.pop(context, {'saved': true});
+                    onPressed: () async {
+                      // 저장 로직: 현재 입력된 모든 데이터를 Firebase에 저장
+                      try {
+                        final fb = FirebaseService();
+                        final heritageId = widget.selectedDamage['heritageId'] as String? ?? '';
+                        final heritageName = widget.selectedDamage['heritageName'] as String? ?? '미상';
+                        
+                        if (heritageId.isNotEmpty) {
+                          final docId = widget.selectedDamage['docId'] as String?;
+                          final dataToSave = {
+                            ...widget.selectedDamage,
+                            'heritageName': heritageName,
+                            'updatedAt': DateTime.now().toIso8601String(),
+                          };
+                          
+                          if (docId != null && docId.isNotEmpty) {
+                            await fb.updateDamageSurvey(
+                              heritageId: heritageId,
+                              docId: docId,
+                              data: dataToSave,
+                            );
+                          } else {
+                            await fb.saveDamageSurvey(
+                              heritageId: heritageId,
+                              data: dataToSave,
+                            );
+                          }
+                          
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✅ 저장되었습니다.'),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                            Navigator.pop(context, {'saved': true});
+                          }
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('⚠️ 문화유산 정보가 없습니다.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('❌ 저장 실패: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue.shade700,

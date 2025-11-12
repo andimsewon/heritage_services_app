@@ -139,7 +139,7 @@ Content-Type: multipart/form-data
 - `allow_headers=["*"]`
 
 ### AI 모델
-- 모델 파일: `hanok_damage_model.pt`
+- 모델 파일: `hanok_damage_model.pth`
 - 모델이 없어도 서버는 정상 실행되며, AI 기능만 비활성화됩니다.
 
 ## 🐛 문제 해결

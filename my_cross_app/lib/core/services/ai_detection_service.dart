@@ -61,6 +61,22 @@ class AiDetectionService {
       );
     } catch (e) {
       print('[AI] 오류 발생: $e');
+      
+      // 네트워크 오류인 경우 더 명확한 메시지 제공
+      if (e.toString().contains('SocketException') || 
+          e.toString().contains('Failed host lookup') ||
+          e.toString().contains('Connection refused')) {
+        throw AiConnectionException(
+          'AI 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.',
+        );
+      }
+      
+      // 타임아웃 오류
+      if (e.toString().contains('timeout') || e.toString().contains('TimeoutException')) {
+        throw AiTimeoutException(
+          'AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.',
+        );
+      }
 
       // 에러를 그대로 던지기 (더미 데이터 반환하지 않음)
       rethrow;
@@ -89,4 +105,22 @@ class AiModelNotLoadedException implements Exception {
 
   @override
   String toString() => 'AiModelNotLoadedException: $message';
+}
+
+/// AI 서버 연결 오류
+class AiConnectionException implements Exception {
+  AiConnectionException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'AiConnectionException: $message';
+}
+
+/// AI 서버 타임아웃 오류
+class AiTimeoutException implements Exception {
+  AiTimeoutException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'AiTimeoutException: $message';
 }

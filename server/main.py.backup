@@ -189,7 +189,7 @@ class CustomDeta(nn.Module):
 # -----------------------------
 # AI 모델 로드 함수
 # -----------------------------
-MODEL_PATH = "hanok_damage_model.pt"
+MODEL_PATH = "hanok_damage_model.pth"
 model, processor, id2label = None, None, None
 
 def load_ai_model():

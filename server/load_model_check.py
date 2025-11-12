@@ -5,12 +5,17 @@ FastAPI 서버와 독립적으로 모델 로드를 테스트합니다.
 """
 import os
 import sys
-import torch
 
 # 현재 디렉토리를 PYTHONPATH에 추가
 sys.path.insert(0, os.path.dirname(__file__))
 
-from ai.loader import load_ai_model, is_model_loaded, get_id2label, MODEL_PATH
+from ai.loader import (
+    get_id2label,
+    get_resolved_model_path,
+    is_model_loaded,
+    load_ai_model,
+    resolve_model_path,
+)
 
 
 def check_dependencies():
@@ -30,15 +35,15 @@ def check_dependencies():
         return False
 
     try:
-        from transformers import DetaImageProcessor
-        print(f"✅ Transformers: 설치됨")
+        from transformers import DetaImageProcessor  # noqa: F401
+        print("✅ Transformers: 설치됨")
     except ImportError as e:
         print(f"❌ Transformers: {e}")
         return False
 
     try:
-        from PIL import Image
-        print(f"✅ Pillow: 설치됨")
+        from PIL import Image  # noqa: F401
+        print("✅ Pillow: 설치됨")
     except ImportError as e:
         print(f"❌ Pillow: {e}")
         return False
@@ -52,20 +57,25 @@ def check_model_file():
     print("📁 모델 파일 확인")
     print("=" * 60)
 
-    print(f"모델 경로: {MODEL_PATH}")
-
-    if not os.path.exists(MODEL_PATH):
-        print(f"❌ 모델 파일이 존재하지 않습니다!")
-        print(f"   예상 위치: {MODEL_PATH}")
+    model_path = resolve_model_path()
+    if not model_path:
+        print("❌ 모델 경로를 찾을 수 없습니다. MODEL_PATH 환경변수 또는 server/ai 폴더를 확인하세요.")
         return False
 
-    file_size = os.path.getsize(MODEL_PATH)
+    print(f"모델 경로: {model_path}")
+
+    if not os.path.exists(model_path):
+        print("❌ 모델 파일이 존재하지 않습니다!")
+        print(f"   예상 위치: {model_path}")
+        return False
+
+    file_size = os.path.getsize(model_path)
     file_size_mb = file_size / (1024 * 1024)
-    print(f"✅ 모델 파일 존재")
+    print("✅ 모델 파일 존재")
     print(f"   크기: {file_size_mb:.1f} MB")
 
     if file_size < 1024 * 1024:  # 1MB 미만
-        print(f"⚠️  경고: 모델 파일이 너무 작습니다 (손상되었을 수 있음)")
+        print("⚠️  경고: 모델 파일이 너무 작습니다 (손상되었을 수 있음)")
 
     return True
 
@@ -81,6 +91,10 @@ def test_model_loading():
 
     if success and is_model_loaded():
         print("✅ 모델 로드 성공!")
+
+        resolved = get_resolved_model_path()
+        if resolved:
+            print(f"   사용된 모델: {resolved}")
 
         id2label = get_id2label()
         if id2label:
@@ -106,7 +120,7 @@ def test_api_status():
 
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ FastAPI 응답:")
+            print("✅ FastAPI 응답:")
             print(f"   상태: {data.get('status')}")
             print(f"   사용 가능: {data.get('available')}")
 
@@ -198,4 +212,3 @@ def main():
 
 if __name__ == "__main__":
     exit_code = main()
-    sys.exit(exit_code)

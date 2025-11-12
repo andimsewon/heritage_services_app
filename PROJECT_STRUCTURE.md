@@ -50,7 +50,7 @@ heritage_services_app/
     │   ├── model.py                   # CustomDeta 모델
     │   ├── service.py                 # 추론 로직
     │   ├── loader.py                  # 모델 로딩 관리
-    │   └── hanok_damage_model.pt      # 🎓 PyTorch 모델 (552MB) ✅
+    │   └── hanok_damage_model.pth      # 🎓 PyTorch 모델 (552MB) ✅
     │
     ├── ⚙️ common/                      # 공통 모듈
     │   ├── __init__.py
@@ -81,7 +81,7 @@ heritage_services_app/
 
 ### 2. 파일 정리
 - ✅ 학습 데이터 JSON 파일들 → `server/data/` 폴더로 이동
-- ✅ AI 모델 파일 → `server/ai/hanok_damage_model.pt` (552MB)
+- ✅ AI 모델 파일 → `server/ai/hanok_damage_model.pth` (552MB)
 - ✅ 모든 코드 모듈화 완료
 
 ### 3. 추가된 문서
@@ -111,7 +111,7 @@ heritage_services_app/
 | `ai/model.py` | CustomDeta 모델 정의 | ✅ 필수 |
 | `ai/service.py` | 이미지 추론 로직 | ✅ 필수 |
 | `ai/loader.py` | 모델 로딩 관리 | ✅ 필수 |
-| `ai/hanok_damage_model.pt` | PyTorch 모델 (552MB) | ✅ 필수 |
+| `ai/hanok_damage_model.pth` | PyTorch 모델 (552MB) | ✅ 필수 |
 | | |
 | `common/config.py` | 환경 설정 (CORS, 포트) | ✅ 필수 |
 | `common/middleware.py` | CORS 미들웨어 | ✅ 필수 |
@@ -171,7 +171,7 @@ ai/
 │   ├── load_ai_model()  # 모델 로딩
 │   ├── get_model()      # 모델 반환
 │   └── is_model_loaded() # 로딩 상태
-└── hanok_damage_model.pt # PyTorch 체크포인트
+└── hanok_damage_model.pth # PyTorch 체크포인트
 ```
 
 ### Common 모듈 (공통)

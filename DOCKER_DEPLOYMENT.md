@@ -32,7 +32,7 @@ heritage_services_app/
 │   ├── requirements.txt        # Python 의존성
 │   ├── heritage/               # 국가유산 API 모듈
 │   ├── ai/                     # AI 손상 탐지 모듈
-│   │   └── hanok_damage_model.pt  # ⚠️ 552MB 모델 파일 필수!
+│   │   └── hanok_damage_model.pth  # ⚠️ 552MB 모델 파일 필수!
 │   └── common/                 # 공통 설정
 │
 └── my_cross_app/
@@ -236,7 +236,7 @@ services:
 services:
   heritage-api:
     volumes:
-      - ./server/ai/hanok_damage_model.pt:/app/ai/hanok_damage_model.pt:ro
+      - ./server/ai/hanok_damage_model.pth:/app/ai/hanok_damage_model.pth:ro
 ```
 
 ### 4. GPU 지원 (NVIDIA GPU)
@@ -358,16 +358,16 @@ ports:
 
 **증상:**
 ```
-[AI] 모델 파일이 존재하지 않습니다: /app/ai/hanok_damage_model.pt
+[AI] 모델 파일이 존재하지 않습니다: /app/ai/hanok_damage_model.pth
 ```
 
 **해결:**
 ```bash
 # 모델 파일 존재 확인
-ls -lh server/ai/hanok_damage_model.pt
+ls -lh server/ai/hanok_damage_model.pth
 
 # 파일이 없으면 원래 위치에서 복사
-cp hanok_damage_model_ml_backend.pt server/ai/hanok_damage_model.pt
+cp hanok_damage_model_ml_backend.pth server/ai/hanok_damage_model.pth
 
 # Docker 이미지 재빌드
 docker-compose up --build -d
@@ -460,7 +460,7 @@ docker-compose logs > app.log 2>&1
 배포 전 확인사항:
 
 - [ ] Docker 및 Docker Compose 설치 완료
-- [ ] 모델 파일 `server/ai/hanok_damage_model.pt` 존재 확인 (552MB)
+- [ ] 모델 파일 `server/ai/hanok_damage_model.pth` 존재 확인 (552MB)
 - [ ] `docker-compose up --build -d` 실행 성공
 - [ ] `curl http://localhost:8080/health` 응답 확인
 - [ ] Swagger UI (http://localhost:8080/docs) 접근 가능

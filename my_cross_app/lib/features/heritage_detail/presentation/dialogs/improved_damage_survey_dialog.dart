@@ -287,10 +287,33 @@ class _ImprovedDamageSurveyDialogState
       });
       
       if (mounted) {
+        String errorMessage = '사진 저장 중 오류가 발생했습니다';
+        
+        // AI 서비스 관련 오류인 경우 더 명확한 메시지 제공
+        if (e.toString().contains('AiModelNotLoadedException')) {
+          errorMessage = 'AI 모델이 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
+        } else if (e.toString().contains('AiConnectionException')) {
+          errorMessage = 'AI 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.';
+        } else if (e.toString().contains('AiTimeoutException')) {
+          errorMessage = 'AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+        } else if (e.toString().contains('permission-denied')) {
+          errorMessage = '저장 권한이 없습니다. Firebase 설정을 확인해주세요.';
+        } else if (e.toString().contains('network')) {
+          errorMessage = '네트워크 연결을 확인해주세요.';
+        } else {
+          errorMessage = '오류: ${e.toString().length > 100 ? e.toString().substring(0, 100) + "..." : e.toString()}';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('사진 저장 중 오류가 발생했습니다: $e'),
+            content: Text('❌ $errorMessage'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: '확인',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
         );
       }
@@ -503,6 +526,7 @@ class _ImprovedDamageSurveyDialogState
       String? imageUrl = _savedImageUrl;
       
       // 사진이 선택되었지만 아직 업로드되지 않은 경우 업로드
+      // 전년도 사진 없이도 이번 조사 사진만으로 저장 가능하도록 수정
       if (_imageBytes != null && imageUrl == null) {
         debugPrint('📸 사진을 Firebase Storage에 업로드 중...');
         imageUrl = await _fb.uploadImage(
@@ -514,21 +538,33 @@ class _ImprovedDamageSurveyDialogState
         debugPrint('✅ 사진 업로드 완료: $imageUrl');
       }
       
-      // 이미 저장된 문서가 있으면 업데이트
+      // 이미 저장된 문서가 있으면 업데이트 (전년도 사진 여부와 무관하게)
       if (_savedDocId != null && imageUrl != null) {
         await _updateDamageSurveyData(_savedDocId!, imageUrl);
         debugPrint('✅ 기존 문서 업데이트 완료: ${_savedDocId}');
       } 
-      // 새로 저장해야 하는 경우
-      else if (_imageBytes != null && imageUrl != null) {
+      // 새로 저장해야 하는 경우 (전년도 사진 없이도 이번 조사 사진만으로 저장)
+      else if (_imageBytes != null) {
+        // imageUrl이 아직 없으면 업로드
+        if (imageUrl == null) {
+          debugPrint('📸 사진을 Firebase Storage에 업로드 중...');
+          imageUrl = await _fb.uploadImage(
+            heritageId: widget.heritageId,
+            folder: 'damage_surveys',
+            bytes: _imageBytes!,
+          );
+          _savedImageUrl = imageUrl;
+          debugPrint('✅ 사진 업로드 완료: $imageUrl');
+        }
+        
         // AI 감지 결과가 없으면 빈 배열로 저장
         final detections = _detections.isNotEmpty
             ? List<Map<String, dynamic>>.from(_detections)
             : <Map<String, dynamic>>[];
         
-        // 새 문서 생성 및 저장
-        _savedDocId = await _saveDamageSurveyData(imageUrl, detections);
-        debugPrint('✅ 새 문서 저장 완료: $_savedDocId');
+        // 새 문서 생성 및 저장 (전년도 사진 없이도 저장)
+        _savedDocId = await _saveDamageSurveyData(imageUrl!, detections);
+        debugPrint('✅ 새 문서 저장 완료: $_savedDocId (전년도 사진 없이도 저장됨)');
       }
       // 사진이 없는 경우 텍스트만 저장
       else if (_imageBytes == null) {
@@ -698,14 +734,18 @@ class _ImprovedDamageSurveyDialogState
               ),
               const SizedBox(height: 24),
 
-              // 부재명 선택
+              // 부재명 선택 (필수)
               DropdownButtonFormField<String>(
                 value: _selectedPartName,
-                decoration: const InputDecoration(
-                  labelText: '부재명',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '부재명 *',
+                  hintText: '부재명을 선택하세요',
+                  border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white,
+                  errorText: _currentStep == SurveyStep.register && _selectedPartName == null
+                      ? '부재명을 선택해주세요'
+                      : null,
                 ),
                 items: _partNames.map((name) {
                   return DropdownMenuItem(value: name, child: Text(name));
@@ -723,6 +763,12 @@ class _ImprovedDamageSurveyDialogState
                     }
                   });
                 },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return '부재명을 선택해주세요';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 
@@ -739,20 +785,30 @@ class _ImprovedDamageSurveyDialogState
               ),
               const SizedBox(height: 16),
 
-              // 향 선택
+              // 향 선택 (필수)
               DropdownButtonFormField<String>(
                 value: _selectedDirection,
-                decoration: const InputDecoration(
-                  labelText: '향',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '향 *',
+                  hintText: '향을 선택하세요',
+                  border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white,
+                  errorText: _currentStep == SurveyStep.register && _selectedDirection == null
+                      ? '향을 선택해주세요'
+                      : null,
                 ),
                 items: _directions.map((dir) {
                   return DropdownMenuItem(value: dir, child: Text(dir));
                 }).toList(),
                 onChanged: (value) {
                   setState(() => _selectedDirection = value);
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return '향을 선택해주세요';
+                  }
+                  return null;
                 },
               ),
               const SizedBox(height: 16),

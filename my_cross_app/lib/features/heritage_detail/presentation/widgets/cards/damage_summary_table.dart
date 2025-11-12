@@ -9,6 +9,7 @@ import 'package:my_cross_app/core/ui/widgets/ox_toggle.dart';
 import 'package:my_cross_app/core/ui/widgets/responsive_table.dart';
 import 'package:my_cross_app/models/heritage_detail_models.dart';
 import 'package:my_cross_app/models/section_form_models.dart';
+import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards/damage_summary_table_v2.dart';
 
 class DamageSummaryTable extends StatefulWidget {
   const DamageSummaryTable({
@@ -116,34 +117,12 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '* 손상이 탐지된 경우 O / 아닌 경우 X 로 표기',
-            style: TextStyle(
-              color: Colors.redAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+          // 새로운 UI 시안 기반 테이블 (V2)
+          DamageSummaryTableV2(
+            value: widget.value,
+            onChanged: widget.onChanged,
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: ScrollConfiguration(
-              behavior: const MaterialScrollBehavior(),
-              child: ResponsiveTable(
-                controller: _scrollController,
-                minWidth: 1024,
-                child: DataTable(
-                  headingRowHeight: 64,
-                  dataRowMinHeight: 56,
-                  dataRowMaxHeight: 64,
-                  columnSpacing: 18,
-                  border: TableBorder.all(color: AppTheme.tableDivider),
-                  columns: columns,
-                  rows: _buildRows(columns),
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(height: 16),
           // 저장된 데이터 리스트 표시
           if (widget.heritageId.isNotEmpty)
             SectionDataList(

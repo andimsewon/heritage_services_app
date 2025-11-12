@@ -108,7 +108,7 @@ curl http://localhost:8080/health
 ### AI 모델 로드 실패?
 ```bash
 # 모델 파일 확인 (552MB)
-ls -lh server/ai/hanok_damage_model.pt
+ls -lh server/ai/hanok_damage_model.pth
 
 # Docker 재빌드
 docker-compose up --build -d
