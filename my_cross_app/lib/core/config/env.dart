@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 /// flutter run -d chrome --dart-define=API_BASE=http://localhost:8080
 /// flutter run -d android --dart-define=API_BASE=http://10.0.2.2:8080
 const String _apiBaseOverride = String.fromEnvironment('API_BASE');
+const String _aiBaseOverride = String.fromEnvironment('AI_BASE');
 
 class Env {
   /// Docker 컨테이너 포트
@@ -39,6 +40,15 @@ class Env {
     // ✅ iOS 시뮬레이터/데스크톱 → FastAPI 직접 연결 (8080 포트)
     print('🔍 [Env] ✅ iOS/Desktop: http://localhost:8080');
     return 'http://localhost:8080';
+  }
+
+  /// AI 서버 URL (별도 포트/도메인을 사용한다면 --dart-define=AI_BASE 로 지정)
+  static String get aiBase {
+    if (_aiBaseOverride.isNotEmpty) {
+      print('🔍 [Env] ✅ AI 오버라이드 사용: $_aiBaseOverride');
+      return _aiBaseOverride;
+    }
+    return proxyBase;
   }
 
   /// 원격 서버 URL (프로덕션 배포용)

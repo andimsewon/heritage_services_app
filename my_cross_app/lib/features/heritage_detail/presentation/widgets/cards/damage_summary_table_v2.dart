@@ -444,54 +444,78 @@ class DamageSummaryTableV2 extends StatelessWidget {
       );
     }
 
-    // 데스크톱: 가로로 배치 (3개 등급)
-    return Container(
-      padding: const EdgeInsets.all(6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 육안 행 (녹색)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: gradeInfo.visualGrades
-                .map((grade) => _gradeCell('육안', grade, Colors.green, isMobile))
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 100.0;
+        final count = gradeInfo.visualGrades.length.clamp(1, 4);
+        final spacing = 4.0;
+        final rawWidth = (width - (spacing * (count - 1))) / count;
+        final cellWidth = rawWidth.isFinite
+            ? rawWidth.clamp(18.0, width)
+            : width;
+
+        Widget buildRow(List<String> grades, Color tone) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: grades
+                .map(
+                  (grade) => SizedBox(
+                    width: cellWidth,
+                    child: _gradeCell(
+                      grade,
+                      tone,
+                      compact: cellWidth < 28,
+                    ),
+                  ),
+                )
                 .toList(),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              buildRow(gradeInfo.visualGrades, Colors.green),
+              const SizedBox(height: 2),
+              buildRow(gradeInfo.inDepthGrades, Colors.orange),
+            ],
           ),
-          const SizedBox(height: 2),
-          // 심화 행 (주황색)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: gradeInfo.inDepthGrades
-                .map((grade) => _gradeCell('심화', grade, Colors.orange, isMobile))
-                .toList(),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _gradeCell(String label, String grade, Color bgColor, bool isMobile) {
+  Widget _gradeCell(
+    String grade,
+    Color bgColor, {
+    bool compact = false,
+  }) {
     // Color에서 shade를 얻기 위해 MaterialColor로 변환하거나 직접 색상 계산
     final lightColor = Color.lerp(bgColor, Colors.white, 0.9) ?? bgColor;
     final borderColor = Color.lerp(bgColor, Colors.black, 0.3) ?? bgColor;
     final textColor = Color.lerp(bgColor, Colors.black, 0.8) ?? Colors.black;
-    
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 1),
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        decoration: BoxDecoration(
-          color: lightColor,
-          border: Border.all(color: borderColor),
-        ),
-        child: Text(
-          grade,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: isMobile ? 10 : 12,
-            fontWeight: FontWeight.bold,
-            color: textColor,
-          ),
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 1),
+      padding: EdgeInsets.symmetric(
+        vertical: 4,
+        horizontal: compact ? 1 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: lightColor,
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        grade,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: compact ? 10 : 12,
+          fontWeight: FontWeight.bold,
+          color: textColor,
         ),
       ),
     );

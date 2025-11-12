@@ -14,7 +14,6 @@ import 'package:my_cross_app/core/config/env.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
-import 'package:my_cross_app/core/ui/section_form/section_form_widget.dart';
 import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:my_cross_app/core/widgets/optimized_stream_builder.dart';
 import 'package:my_cross_app/core/widgets/responsive_page.dart';
@@ -27,14 +26,9 @@ import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards
 import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards/grade_classification_card.dart';
 import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards/inspection_result_card.dart';
 import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards/investigator_opinion_field.dart';
-import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards/location_status_card.dart';
 import 'package:my_cross_app/features/heritage_detail/presentation/widgets/cards/management_items_card.dart';
 import 'package:my_cross_app/features/heritage_list/data/heritage_api.dart';
 import 'package:my_cross_app/models/heritage_detail_models.dart';
-import 'package:my_cross_app/models/section_form_models.dart';
-import 'package:my_cross_app/utils/date_formatter.dart';
-
-import 'detail_survey_screen.dart';
 
 class _SectionNavigationItem {
   const _SectionNavigationItem({
@@ -215,16 +209,15 @@ class BasicInfoScreen extends StatefulWidget {
   State<BasicInfoScreen> createState() => _BasicInfoScreenState();
 }
 
-class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProviderStateMixin {
+class _BasicInfoScreenState extends State<BasicInfoScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _args;
   Map<String, dynamic>? _detail; // 상세 API 원본(JSON)
   bool _loading = true;
   late String heritageId;
   late final HeritageApi _api = HeritageApi(Env.proxyBase);
   final _fb = FirebaseService();
-  final _ai = AiDetectionService(
-    baseUrl: Env.proxyBase.replaceFirst(':8080', ':8081'),
-  );
+  final _ai = AiDetectionService(baseUrl: Env.aiBase);
   HeritageDetailViewModel? _detailViewModel;
   late final AIPredictionRepository _aiPredictionRepository =
       _MockAIPredictionRepository();
@@ -250,7 +243,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
 
   String _activeSectionKey = 'basicInfo';
   int _currentTabIndex = 0; // 0: 현장 조사, 1: 조사자 의견, 2: 종합진단
-  
+
   // 탭별 섹션 캐싱 (성능 최적화)
   List<Widget>? _cachedFieldSurveySections;
   List<Widget>? _cachedInvestigatorOpinionSections;
@@ -395,51 +388,123 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
       final results = await Future.wait(futures);
 
       // 결과 처리
-      if (results.isNotEmpty) {
-        setState(() => _detail = results[0] as Map<String, dynamic>);
+      if (results.isNotEmpty && results[0] != null) {
+        final detailData = results[0] as Map<String, dynamic>?;
+        if (detailData != null && mounted) {
+          setState(() => _detail = detailData);
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ 상세 데이터 로드 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
+      
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('상세 로드 실패: $e')));
+      
+      String errorMessage = '상세 정보를 불러오는 중 오류가 발생했습니다.';
+      
+      // 구체적인 오류 메시지 제공
+      final errorStr = e.toString();
+      if (errorStr.contains('permission-denied')) {
+        errorMessage = '데이터 조회 권한이 없습니다.';
+      } else if (errorStr.contains('network') || errorStr.contains('Connection')) {
+        errorMessage = '네트워크 연결을 확인해주세요.';
+      } else if (errorStr.contains('timeout')) {
+        errorMessage = '요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+      } else if (errorStr.length < 100) {
+        errorMessage = '오류: $errorStr';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<Map<String, dynamic>> _loadCustomHeritage() async {
-    final customId = _args?['customId'] as String?;
-    if (customId != null && customId.isNotEmpty) {
-      final snap = await FirebaseFirestore.instance
-          .collection('custom_heritages')
-          .doc(customId)
-          .get();
-      final m = snap.data() ?? <String, dynamic>{};
+    try {
+      final customId = _args?['customId'] as String?;
+      if (customId != null && customId.isNotEmpty) {
+        final snap = await FirebaseFirestore.instance
+            .collection('custom_heritages')
+            .doc(customId)
+            .get()
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                throw TimeoutException('사용자 추가 문화유산 데이터 로드 시간 초과');
+              },
+            );
+
+        if (!snap.exists) {
+          debugPrint('⚠️ 사용자 추가 문화유산 문서가 존재하지 않습니다: $customId');
+          return {
+            'item': {'ccbaMnm1': _args?['name'] as String? ?? ''},
+          };
+        }
+
+        final m = snap.data() ?? <String, dynamic>{};
+        return {
+          'item': {
+            'ccbaMnm1': (m['name'] as String?) ?? (_args?['name'] as String? ?? ''),
+            'ccmaName': m['ccmaName'] ?? m['kindName'] ?? '',
+            'ccbaAsdt': m['ccbaAsdt'] ?? m['asdt'] ?? '',
+            'ccbaPoss': m['ccbaPoss'] ?? m['owner'] ?? '',
+            'ccbaAdmin': m['ccbaAdmin'] ?? m['admin'] ?? '',
+            'ccbaLcto': m['ccbaLcto'] ?? m['lcto'] ?? '',
+            'ccbaLcad': m['ccbaLcad'] ?? m['lcad'] ?? '',
+          },
+        };
+      } else {
+        return {
+          'item': {'ccbaMnm1': _args?['name'] as String? ?? ''},
+        };
+      }
+    } on TimeoutException {
+      debugPrint('⏰ 사용자 추가 문화유산 로드 타임아웃');
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ 사용자 추가 문화유산 로드 실패: $e');
+      // 기본값 반환
       return {
-        'item': {
-          'ccbaMnm1': (m['name'] as String?) ?? (_args?['name'] ?? ''),
-          'ccmaName': m['ccmaName'] ?? m['kindName'],
-          'ccbaAsdt': m['ccbaAsdt'] ?? m['asdt'],
-          'ccbaPoss': m['ccbaPoss'] ?? m['owner'],
-          'ccbaAdmin': m['ccbaAdmin'] ?? m['admin'],
-          'ccbaLcto': m['ccbaLcto'] ?? m['lcto'],
-          'ccbaLcad': m['ccbaLcad'] ?? m['lcad'],
-        },
-      };
-    } else {
-      return {
-        'item': {'ccbaMnm1': _args?['name'] ?? ''},
+        'item': {'ccbaMnm1': _args?['name'] as String? ?? ''},
       };
     }
   }
 
   Future<Map<String, dynamic>> _loadHeritageFromAPI() async {
-    return await _api.fetchDetail(
-      ccbaKdcd: _args?['ccbaKdcd'] ?? '',
-      ccbaAsno: _args?['ccbaAsno'] ?? '',
-      ccbaCtcd: _args?['ccbaCtcd'] ?? '',
-    );
+    try {
+      final ccbaKdcd = _args?['ccbaKdcd'] as String? ?? '';
+      final ccbaAsno = _args?['ccbaAsno'] as String? ?? '';
+      
+      if (ccbaKdcd.isEmpty || ccbaAsno.isEmpty) {
+        throw ArgumentError('문화유산 코드 또는 번호가 없습니다.');
+      }
+
+      return await _api.fetchDetail(
+        ccbaKdcd: ccbaKdcd,
+        ccbaAsno: ccbaAsno,
+        ccbaCtcd: _args?['ccbaCtcd'] as String? ?? '',
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('문화유산 상세 정보 로드 시간 초과');
+        },
+      );
+    } on TimeoutException {
+      debugPrint('⏰ API 로드 타임아웃');
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ API에서 문화유산 상세 정보 로드 실패: $e');
+      rethrow;
+    }
   }
 
   String _read(List<List<String>> paths) {
@@ -777,39 +842,72 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
 
   // 텍스트 필드 데이터 로드
   Future<void> _loadTextFields() async {
-    print('📭 텍스트 필드 데이터 로드 시작!');
     debugPrint('📭 텍스트 필드 데이터 로드 시작!');
 
     try {
       final heritageId = this.heritageId;
-      print('🔍 텍스트 로드 - HeritageId: $heritageId');
+      if (heritageId.isEmpty) {
+        debugPrint('⚠️ HeritageId가 비어있습니다.');
+        return;
+      }
 
-      // Firebase에서 최신 데이터 가져오기
-      final surveys = await _fb.getDetailSurveys(heritageId);
+      debugPrint('🔍 텍스트 로드 - HeritageId: $heritageId');
+
+      // Firebase에서 최신 데이터 가져오기 (타임아웃 적용)
+      final surveys = await _fb.getDetailSurveys(heritageId).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('텍스트 필드 데이터 로드 시간 초과');
+        },
+      );
+
+      if (!mounted) return;
 
       if (surveys.docs.isNotEmpty) {
         final latestData = surveys.docs.first.data();
-        print('📝 로드된 텍스트 데이터:');
-        print('  - 1.1 조사 결과: ${latestData['inspectionResult'] ?? ''}');
-        print('  - 관리사항: ${latestData['managementItems'] ?? ''}');
-        print('  - 손상부 종합: ${latestData['damageSummary'] ?? ''}');
-        print('  - 조사자 의견: ${latestData['investigatorOpinion'] ?? ''}');
-        print('  - 기존 이력: ${latestData['existingHistory'] ?? ''}');
+        debugPrint('📝 로드된 텍스트 데이터:');
+        debugPrint('  - 1.1 조사 결과: ${latestData['inspectionResult'] ?? ''}');
+        debugPrint('  - 관리사항: ${latestData['managementItems'] ?? ''}');
+        debugPrint('  - 손상부 종합: ${latestData['damageSummary'] ?? ''}');
+        debugPrint('  - 조사자 의견: ${latestData['investigatorOpinion'] ?? ''}');
+        debugPrint('  - 기존 이력: ${latestData['existingHistory'] ?? ''}');
 
-        // 텍스트 필드에 데이터 설정
-        _inspectionResult.text = latestData['inspectionResult'] ?? '';
-        _managementItems.text = latestData['managementItems'] ?? '';
-        _damageSummary.text = latestData['damageSummary'] ?? '';
-        _investigatorOpinion.text = latestData['investigatorOpinion'] ?? '';
-        _gradeClassification.text = latestData['gradeClassification'] ?? '';
-        _existingHistory.text = latestData['existingHistory'] ?? '';
+        // 텍스트 필드에 데이터 설정 (mounted 체크 후)
+        if (mounted) {
+          _inspectionResult.text = (latestData['inspectionResult'] as String?) ?? '';
+          _managementItems.text = (latestData['managementItems'] as String?) ?? '';
+          _damageSummary.text = (latestData['damageSummary'] as String?) ?? '';
+          _investigatorOpinion.text = (latestData['investigatorOpinion'] as String?) ?? '';
+          _gradeClassification.text = (latestData['gradeClassification'] as String?) ?? '';
+          _existingHistory.text = (latestData['existingHistory'] as String?) ?? '';
+        }
 
-        print('✅ 텍스트 필드 데이터 로드 완료!');
+        debugPrint('✅ 텍스트 필드 데이터 로드 완료!');
       } else {
-        print('📭 저장된 텍스트 데이터가 없습니다.');
+        debugPrint('📭 저장된 텍스트 데이터가 없습니다.');
       }
-    } catch (e) {
-      print('❌ 텍스트 필드 데이터 로드 실패: $e');
+    } on TimeoutException {
+      debugPrint('⏰ 텍스트 필드 로드 타임아웃');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('데이터 로드 시간이 초과되었습니다.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ 텍스트 필드 데이터 로드 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('텍스트 데이터 로드 실패: ${e.toString().length > 50 ? e.toString().substring(0, 50) + "..." : e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -980,36 +1078,44 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
     List<Widget> currentSections;
     switch (_currentTabIndex) {
       case 0: // 현장 조사
-        currentSections = _cachedFieldSurveySections ??= _buildFieldSurveySections(
-          context: context,
-          kind: kind,
-          asdt: asdt,
-          owner: owner,
-          admin: admin,
-          lcto: lcto,
-          lcad: lcad,
-        );
+        currentSections = _cachedFieldSurveySections ??=
+            _buildFieldSurveySections(
+              context: context,
+              kind: kind,
+              asdt: asdt,
+              owner: owner,
+              admin: admin,
+              lcto: lcto,
+              lcad: lcad,
+            );
         break;
       case 1: // 조사자 의견
-        currentSections = _cachedInvestigatorOpinionSections ??= _buildInvestigatorOpinionSections(
-          context: context,
-        );
+        currentSections = _cachedInvestigatorOpinionSections ??=
+            _buildInvestigatorOpinionSections(context: context);
         break;
       case 2: // 종합진단
-        currentSections = _cachedComprehensiveDiagnosisSections ??= _buildComprehensiveDiagnosisSections(
-          context: context,
-        );
+        currentSections = _cachedComprehensiveDiagnosisSections ??=
+            _buildComprehensiveDiagnosisSections(context: context);
         break;
       default:
         currentSections = [];
     }
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E2A44),
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.1),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 20,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           _name.isEmpty ? '기본개요' : _name,
           style: const TextStyle(
@@ -1020,18 +1126,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            child: ElevatedButton.icon(
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: OutlinedButton.icon(
               onPressed: () {
                 showDialog(
                   context: context,
@@ -1051,12 +1149,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.2),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
                 side: const BorderSide(color: Colors.white, width: 1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                backgroundColor: Colors.white.withOpacity(0.12),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
@@ -1086,7 +1182,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
               )
             : null,
       ),
-      backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
         child: ResponsivePage(
           controller: _mainScrollController,
@@ -1098,10 +1193,22 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: _buildTopNavigationBar(),
               ),
+              const SizedBox(height: 24),
               ...currentSections,
               const SizedBox(height: 24),
             ],
@@ -1140,10 +1247,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
       ),
       const SizedBox(height: 24),
       // 2. 메타 정보 (조사 일자, 조사 기관, 조사자)
-      Container(
-        key: _sectionKeys['metaInfo'],
-        child: _buildMetaInfoSection(),
-      ),
+      Container(key: _sectionKeys['metaInfo'], child: _buildMetaInfoSection()),
       const SizedBox(height: 24),
       // 3. 위치 현황
       Container(
@@ -1205,7 +1309,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
           onDeepInspection: (selectedDamage) async {
             final result = await showDialog(
               context: context,
-              builder: (_) => DeepDamageInspectionDialog(selectedDamage: selectedDamage),
+              builder: (_) =>
+                  DeepDamageInspectionDialog(selectedDamage: selectedDamage),
             );
             if (result != null && result['saved'] == true && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1315,7 +1420,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
     );
   }
 
-
   // 조사자 의견 섹션 편집 가능 여부
   bool _isInvestigatorOpinionEditable = false;
   bool _isInvestigatorOpinionSaved = false;
@@ -1325,7 +1429,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
     required BuildContext context,
   }) {
     final sections = <Widget>[];
-    
+
     if (_detailViewModel != null) {
       sections.add(
         AnimatedBuilder(
@@ -1347,7 +1451,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                   child: InspectionResultCard(
                     sectionNumber: _sectionNumberFor('inspectionResult'),
                     value: vm.inspectionResult,
-                    onChanged: _isInvestigatorOpinionEditable ? vm.updateInspectionResult : null,
+                    onChanged: _isInvestigatorOpinionEditable
+                        ? vm.updateInspectionResult
+                        : null,
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
@@ -1402,7 +1508,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
         ),
       );
     }
-    
+
     sections.add(const SizedBox(height: 48));
     return sections;
   }
@@ -1478,10 +1584,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
           const SizedBox(height: 16),
           const Text(
             '기존 이력에서 데이터를 불러와 동기화합니다.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ],
       ),
@@ -1489,7 +1592,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
   }
 
   // 보존 사항 섹션 (손상부 조사 정보 자동 연결)
-  Widget _buildPreservationItemsSection(BuildContext context, HeritageDetailViewModel vm) {
+  Widget _buildPreservationItemsSection(
+    BuildContext context,
+    HeritageDetailViewModel vm,
+  ) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -1536,10 +1642,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
           const SizedBox(height: 16),
           const Text(
             '손상부 조사 정보가 자동으로 연결됩니다.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 16),
           // 손상부 조사 정보 표시
@@ -1549,13 +1652,13 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              
+
               if (snapshot.hasError) {
                 return Text('오류: ${snapshot.error}');
               }
-              
+
               final docs = snapshot.data?.docs ?? [];
-              
+
               if (docs.isEmpty) {
                 return Container(
                   padding: const EdgeInsets.all(16),
@@ -1566,23 +1669,23 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                   ),
                   child: const Text(
                     '등록된 손상부 조사가 없습니다.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
-                    ),
+                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                   ),
                 );
               }
-              
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: docs.map((doc) {
                   final data = doc.data();
                   final location = data['location'] as String? ?? '';
-                  final part = data['damagePart'] as String? ?? data['partName'] as String? ?? '';
+                  final part =
+                      data['damagePart'] as String? ??
+                      data['partName'] as String? ??
+                      '';
                   final phenomenon = data['phenomenon'] as String? ?? '';
                   final severity = data['severityGrade'] as String? ?? '';
-                  
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
@@ -1675,7 +1778,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             )
           else
@@ -1684,7 +1790,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                 try {
                   // 변경된 필드 추적
                   final changedFields = <String>[];
-                  
+
                   // 조사 결과 저장
                   if (_detailViewModel != null) {
                     await _fb.saveInvestigatorOpinionSection(
@@ -1698,10 +1804,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                     );
                     changedFields.add('조사 결과');
                   }
-                  
+
                   // 관리사항은 ManagementItemsCard에서 자체적으로 저장하므로 여기서는 수정 이력만 기록
                   changedFields.add('관리사항');
-                  
+
                   // 수정 이력 저장
                   if (changedFields.isNotEmpty) {
                     await _fb.saveEditHistory(
@@ -1711,12 +1817,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                       changedFields: changedFields,
                     );
                   }
-                  
+
                   setState(() {
                     _isInvestigatorOpinionSaved = true;
                     _isInvestigatorOpinionEditable = false;
                   });
-                  
+
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('저장되었습니다')),
@@ -1726,7 +1832,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                   debugPrint('❌ 저장 실패: $e');
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
+                      SnackBar(
+                        content: Text('저장 실패: $e'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                   }
                 }
@@ -1736,7 +1845,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1E2A44),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
         ],
@@ -1762,10 +1874,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                 children: [
                   const Text(
                     '수정 이력',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -1781,15 +1890,13 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    
+
                     if (snapshot.hasError) {
-                      return Center(
-                        child: Text('오류: ${snapshot.error}'),
-                      );
+                      return Center(child: Text('오류: ${snapshot.error}'));
                     }
-                    
+
                     final docs = snapshot.data?.docs ?? [];
-                    
+
                     if (docs.isEmpty) {
                       return const Center(
                         child: Padding(
@@ -1804,7 +1911,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                         ),
                       );
                     }
-                    
+
                     return ListView.separated(
                       shrinkWrap: true,
                       itemCount: docs.length,
@@ -1815,23 +1922,27 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
                         final timestamp = data['timestamp'] as Timestamp?;
                         final createdAt = data['createdAt'] as String?;
                         final editor = data['editor'] as String? ?? '알 수 없음';
-                        final changedFields = (data['changedFields'] as List<dynamic>?)
-                            ?.map((e) => e.toString())
-                            .toList() ?? [];
-                        
+                        final changedFields =
+                            (data['changedFields'] as List<dynamic>?)
+                                ?.map((e) => e.toString())
+                                .toList() ??
+                            [];
+
                         String dateStr = '날짜 없음';
                         if (timestamp != null) {
                           final date = timestamp.toDate();
-                          dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                          dateStr =
+                              '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
                         } else if (createdAt != null) {
                           try {
                             final date = DateTime.parse(createdAt);
-                            dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                            dateStr =
+                                '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
                           } catch (e) {
                             dateStr = createdAt;
                           }
                         }
-                        
+
                         return _buildEditHistoryItem(
                           date: dateStr,
                           editor: editor,
@@ -1898,18 +2009,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
           const SizedBox(height: 8),
           Text(
             '수정자: $editor',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 8),
           Text(
             '변경된 필드: ${changes.join(', ')}',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ],
       ),
@@ -1921,7 +2026,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
     required BuildContext context,
   }) {
     final sections = <Widget>[];
-    
+
     if (_detailViewModel != null) {
       sections.add(
         AnimatedBuilder(
@@ -2093,7 +2198,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
         ),
       );
     }
-    
+
     sections.add(const SizedBox(height: 48));
     return sections;
   }
@@ -2129,22 +2234,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> with SingleTickerProv
         ]);
         break;
     }
-    
+
     final navItems = _sectionNavigationItems
         .where((item) => currentTabSections.contains(item.key))
         .toList();
-    
+
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2258,17 +2353,17 @@ class BasicInfoCard extends StatelessWidget {
     // 정기조사 지침 기준에 맞춰 소재지(지역)/주소(상세)를 분리
     final trimmedLcad = lcad.trim();
     final trimmedLcto = lcto.trim();
-    
+
     // 소재지: 지역만 표시 (lcto에서 첫 번째 공백 이전 부분만 추출)
     String regionLocation = '';
     if (trimmedLcto.isNotEmpty) {
       // 첫 번째 공백 이전의 부분만 추출 (예: "서울 중구..." -> "서울")
       final firstSpaceIndex = trimmedLcto.indexOf(' ');
-      regionLocation = firstSpaceIndex > 0 
+      regionLocation = firstSpaceIndex > 0
           ? trimmedLcto.substring(0, firstSpaceIndex)
           : trimmedLcto;
     }
-    
+
     // 주소: 상세 주소 표시
     final detailAddress = trimmedLcad.isNotEmpty ? trimmedLcad : trimmedLcto;
 
@@ -2309,7 +2404,9 @@ class BasicInfoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sectionNumber != null ? '${sectionNumber!}. 기본 정보' : '기본 정보',
+                      sectionNumber != null
+                          ? '${sectionNumber!}. 기본 정보'
+                          : '기본 정보',
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 18,
@@ -2344,7 +2441,10 @@ class BasicInfoCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           // 소재지 (지역)
-          _buildOverviewRow('소재지', regionLocation.isEmpty ? '-' : regionLocation),
+          _buildOverviewRow(
+            '소재지',
+            regionLocation.isEmpty ? '-' : regionLocation,
+          ),
           const SizedBox(height: 12),
 
           // 주소 (상세)
@@ -2461,7 +2561,12 @@ class HeritagePhotoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionTitle(icon: icon, title: title, description: description, sectionNumber: sectionNumber),
+          _SectionTitle(
+            icon: icon,
+            title: title,
+            description: description,
+            sectionNumber: sectionNumber,
+          ),
           const SizedBox(height: 16),
           OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: photosStream,
@@ -2890,10 +2995,10 @@ class DamageSurveySection extends StatefulWidget {
 
   final int? sectionNumber;
 
-
   final Stream<QuerySnapshot<Map<String, dynamic>>> damageStream;
   final VoidCallback onAddSurvey;
-  final Future<void> Function(Map<String, dynamic> selectedDamage) onDeepInspection;
+  final Future<void> Function(Map<String, dynamic> selectedDamage)
+  onDeepInspection;
   final Future<void> Function(String docId, String imageUrl) onDelete;
 
   @override
@@ -4146,9 +4251,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
     } catch (e) {
       print('사진 선택 오류: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')),
+      );
     }
   }
 
@@ -4171,14 +4276,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       // 해당 컨트롤러에 사진 URL 업데이트
       _updatePhotoController(photoKey, downloadUrl);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')),
+      );
     } catch (e) {
       print('사진 업로드 오류: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')),
+      );
     }
   }
 
@@ -4515,9 +4620,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           _hasUnsavedChanges = false;
         });
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$_selectedYear 데이터를 불러왔습니다.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$_selectedYear 데이터를 불러왔습니다.')),
+        );
       } else {
         // 데이터가 없는 경우 필드 초기화
         _clearAllFields();
@@ -4527,9 +4632,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
     } catch (e) {
       print('연도별 데이터 불러오기 오류: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('데이터 불러오기 중 오류가 발생했습니다: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('데이터 불러오기 중 오류가 발생했습니다: $e')),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
@@ -4745,14 +4850,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _hasUnsavedChanges = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$_selectedYear 데이터가 저장되었습니다.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$_selectedYear 데이터가 저장되었습니다.')),
+      );
     } catch (e) {
       print('연도별 데이터 저장 오류: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('데이터 저장 중 오류가 발생했습니다: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('데이터 저장 중 오류가 발생했습니다: $e')),
+      );
     } finally {
       setState(() => _isSaving = false);
     }
@@ -4811,9 +4916,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
 
   Future<void> _addPhoto(_HistoryPhotoKind kind) async {
     if (!_isEditable) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('수정 모드에서만 사진을 추가할 수 있습니다.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('수정 모드에서만 사진을 추가할 수 있습니다.')),
+      );
       return;
     }
     if (_uploadingKinds.contains(kind)) return;
@@ -4845,9 +4950,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         image.isUploading = false;
         _uploadingKinds.remove(kind);
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('사진이 업로드되었습니다.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진이 업로드되었습니다.')),
+      );
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('Failed to upload history photo: $e');
@@ -4858,9 +4963,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _uploadingKinds.remove(kind);
         target.remove(image);
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('사진 업로드 실패: $e')),
+      );
     }
   }
 
@@ -4939,9 +5044,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
       if (!mounted) return;
       setState(() => target.insert(index, image));
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('사진 삭제 실패: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('사진 삭제 실패: $e')),
+      );
     }
   }
 
@@ -7483,8 +7588,9 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
       // Firebase에 업데이트된 데이터 저장
       final fb = FirebaseService();
       final heritageId = widget.selectedDamage['heritageId'] as String? ?? '';
-      final heritageName = widget.selectedDamage['heritageName'] as String? ?? '미상';
-      
+      final heritageName =
+          widget.selectedDamage['heritageName'] as String? ?? '미상';
+
       if (heritageId.isNotEmpty) {
         // 손상부 조사 데이터 업데이트
         final docId = widget.selectedDamage['docId'] as String?;
@@ -7501,10 +7607,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
           // 새 문서로 저장
           await fb.saveDamageSurvey(
             heritageId: heritageId,
-            data: {
-              ...updatedDamage,
-              'heritageName': heritageName,
-            },
+            data: {...updatedDamage, 'heritageName': heritageName},
           );
         }
       }
@@ -7639,9 +7742,9 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
 
   Future<void> _handleSave() async {
     if (_imageBytes == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')),
+      );
       return;
     }
 
@@ -8143,8 +8246,10 @@ class _DeepDamageInspectionDialogState
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: OptimizedImage(
-                                imageUrl: widget.selectedDamage['imageUrl'] as String? ?? 
-                                    widget.selectedDamage['url'] as String? ?? 
+                                imageUrl:
+                                    widget.selectedDamage['imageUrl']
+                                        as String? ??
+                                    widget.selectedDamage['url'] as String? ??
                                     'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800',
                                 fit: BoxFit.cover,
                                 errorWidget: Container(
@@ -8252,16 +8357,26 @@ class _DeepDamageInspectionDialogState
                   ElevatedButton(
                     onPressed: () {
                       // 등급 산출 로직: AI 감지 결과와 손상 정보를 기반으로 등급 계산
-                      final detections = widget.selectedDamage['detections'] as List<dynamic>? ?? [];
-                      final severityGrade = widget.selectedDamage['severityGrade'] as String? ?? 'C';
-                      
+                      final detections =
+                          widget.selectedDamage['detections']
+                              as List<dynamic>? ??
+                          [];
+                      final severityGrade =
+                          widget.selectedDamage['severityGrade'] as String? ??
+                          'C';
+
                       // 감지된 손상 수와 신뢰도 기반 등급 계산
                       String calculatedGrade = severityGrade;
                       if (detections.isNotEmpty) {
-                        final avgConfidence = detections
-                            .map((d) => (d['score'] as num?)?.toDouble() ?? 0.0)
-                            .reduce((a, b) => a + b) / detections.length;
-                        
+                        final avgConfidence =
+                            detections
+                                .map(
+                                  (d) =>
+                                      (d['score'] as num?)?.toDouble() ?? 0.0,
+                                )
+                                .reduce((a, b) => a + b) /
+                            detections.length;
+
                         if (avgConfidence > 0.8) {
                           calculatedGrade = 'A';
                         } else if (avgConfidence > 0.6) {
@@ -8272,7 +8387,7 @@ class _DeepDamageInspectionDialogState
                           calculatedGrade = 'D';
                         }
                       }
-                      
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('등급 산출 완료: $calculatedGrade'),
@@ -8293,15 +8408,22 @@ class _DeepDamageInspectionDialogState
                       // 저장 로직: 현재 입력된 모든 데이터를 Firebase에 저장
                       try {
                         final fb = FirebaseService();
-                        final heritageId = widget.selectedDamage['heritageId'] as String? ?? '';
-                        final heritageName = widget.selectedDamage['heritageName'] as String? ?? '미상';
-                        
+                        final heritageId =
+                            widget.selectedDamage['heritageId'] as String? ??
+                            '';
+                        final heritageName =
+                            widget.selectedDamage['heritageName'] as String? ??
+                            '미상';
+
                         if (heritageId.isNotEmpty) {
-                          final docId = widget.selectedDamage['docId'] as String?;
-                          final dataToSave = Map<String, dynamic>.from(widget.selectedDamage)
-                            ..['heritageName'] = heritageName
-                            ..['updatedAt'] = DateTime.now().toIso8601String();
-                          
+                          final docId =
+                              widget.selectedDamage['docId'] as String?;
+                          final dataToSave =
+                              Map<String, dynamic>.from(widget.selectedDamage)
+                                ..['heritageName'] = heritageName
+                                ..['updatedAt'] = DateTime.now()
+                                    .toIso8601String();
+
                           if (docId != null && docId.isNotEmpty) {
                             await fb.updateDamageSurvey(
                               heritageId: heritageId,
@@ -8314,7 +8436,7 @@ class _DeepDamageInspectionDialogState
                               data: dataToSave,
                             );
                           }
-                          
+
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(

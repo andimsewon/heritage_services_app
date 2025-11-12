@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
@@ -214,10 +216,33 @@ class _ImprovedDamageSurveyDialogState
   }
 
   Future<void> _pickImageAndDetect() async {
+    if (!mounted) return;
+    
     final picked = await ImageAcquire.pick(context);
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
+    
     final (bytes, sizeGetter) = picked;
-    await sizeGetter(); // 이미지 크기 가져오기 (현재 미사용)
+    
+    // 이미지 크기 검증
+    if (bytes.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미지 데이터가 비어있습니다.')),
+        );
+      }
+      return;
+    }
+
+    // 이미지 크기 가져오기 (에러 처리 포함)
+    try {
+      await sizeGetter();
+    } catch (e) {
+      debugPrint('⚠️ 이미지 크기 파싱 실패: $e');
+      // 계속 진행 (크기 정보는 선택사항)
+    }
+
+    if (!mounted) return;
+
     setState(() {
       _loading = true;
       _imageBytes = bytes;
@@ -230,26 +255,77 @@ class _ImprovedDamageSurveyDialogState
 
     try {
       // 1. Firebase에 사진 저장
-      final String imageUrl = await _fb.uploadImage(
-        heritageId: widget.heritageId,
-        folder: 'damage_surveys',
-        bytes: bytes,
-      );
+      String? imageUrl;
+      try {
+        imageUrl = await _fb.uploadImage(
+          heritageId: widget.heritageId,
+          folder: 'damage_surveys',
+          bytes: bytes,
+        );
+      } catch (e) {
+        debugPrint('❌ Firebase 이미지 업로드 실패: $e');
+        if (!mounted) return;
+        
+        String uploadError = '이미지 업로드 실패';
+        if (e.toString().contains('permission-denied')) {
+          uploadError = '이미지 업로드 권한이 없습니다.';
+        } else if (e.toString().contains('quota')) {
+          uploadError = 'Firebase Storage 할당량을 초과했습니다.';
+        } else if (e.toString().contains('timeout')) {
+          uploadError = '이미지 업로드 시간이 초과되었습니다.';
+        }
+        
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ $uploadError'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
 
-      // 2. AI 모델로 손상 탐지
-      final detectionResult = await widget.aiService.detect(bytes);
+      if (imageUrl == null || imageUrl.isEmpty) {
+        throw Exception('이미지 URL을 받지 못했습니다.');
+      }
+
       if (!mounted) return;
 
-      final sorted = List<Map<String, dynamic>>.from(detectionResult.detections)
-        ..sort(
-          (a, b) =>
-              ((b['score'] as num?) ?? 0).compareTo(((a['score'] as num?) ?? 0)),
-        );
-      final normalized = _normalizeDetections(sorted);
+      // 2. AI 모델로 손상 탐지
+      AiDetectionResult? detectionResult;
+      try {
+        detectionResult = await widget.aiService.detect(bytes);
+      } catch (e) {
+        debugPrint('❌ AI 감지 실패: $e');
+        // AI 실패해도 이미지는 저장되었으므로 계속 진행
+        detectionResult = null;
+      }
+
+      if (!mounted) return;
+
+      List<Map<String, dynamic>> normalized = [];
+      if (detectionResult != null && detectionResult.detections.isNotEmpty) {
+        final sorted = List<Map<String, dynamic>>.from(detectionResult.detections)
+          ..sort(
+            (a, b) =>
+                ((b['score'] as num?) ?? 0).compareTo(((a['score'] as num?) ?? 0)),
+          );
+        normalized = _normalizeDetections(sorted);
+      }
 
       // 3. 손상부 조사 데이터를 Firebase에 저장 (초기 저장)
-      _savedDocId = await _saveDamageSurveyData(imageUrl, normalized);
-      _savedImageUrl = imageUrl;
+      String? docId;
+      try {
+        docId = await _saveDamageSurveyData(imageUrl, normalized);
+        _savedDocId = docId;
+        _savedImageUrl = imageUrl;
+      } catch (e) {
+        debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
+        // 저장 실패해도 UI는 업데이트
+      }
+
+      if (!mounted) return;
 
       setState(() {
         _loading = false;
@@ -259,69 +335,92 @@ class _ImprovedDamageSurveyDialogState
           _selectedConfidence = (_detections.first['score'] as num?)?.toDouble();
           // 감지된 손상을 자동으로 선택
           final label = _selectedLabel;
-          if (label != null) {
+          if (label != null && !_selectedDamageTypes.contains(label)) {
             _selectedDamageTypes.add(label);
           }
         }
-        final normalizedGrade = detectionResult.grade?.toUpperCase();
-        _autoGrade = normalizedGrade;
-        _autoExplanation = detectionResult.explanation;
-        if (normalizedGrade != null &&
-            ['A', 'B', 'C1', 'C2', 'D', 'E', 'F'].contains(normalizedGrade)) {
-          _severityGrade = normalizedGrade;
+        if (detectionResult != null) {
+          final normalizedGrade = detectionResult.grade?.toUpperCase();
+          _autoGrade = normalizedGrade;
+          _autoExplanation = detectionResult.explanation;
+          if (normalizedGrade != null &&
+              ['A', 'B', 'C1', 'C2', 'D', 'E', 'F'].contains(normalizedGrade)) {
+            _severityGrade = normalizedGrade;
+          }
         }
       });
 
       // 4. 성공 메시지 표시
       if (mounted) {
+        final message = detectionResult != null
+            ? '사진이 저장되었고 AI 손상 탐지가 완료되었습니다.'
+            : '사진이 저장되었습니다. (AI 감지는 실패했습니다)';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('사진이 저장되었고 AI 손상 탐지가 완료되었습니다.'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(message),
+            backgroundColor: detectionResult != null ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ 이미지 선택 및 감지 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
+      
+      if (!mounted) return;
+      
       setState(() {
         _loading = false;
       });
       
-      if (mounted) {
-        String errorMessage = '사진 저장 중 오류가 발생했습니다';
-        
-        // AI 서비스 관련 오류인 경우 더 명확한 메시지 제공
-        if (e.toString().contains('AiModelNotLoadedException')) {
-          errorMessage = 'AI 모델이 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
-        } else if (e.toString().contains('AiConnectionException')) {
-          errorMessage = 'AI 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.';
-        } else if (e.toString().contains('AiTimeoutException')) {
-          errorMessage = 'AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
-        } else if (e.toString().contains('permission-denied')) {
-          errorMessage = '저장 권한이 없습니다. Firebase 설정을 확인해주세요.';
-        } else if (e.toString().contains('network')) {
-          errorMessage = '네트워크 연결을 확인해주세요.';
-        } else {
-          errorMessage = '오류: ${e.toString().length > 100 ? e.toString().substring(0, 100) + "..." : e.toString()}';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ $errorMessage'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: '확인',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
+      String errorMessage = '사진 처리 중 오류가 발생했습니다';
+      
+      // 구체적인 오류 메시지 제공
+      final errorStr = e.toString();
+      if (errorStr.contains('AiModelNotLoadedException')) {
+        errorMessage = 'AI 모델이 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
+      } else if (errorStr.contains('AiConnectionException')) {
+        errorMessage = 'AI 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.';
+      } else if (errorStr.contains('AiTimeoutException')) {
+        errorMessage = 'AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+      } else if (errorStr.contains('permission-denied')) {
+        errorMessage = '저장 권한이 없습니다. Firebase 설정을 확인해주세요.';
+      } else if (errorStr.contains('network') || errorStr.contains('Connection')) {
+        errorMessage = '네트워크 연결을 확인해주세요.';
+      } else if (errorStr.contains('timeout') || errorStr.contains('Timeout')) {
+        errorMessage = '요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+      } else if (errorStr.length < 100) {
+        errorMessage = '오류: $errorStr';
       }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ $errorMessage'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: '확인',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
     }
   }
 
   // 손상부 조사 데이터를 Firebase에 저장
-  Future<String?> _saveDamageSurveyData(String imageUrl, List<Map<String, dynamic>> detections) async {
+  Future<String?> _saveDamageSurveyData(
+    String imageUrl,
+    List<Map<String, dynamic>> detections,
+  ) async {
+    // 입력 검증
+    if (imageUrl.isEmpty) {
+      throw ArgumentError('이미지 URL이 비어있습니다.');
+    }
+    if (widget.heritageId.isEmpty) {
+      throw ArgumentError('heritageId가 비어있습니다.');
+    }
+
     try {
       final damageSurveyData = {
         'heritageId': widget.heritageId,
@@ -349,18 +448,39 @@ class _ImprovedDamageSurveyDialogState
       final docId = await _fb.saveDamageSurvey(
         heritageId: widget.heritageId,
         data: damageSurveyData,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('손상부 조사 데이터 저장 시간 초과');
+        },
       );
+
+      if (docId == null || docId.isEmpty) {
+        throw Exception('저장된 문서 ID를 받지 못했습니다.');
+      }
 
       debugPrint('✅ 손상부 조사 데이터 저장 완료: $imageUrl, docId: $docId');
       return docId;
-    } catch (e) {
+    } on TimeoutException {
+      debugPrint('⏰ 손상부 조사 데이터 저장 타임아웃');
+      rethrow;
+    } catch (e, stackTrace) {
       debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
       rethrow;
     }
   }
 
   // 손상부 조사 데이터 업데이트
   Future<void> _updateDamageSurveyData(String docId, String imageUrl) async {
+    // 입력 검증
+    if (docId.isEmpty) {
+      throw ArgumentError('문서 ID가 비어있습니다.');
+    }
+    if (imageUrl.isEmpty) {
+      throw ArgumentError('이미지 URL이 비어있습니다.');
+    }
+
     try {
       final updateData = {
         'imageUrl': imageUrl, // imageUrl도 업데이트에 포함
@@ -387,11 +507,20 @@ class _ImprovedDamageSurveyDialogState
         heritageId: widget.heritageId,
         docId: docId,
         data: updateData,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('손상부 조사 데이터 업데이트 시간 초과');
+        },
       );
 
       debugPrint('✅ 손상부 조사 데이터 업데이트 완료: $docId');
-    } catch (e) {
+    } on TimeoutException {
+      debugPrint('⏰ 손상부 조사 데이터 업데이트 타임아웃');
+      rethrow;
+    } catch (e, stackTrace) {
       debugPrint('❌ 손상부 조사 데이터 업데이트 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
       rethrow;
     }
   }

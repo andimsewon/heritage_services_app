@@ -1,4 +1,5 @@
 // lib/services/firebase_service.dart
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -31,8 +32,21 @@ class FirebaseService {
     required String folder,
     required Uint8List bytes,
   }) async {
+    // 입력 검증
+    if (heritageId.isEmpty) {
+      throw ArgumentError('heritageId가 비어있습니다.');
+    }
+    if (folder.isEmpty) {
+      throw ArgumentError('folder가 비어있습니다.');
+    }
+    if (bytes.isEmpty) {
+      throw ArgumentError('이미지 데이터가 비어있습니다.');
+    }
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw ArgumentError('이미지 크기가 너무 큽니다. (최대 10MB)');
+    }
+
     try {
-      // HTTP 환경에서의 Service Worker 오류 처리
       if (kIsWeb) {
         debugPrint('🌐 웹 환경에서 이미지 업로드 시도...');
       }
@@ -48,10 +62,16 @@ class FirebaseService {
           'heritageId': heritageId,
           'folder': folder,
           'uploadedAt': DateTime.now().toIso8601String(),
+          'size': bytes.length.toString(),
         },
       );
 
-      final uploadTask = await ref.putData(bytes, metadata);
+      final uploadTask = await ref.putData(bytes, metadata).timeout(
+        const Duration(minutes: 5),
+        onTimeout: () {
+          throw TimeoutException('이미지 업로드 시간이 초과되었습니다.');
+        },
+      );
 
       if (uploadTask.state == TaskState.success) {
         final downloadUrl = await ref.getDownloadURL();
@@ -60,8 +80,13 @@ class FirebaseService {
       } else {
         throw Exception('Upload failed with state: ${uploadTask.state}');
       }
+    } on TimeoutException {
+      debugPrint('⏰ 이미지 업로드 타임아웃');
+      rethrow;
     } catch (e) {
       debugPrint('❌ Firebase Storage 업로드 실패: $e');
+      debugPrint('  - 오류 타입: ${e.runtimeType}');
+      debugPrint('  - 오류 메시지: ${e.toString()}');
 
       // HTTP 환경에서의 Service Worker 오류인 경우 특별 처리
       if (kIsWeb &&
@@ -77,6 +102,16 @@ class FirebaseService {
         throw SecureContextException(
             '이미지 업로드 실패: HTTPS 환경에서만 사용 가능합니다.\n'
             'Firebase Hosting에 배포하거나 HTTPS 환경에서 실행해주세요.');
+      }
+
+      // 권한 오류
+      if (e.toString().contains('permission-denied')) {
+        throw Exception('이미지 업로드 권한이 없습니다. Firebase 보안 규칙을 확인하세요.');
+      }
+
+      // 할당량 초과
+      if (e.toString().contains('quota') || e.toString().contains('storage')) {
+        throw Exception('Firebase Storage 할당량을 초과했습니다.');
       }
 
       throw Exception('Firebase Storage upload failed: $e');
