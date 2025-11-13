@@ -11,27 +11,27 @@ class SurveyRepository {
   /// Load survey data for a specific year
   Future<SurveyModel?> loadSurvey(String assetId, String year) async {
     if (kDebugMode) {
-      print('[SurveyRepository] Loading survey for asset: $assetId, year: $year');
+      debugPrint('[SurveyRepository] Loading survey for asset: $assetId, year: $year');
     }
 
     try {
       final doc = await _surveys(assetId).doc(year).get();
       if (!doc.exists) {
         if (kDebugMode) {
-          print('[SurveyRepository] No survey found for year: $year');
+          debugPrint('[SurveyRepository] No survey found for year: $year');
         }
         return null;
       }
 
       final data = doc.data()!;
       if (kDebugMode) {
-        print('[SurveyRepository] Loaded survey data, keys: ${data.keys}');
+        debugPrint('[SurveyRepository] Loaded survey data, keys: ${data.keys}');
       }
 
       return SurveyModel.fromMap(year: year, data: data);
     } catch (e) {
       if (kDebugMode) {
-        print('[SurveyRepository] Error loading survey: $e');
+        debugPrint('[SurveyRepository] Error loading survey: $e');
       }
       rethrow;
     }
@@ -46,8 +46,8 @@ class SurveyRepository {
     bool adminOverride = false,
   }) async {
     if (kDebugMode) {
-      print('[SurveyRepository] Saving survey for asset: $assetId, year: $year');
-      print('[SurveyRepository] Payload size: ${data.toMap().toString().length} chars');
+      debugPrint('[SurveyRepository] Saving survey for asset: $assetId, year: $year');
+      debugPrint('[SurveyRepository] Payload size: ${data.toMap().toString().length} chars');
     }
 
     try {
@@ -72,11 +72,11 @@ class SurveyRepository {
       await _appendAudit(assetId, year, auditEntries);
 
       if (kDebugMode) {
-        print('[SurveyRepository] Survey saved successfully');
+        debugPrint('[SurveyRepository] Survey saved successfully');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('[SurveyRepository] Error saving survey: $e');
+        debugPrint('[SurveyRepository] Error saving survey: $e');
       }
       rethrow;
     }
@@ -90,7 +90,7 @@ class SurveyRepository {
     required String editorUid,
   }) async {
     if (kDebugMode) {
-      print('[SurveyRepository] Importing from $fromYear to $toYear');
+      debugPrint('[SurveyRepository] Importing from $fromYear to $toYear');
     }
 
     try {
@@ -126,11 +126,11 @@ class SurveyRepository {
       ]);
 
       if (kDebugMode) {
-        print('[SurveyRepository] Import completed successfully');
+        debugPrint('[SurveyRepository] Import completed successfully');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('[SurveyRepository] Error importing survey: $e');
+        debugPrint('[SurveyRepository] Error importing survey: $e');
       }
       rethrow;
     }
@@ -139,7 +139,7 @@ class SurveyRepository {
   /// Get list of available years for an asset
   Future<List<String>> getAvailableYears(String assetId) async {
     if (kDebugMode) {
-      print('[SurveyRepository] Getting available years for asset: $assetId');
+      debugPrint('[SurveyRepository] Getting available years for asset: $assetId');
     }
 
     try {
@@ -150,13 +150,13 @@ class SurveyRepository {
         ..sort((a, b) => b.compareTo(a)); // Descending order
 
       if (kDebugMode) {
-        print('[SurveyRepository] Found years: $years');
+        debugPrint('[SurveyRepository] Found years: $years');
       }
 
       return years;
     } catch (e) {
       if (kDebugMode) {
-        print('[SurveyRepository] Error getting years: $e');
+        debugPrint('[SurveyRepository] Error getting years: $e');
       }
       rethrow;
     }
@@ -237,7 +237,7 @@ class SurveyRepository {
       });
     } catch (e) {
       if (kDebugMode) {
-        print('[SurveyRepository] Error appending audit: $e');
+        debugPrint('[SurveyRepository] Error appending audit: $e');
       }
       rethrow;
     }

@@ -2,7 +2,7 @@
 AI Detection API 라우터
 /ai/* 엔드포인트 정의
 """
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from .service import detect_damage
 from .loader import is_model_loaded, get_id2label, get_id2label_korean, get_model
 
@@ -52,5 +52,33 @@ async def ai_damage_infer(image: UploadFile = File(...)):
             - bbox: 바운딩 박스 [x1, y1, x2, y2]
         - count: 탐지된 객체 수
     """
-    contents = await image.read()
-    return await detect_damage(contents)
+    try:
+        contents = await image.read()
+        
+        # 이미지 크기 검증
+        if len(contents) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="이미지 데이터가 비어있습니다."
+            )
+        if len(contents) > 10 * 1024 * 1024:  # 10MB
+            raise HTTPException(
+                status_code=400,
+                detail="이미지 크기가 너무 큽니다. (최대 10MB)"
+            )
+        
+        return await detect_damage(contents)
+    except HTTPException:
+        # HTTPException은 그대로 전달
+        raise
+    except Exception as e:
+        # 기타 예외는 500 에러로 변환하되 명확한 메시지 제공
+        import traceback
+        error_detail = str(e)
+        print(f"[AI Router] 오류 발생: {error_detail}")
+        print(f"[AI Router] 스택 트레이스:\n{traceback.format_exc()}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"이미지 처리 중 오류가 발생했습니다: {error_detail}"
+        )

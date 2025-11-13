@@ -1,7 +1,5 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from io import BytesIO
-from PIL import Image
 
 # 라우터 임포트
 from heritage.router import router as heritage_router
@@ -14,15 +12,6 @@ from common.middleware import setup_middleware
 
 # AI 모델 로더
 from ai.loader import load_ai_model
-
-# Damage Inference 모듈 (노트북 로직 기반)
-try:
-    import damage_inference
-    DAMAGE_INFERENCE_AVAILABLE = True
-except Exception as e:
-    print(f"[Main] ⚠️  damage_inference 모듈 로드 실패: {e}")
-    DAMAGE_INFERENCE_AVAILABLE = False
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -95,59 +84,6 @@ async def root():
 async def health():
     """헬스 체크 엔드포인트"""
     return {"status": "ok", "service": settings.APP_TITLE}
-
-
-@app.post("/ai/damage/infer")
-async def ai_damage_infer(image: UploadFile = File(...)):
-    """
-    Run the hanok damage detection model on the uploaded image and
-    return detected damage bounding boxes.
-    
-    Returns:
-        {
-            "detections": [
-                {
-                    "label_id": int,      # 0-3
-                    "label": str,         # "갈램", "균열", "부후", "압괴/터짐"
-                    "score": float,       # 0.0-1.0
-                    "x": float,           # normalized center x [0, 1]
-                    "y": float,           # normalized center y [0, 1]
-                    "w": float,           # normalized width [0, 1]
-                    "h": float            # normalized height [0, 1]
-                },
-                ...
-            ]
-        }
-    """
-    if not DAMAGE_INFERENCE_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Damage inference module is not available. Check server logs."
-        )
-    
-    try:
-        content = await image.read()
-        pil_img = Image.open(BytesIO(content)).convert("RGB")
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid image file: {str(e)}"
-        )
-    
-    try:
-        detections = damage_inference.infer_damage(pil_img)
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Model inference failed: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error during inference: {str(e)}"
-        )
-    
-    return {"detections": detections}
 
 
 # 서버 직접 실행 (개발용)

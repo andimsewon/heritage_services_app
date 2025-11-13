@@ -142,6 +142,26 @@ Content-Type: multipart/form-data
 - 모델 파일: `hanok_damage_model.pth`
 - 모델이 없어도 서버는 정상 실행되며, AI 기능만 비활성화됩니다.
 
+### Flutter 런타임 주소 오버라이드
+- Flutter 앱은 기본적으로 FastAPI와 AI 엔드포인트를 동일한 주소(Env.proxyBase/aiBase)로 사용합니다.
+- 서버 주소가 다르면 빌드 시 `--dart-define`으로 오버라이드하세요.
+
+```bash
+flutter run -d chrome \
+  --dart-define=API_BASE=http://192.168.0.10:8080 \
+  --dart-define=AI_BASE=http://192.168.0.10:8080
+```
+
+- AI 추론 서버가 별도 포트/호스트라면 `AI_BASE`만 다르게 지정하면 됩니다.
+
+```bash
+flutter run -d chrome \
+  --dart-define=API_BASE=http://api.example.com:8080 \
+  --dart-define=AI_BASE=http://ai.example.com:9000
+```
+
+- `AI_BASE`를 지정하지 않으면 `API_BASE` 값이 자동으로 재사용됩니다.
+
 ## 🐛 문제 해결
 
 ### 1. 포트 충돌

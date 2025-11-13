@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/utils/error_handler.dart';
+import 'package:my_cross_app/core/utils/input_validator.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
@@ -9,10 +12,10 @@ import 'package:my_cross_app/utils/position_options.dart';
 
 /// 조사 단계 정의
 enum SurveyStep {
-  register,   // ① 조사등록 (부재명/번호/향 선택)
-  detail,     // ② 손상부 조사 (사진, 손상위치, 의견)
-  confirm,    // ③ 감지 결과 확인
-  advanced,   // ④ 심화조사
+  register, // ① 조사등록 (부재명/번호/향 선택)
+  detail, // ② 손상부 조사 (사진, 손상위치, 의견)
+  confirm, // ③ 감지 결과 확인
+  advanced, // ④ 심화조사
 }
 
 /// 개선된 손상부 조사 다이얼로그
@@ -29,12 +32,14 @@ class ImprovedDamageSurveyDialog extends StatefulWidget {
     super.key,
     required this.aiService,
     required this.heritageId,
+    this.heritageName,
     this.autoCapture = false,
     this.initialPart,
   });
 
   final AiDetectionService aiService;
   final String heritageId;
+  final String? heritageName;
   final bool autoCapture;
   final Map<String, dynamic>? initialPart;
 
@@ -54,7 +59,16 @@ class _ImprovedDamageSurveyDialogState
   String? _selectedPosition;
   final TextEditingController _partNumberController = TextEditingController();
 
-  final List<String> _partNames = ['기둥', '보', '도리', '창방', '평방', '장혀', '추녀', '서까래'];
+  final List<String> _partNames = [
+    '기둥',
+    '보',
+    '도리',
+    '창방',
+    '평방',
+    '장혀',
+    '추녀',
+    '서까래',
+  ];
   final List<String> _directions = ['동향', '서향', '남향', '북향'];
   List<String> _positions = PositionOptions.defaultPositions;
 
@@ -64,8 +78,11 @@ class _ImprovedDamageSurveyDialogState
   bool _loadingPreviousPhoto = false;
   List<Map<String, dynamic>> _detections = [];
   bool _loading = false;
+  String? _loadingMessage = ''; // 로딩 상태 메시지
   String? _savedDocId; // 저장된 문서 ID (최종 저장 시 업데이트용)
   String? _savedImageUrl; // 저장된 이미지 URL
+  double? _actualImageWidth; // 실제 이미지 너비
+  double? _actualImageHeight; // 실제 이미지 높이
 
   // Firebase Service
   final _fb = FirebaseService();
@@ -76,6 +93,11 @@ class _ImprovedDamageSurveyDialogState
   String? _autoGrade;
   String? _autoExplanation;
   Map<String, String>? _prefilledPart;
+
+  // AI 모델 상태
+  AiModelStatus? _aiStatus;
+  bool _aiStatusLoading = false;
+  String? _aiStatusError;
 
   // 입력 컨트롤러
   final TextEditingController _locationController = TextEditingController();
@@ -106,6 +128,7 @@ class _ImprovedDamageSurveyDialogState
   void initState() {
     super.initState();
     _applyInitialPart(widget.initialPart);
+    _loadAiStatus();
     if (widget.autoCapture) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _pickImageAndDetect();
@@ -127,7 +150,9 @@ class _ImprovedDamageSurveyDialogState
   /// 전년도 손상부 조사 사진 자동 로드
   Future<void> _loadPreviousYearPhoto() async {
     // 부재 정보가 모두 입력되어 있는지 확인
-    if (_selectedPartName == null || _selectedDirection == null || _selectedPosition == null) {
+    if (_selectedPartName == null ||
+        _selectedDirection == null ||
+        _selectedPosition == null) {
       return;
     }
 
@@ -171,9 +196,9 @@ class _ImprovedDamageSurveyDialogState
     } catch (e) {
       if (mounted) {
         setState(() => _loadingPreviousPhoto = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('전년도 사진 로드 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('전년도 사진 로드 실패: $e')));
       }
     }
   }
@@ -215,37 +240,111 @@ class _ImprovedDamageSurveyDialogState
     }
   }
 
+  Future<void> _loadAiStatus() async {
+    if (_aiStatusLoading) return;
+
+    setState(() {
+      _aiStatusLoading = true;
+      _aiStatusError = null;
+    });
+
+    try {
+      final status = await widget.aiService.fetchModelStatus();
+      if (!mounted) return;
+      setState(() {
+        _aiStatus = status;
+        _aiStatusError = null;
+      });
+    } on AiTimeoutException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aiStatus = null;
+        _aiStatusError = e.message;
+      });
+    } on AiConnectionException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aiStatus = null;
+        _aiStatusError = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aiStatus = null;
+        _aiStatusError = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _aiStatusLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleAiDetectionFailure(
+    String message, {
+    bool refreshStatus = false,
+  }) async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message.startsWith('❌') ? message : '❌ ' + message),
+          backgroundColor: Colors.orange.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    if (refreshStatus) {
+      await _loadAiStatus();
+    }
+  }
+
   Future<void> _pickImageAndDetect() async {
     if (!mounted) return;
-    
+
     final picked = await ImageAcquire.pick(context);
     if (picked == null || !mounted) return;
-    
+
     final (bytes, sizeGetter) = picked;
-    
+
     // 이미지 크기 검증
     if (bytes.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지 데이터가 비어있습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('이미지 데이터가 비어있습니다.')));
       }
       return;
     }
 
-    // 이미지 크기 가져오기 (에러 처리 포함)
+    // 실제 이미지 크기 가져오기
+    double? actualWidth;
+    double? actualHeight;
     try {
-      await sizeGetter();
+      final imageSize = await sizeGetter();
+      actualWidth = imageSize.width;
+      actualHeight = imageSize.height;
     } catch (e) {
-      debugPrint('⚠️ 이미지 크기 파싱 실패: $e');
-      // 계속 진행 (크기 정보는 선택사항)
+      // 이미지 디코딩으로 크기 가져오기 시도
+      try {
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        actualWidth = frame.image.width.toDouble();
+        actualHeight = frame.image.height.toDouble();
+      } catch (e2) {
+        // 기본값 사용 (DETA 모델 입력 크기)
+        actualWidth = 640.0;
+        actualHeight = 640.0;
+      }
     }
 
     if (!mounted) return;
 
     setState(() {
       _loading = true;
+      _loadingMessage = '이미지 준비 중...';
       _imageBytes = bytes;
+      _actualImageWidth = actualWidth;
+      _actualImageHeight = actualHeight;
       _detections = [];
       _selectedLabel = null;
       _selectedConfidence = null;
@@ -257,6 +356,7 @@ class _ImprovedDamageSurveyDialogState
       // 1. Firebase에 사진 저장
       String? imageUrl;
       try {
+        setState(() => _loadingMessage = '이미지 업로드 중...');
         imageUrl = await _fb.uploadImage(
           heritageId: widget.heritageId,
           folder: 'damage_surveys',
@@ -265,16 +365,13 @@ class _ImprovedDamageSurveyDialogState
       } catch (e) {
         debugPrint('❌ Firebase 이미지 업로드 실패: $e');
         if (!mounted) return;
-        
-        String uploadError = '이미지 업로드 실패';
-        if (e.toString().contains('permission-denied')) {
-          uploadError = '이미지 업로드 권한이 없습니다.';
-        } else if (e.toString().contains('quota')) {
-          uploadError = 'Firebase Storage 할당량을 초과했습니다.';
-        } else if (e.toString().contains('timeout')) {
-          uploadError = '이미지 업로드 시간이 초과되었습니다.';
-        }
-        
+
+        // ErrorHandler를 사용한 에러 메시지 생성
+        final uploadError = ErrorHandler.logAndGetMessage(
+          e,
+          'Firebase 이미지 업로드',
+        );
+
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -286,7 +383,7 @@ class _ImprovedDamageSurveyDialogState
         return;
       }
 
-      if (imageUrl == null || imageUrl.isEmpty) {
+      if (imageUrl.isEmpty) {
         throw Exception('이미지 URL을 받지 못했습니다.');
       }
 
@@ -295,10 +392,28 @@ class _ImprovedDamageSurveyDialogState
       // 2. AI 모델로 손상 탐지
       AiDetectionResult? detectionResult;
       try {
+        setState(() => _loadingMessage = 'AI 모델이 손상을 분석 중입니다...');
         detectionResult = await widget.aiService.detect(bytes);
+      } on AiModelNotLoadedException catch (e) {
+        await _handleAiDetectionFailure(e.message, refreshStatus: true);
+        detectionResult = null;
+      } on AiConnectionException catch (e) {
+        await _handleAiDetectionFailure(e.message);
+        detectionResult = null;
+      } on AiTimeoutException catch (e) {
+        await _handleAiDetectionFailure(e.message);
+        detectionResult = null;
+      } on AiServerException catch (e) {
+        // 500 에러 등 서버 측 문제
+        await _handleAiDetectionFailure(
+          'AI 서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n'
+          '${e.message}',
+        );
+        detectionResult = null;
       } catch (e) {
-        debugPrint('❌ AI 감지 실패: $e');
-        // AI 실패해도 이미지는 저장되었으므로 계속 진행
+        // 기타 예외는 ErrorHandler로 처리
+        final errorMsg = ErrorHandler.getUserFriendlyMessage(e);
+        await _handleAiDetectionFailure('AI 감지 실패: $errorMsg');
         detectionResult = null;
       }
 
@@ -306,33 +421,44 @@ class _ImprovedDamageSurveyDialogState
 
       List<Map<String, dynamic>> normalized = [];
       if (detectionResult != null && detectionResult.detections.isNotEmpty) {
-        final sorted = List<Map<String, dynamic>>.from(detectionResult.detections)
-          ..sort(
-            (a, b) =>
-                ((b['score'] as num?) ?? 0).compareTo(((a['score'] as num?) ?? 0)),
-          );
+        final sorted =
+            List<Map<String, dynamic>>.from(detectionResult.detections)..sort(
+              (a, b) => ((b['score'] as num?) ?? 0).compareTo(
+                ((a['score'] as num?) ?? 0),
+              ),
+            );
         normalized = _normalizeDetections(sorted);
       }
 
       // 3. 손상부 조사 데이터를 Firebase에 저장 (초기 저장)
+      // 사진만 삽입해도 저장되도록 보장
       String? docId;
       try {
         docId = await _saveDamageSurveyData(imageUrl, normalized);
         _savedDocId = docId;
         _savedImageUrl = imageUrl;
-      } catch (e) {
-        debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
-        // 저장 실패해도 UI는 업데이트
+        debugPrint('✅ 사진 및 AI 감지 결과 초기 저장 완료: docId=$docId');
+      } catch (e, stackTrace) {
+        // 저장 실패 시에도 로깅하고 계속 진행 (사진은 이미 업로드됨)
+        ErrorHandler.logAndGetMessage(
+          e,
+          '_saveDamageSurveyData (초기 저장)',
+          stackTrace: stackTrace,
+        );
+        debugPrint('⚠️ 초기 저장 실패했지만 사진은 업로드되었습니다. 최종 저장 시 다시 시도됩니다.');
+        // docId가 없으면 최종 저장 시 새로 생성됨
       }
 
       if (!mounted) return;
 
       setState(() {
         _loading = false;
+        _loadingMessage = null;
         _detections = normalized;
         if (_detections.isNotEmpty) {
           _selectedLabel = _detections.first['label'] as String?;
-          _selectedConfidence = (_detections.first['score'] as num?)?.toDouble();
+          _selectedConfidence = (_detections.first['score'] as num?)
+              ?.toDouble();
           // 감지된 손상을 자동으로 선택
           final label = _selectedLabel;
           if (label != null && !_selectedDamageTypes.contains(label)) {
@@ -352,47 +478,52 @@ class _ImprovedDamageSurveyDialogState
 
       // 4. 성공 메시지 표시
       if (mounted) {
-        final message = detectionResult != null
-            ? '사진이 저장되었고 AI 손상 탐지가 완료되었습니다.'
-            : '사진이 저장되었습니다. (AI 감지는 실패했습니다)';
+        String message;
+        Color backgroundColor;
+
+        if (detectionResult != null && normalized.isNotEmpty) {
+          message =
+              '✅ 사진이 저장되었고 AI 손상 탐지가 완료되었습니다.\n감지된 손상: ${normalized.length}개';
+          backgroundColor = Colors.green;
+        } else if (detectionResult != null) {
+          message = '✅ 사진이 저장되었습니다.\nAI 감지 결과: 손상이 감지되지 않았습니다.';
+          backgroundColor = Colors.blue;
+        } else {
+          message = '✅ 사진이 저장되었습니다.\n(AI 감지는 실패했지만 사진은 저장되었습니다)';
+          backgroundColor = Colors.orange;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: detectionResult != null ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 3),
+            backgroundColor: backgroundColor,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: '확인',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
         );
       }
     } catch (e, stackTrace) {
       debugPrint('❌ 이미지 선택 및 감지 실패: $e');
       debugPrint('스택 트레이스: $stackTrace');
-      
+
       if (!mounted) return;
-      
+
       setState(() {
         _loading = false;
+        _loadingMessage = null;
       });
-      
-      String errorMessage = '사진 처리 중 오류가 발생했습니다';
-      
-      // 구체적인 오류 메시지 제공
-      final errorStr = e.toString();
-      if (errorStr.contains('AiModelNotLoadedException')) {
-        errorMessage = 'AI 모델이 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
-      } else if (errorStr.contains('AiConnectionException')) {
-        errorMessage = 'AI 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.';
-      } else if (errorStr.contains('AiTimeoutException')) {
-        errorMessage = 'AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
-      } else if (errorStr.contains('permission-denied')) {
-        errorMessage = '저장 권한이 없습니다. Firebase 설정을 확인해주세요.';
-      } else if (errorStr.contains('network') || errorStr.contains('Connection')) {
-        errorMessage = '네트워크 연결을 확인해주세요.';
-      } else if (errorStr.contains('timeout') || errorStr.contains('Timeout')) {
-        errorMessage = '요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
-      } else if (errorStr.length < 100) {
-        errorMessage = '오류: $errorStr';
-      }
-      
+
+      // ErrorHandler를 사용한 에러 메시지 생성
+      final errorMessage = ErrorHandler.logAndGetMessage(
+        e,
+        '_pickImageAndDetect',
+        stackTrace: stackTrace,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ $errorMessage'),
@@ -408,54 +539,76 @@ class _ImprovedDamageSurveyDialogState
     }
   }
 
-  // 손상부 조사 데이터를 Firebase에 저장
+  // 손상부 조사 데이터를 Firebase에 저장 (위치 현황/현황 사진과 동일한 저장 로직)
   Future<String?> _saveDamageSurveyData(
     String imageUrl,
     List<Map<String, dynamic>> detections,
   ) async {
-    // 입력 검증
+    // 입력 검증 (InputValidator 사용)
     if (imageUrl.isEmpty) {
       throw ArgumentError('이미지 URL이 비어있습니다.');
     }
-    if (widget.heritageId.isEmpty) {
-      throw ArgumentError('heritageId가 비어있습니다.');
+    final heritageIdError = InputValidator.validateHeritageId(
+      widget.heritageId,
+    );
+    if (heritageIdError != null) {
+      throw ArgumentError(heritageIdError);
     }
 
     try {
+      // 위치 현황/현황 사진과 동일한 구조로 저장
+      // 이미지 정보 (addPhoto와 동일한 필드)
+      final imageInfo = {
+        'url': imageUrl, // addPhoto와 동일한 필드명
+        'title': _generateImageTitle(),
+        'heritageName': widget.heritageName ?? widget.heritageId,
+        'width': _actualImageWidth ?? 0.0,
+        'height': _actualImageHeight ?? 0.0,
+        'bytes': _imageBytes?.length ?? 0,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      // 손상부 조사 추가 정보
       final damageSurveyData = {
+        ...imageInfo, // 이미지 정보 먼저 포함
         'heritageId': widget.heritageId,
-        'imageUrl': imageUrl,
+        // 부재 정보
         'partName': _selectedPartName ?? '',
         'direction': _selectedDirection ?? '',
         'position': _selectedPosition ?? '',
         'partNumber': _partNumberController.text.trim(),
         'location': _locationController.text.trim(),
+        // 손상 정보
         'damagePart': _partController.text.trim(),
         'opinion': _opinionController.text.trim(),
         'temperature': _temperatureController.text.trim(),
         'humidity': _humidityController.text.trim(),
         'severityGrade': _severityGrade,
         'damageTypes': _selectedDamageTypes.toList(),
+        // AI 감지 결과
         'detections': detections,
         'selectedLabel': _selectedLabel,
         'selectedConfidence': _selectedConfidence,
         'autoGrade': _autoGrade,
         'autoExplanation': _autoExplanation,
+        // 타임스탬프
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
-      final docId = await _fb.saveDamageSurvey(
-        heritageId: widget.heritageId,
-        data: damageSurveyData,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException('손상부 조사 데이터 저장 시간 초과');
-        },
-      );
+      final docId = await _fb
+          .saveDamageSurvey(
+            heritageId: widget.heritageId,
+            data: damageSurveyData,
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException('손상부 조사 데이터 저장 시간 초과');
+            },
+          );
 
-      if (docId == null || docId.isEmpty) {
+      if (docId.isEmpty) {
         throw Exception('저장된 문서 ID를 받지 못했습니다.');
       }
 
@@ -465,13 +618,17 @@ class _ImprovedDamageSurveyDialogState
       debugPrint('⏰ 손상부 조사 데이터 저장 타임아웃');
       rethrow;
     } catch (e, stackTrace) {
-      debugPrint('❌ 손상부 조사 데이터 저장 실패: $e');
-      debugPrint('스택 트레이스: $stackTrace');
+      // ErrorHandler를 사용한 에러 로깅
+      ErrorHandler.logAndGetMessage(
+        e,
+        '_saveDamageSurveyData',
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }
 
-  // 손상부 조사 데이터 업데이트
+  // 손상부 조사 데이터 업데이트 (위치 현황/현황 사진과 동일한 저장 로직)
   Future<void> _updateDamageSurveyData(String docId, String imageUrl) async {
     // 입력 검증
     if (docId.isEmpty) {
@@ -482,45 +639,66 @@ class _ImprovedDamageSurveyDialogState
     }
 
     try {
+      // 위치 현황/현황 사진과 동일한 구조로 업데이트
+      // 이미지 정보 (addPhoto와 동일한 필드)
+      final imageInfo = {
+        'url': imageUrl, // addPhoto와 동일한 필드명
+        'title': _generateImageTitle(),
+        'width': _actualImageWidth ?? 0.0,
+        'height': _actualImageHeight ?? 0.0,
+        'bytes': _imageBytes?.length ?? 0,
+      };
+
       final updateData = {
-        'imageUrl': imageUrl, // imageUrl도 업데이트에 포함
+        ...imageInfo, // 이미지 정보 먼저 포함
+        'imageUrl': imageUrl, // 기존 호환성을 위해 유지
+        // 부재 정보
         'partName': _selectedPartName ?? '',
         'direction': _selectedDirection ?? '',
         'position': _selectedPosition ?? '',
         'partNumber': _partNumberController.text.trim(),
         'location': _locationController.text.trim(),
+        // 손상 정보
         'damagePart': _partController.text.trim(),
         'opinion': _opinionController.text.trim(),
         'temperature': _temperatureController.text.trim(),
         'humidity': _humidityController.text.trim(),
         'severityGrade': _severityGrade,
         'damageTypes': _selectedDamageTypes.toList(),
-        'detections': _detections, // 감지 결과도 업데이트
+        // AI 감지 결과
+        'detections': _detections,
         'selectedLabel': _selectedLabel,
         'selectedConfidence': _selectedConfidence,
         'autoGrade': _autoGrade,
         'autoExplanation': _autoExplanation,
+        // 타임스탬프
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
-      await _fb.updateDamageSurvey(
-        heritageId: widget.heritageId,
-        docId: docId,
-        data: updateData,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException('손상부 조사 데이터 업데이트 시간 초과');
-        },
-      );
+      await _fb
+          .updateDamageSurvey(
+            heritageId: widget.heritageId,
+            docId: docId,
+            data: updateData,
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException('손상부 조사 데이터 업데이트 시간 초과');
+            },
+          );
 
       debugPrint('✅ 손상부 조사 데이터 업데이트 완료: $docId');
     } on TimeoutException {
       debugPrint('⏰ 손상부 조사 데이터 업데이트 타임아웃');
       rethrow;
     } catch (e, stackTrace) {
-      debugPrint('❌ 손상부 조사 데이터 업데이트 실패: $e');
-      debugPrint('스택 트레이스: $stackTrace');
+      // ErrorHandler를 사용한 에러 로깅
+      ErrorHandler.logAndGetMessage(
+        e,
+        '_updateDamageSurveyData',
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }
@@ -568,7 +746,7 @@ class _ImprovedDamageSurveyDialogState
       debugPrint('✅ 텍스트 데이터 저장 완료');
     } catch (e) {
       debugPrint('❌ 텍스트 데이터 저장 실패: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -586,13 +764,21 @@ class _ImprovedDamageSurveyDialogState
     switch (_currentStep) {
       case SurveyStep.register:
         // ① 조사등록 → ② 손상부 조사
-        // 부재 선택 완료 확인
-        if (_selectedPartName == null || _selectedDirection == null || _selectedPosition == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('부재명, 향, 부재 내 위치를 모두 선택하세요.')),
-          );
-          return;
+        // 사진만 삽입한 경우 부재 선택 없이도 진행 가능
+        if (_imageBytes == null) {
+          // 사진이 없으면 부재 선택 필수
+          if (_selectedPartName == null ||
+              _selectedDirection == null ||
+              _selectedPosition == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('부재명, 향, 부재 내 위치를 모두 선택하거나 사진을 등록하세요.'),
+              ),
+            );
+            return;
+          }
         }
+        // 사진이 있으면 부재 선택 없이도 다음 단계로 진행 가능
         // 다음 단계로 이동
         setState(() {
           _currentStep = SurveyStep.detail;
@@ -611,9 +797,9 @@ class _ImprovedDamageSurveyDialogState
       case SurveyStep.detail:
         // ② 손상부 조사 → ③ 감지 결과 확인
         if (_imageBytes == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')));
           return;
         }
         setState(() => _currentStep = SurveyStep.confirm);
@@ -653,7 +839,7 @@ class _ImprovedDamageSurveyDialogState
     // 최종 저장: 사용자가 입력한 모든 정보를 반영하여 업데이트
     try {
       String? imageUrl = _savedImageUrl;
-      
+
       // 사진이 선택되었지만 아직 업로드되지 않은 경우 업로드
       // 전년도 사진 없이도 이번 조사 사진만으로 저장 가능하도록 수정
       if (_imageBytes != null && imageUrl == null) {
@@ -666,41 +852,46 @@ class _ImprovedDamageSurveyDialogState
         _savedImageUrl = imageUrl;
         debugPrint('✅ 사진 업로드 완료: $imageUrl');
       }
-      
+
       // 이미 저장된 문서가 있으면 업데이트 (전년도 사진 여부와 무관하게)
       if (_savedDocId != null && imageUrl != null) {
         await _updateDamageSurveyData(_savedDocId!, imageUrl);
         debugPrint('✅ 기존 문서 업데이트 완료: ${_savedDocId}');
-      } 
-      // 새로 저장해야 하는 경우 (전년도 사진 없이도 이번 조사 사진만으로 저장)
+      }
+      // 새로 저장해야 하는 경우 (사진만 삽입해도 저장 가능)
       else if (_imageBytes != null) {
         // imageUrl이 아직 없으면 업로드
         if (imageUrl == null) {
           debugPrint('📸 사진을 Firebase Storage에 업로드 중...');
-          imageUrl = await _fb.uploadImage(
-            heritageId: widget.heritageId,
-            folder: 'damage_surveys',
-            bytes: _imageBytes!,
-          );
-          _savedImageUrl = imageUrl;
-          debugPrint('✅ 사진 업로드 완료: $imageUrl');
+          try {
+            imageUrl = await _fb.uploadImage(
+              heritageId: widget.heritageId,
+              folder: 'damage_surveys',
+              bytes: _imageBytes!,
+            );
+            _savedImageUrl = imageUrl;
+            debugPrint('✅ 사진 업로드 완료: $imageUrl');
+          } catch (e) {
+            final errorMsg = ErrorHandler.logAndGetMessage(e, '최종 저장 시 사진 업로드');
+            throw Exception('사진 업로드 실패: $errorMsg');
+          }
         }
-        
-        // AI 감지 결과가 없으면 빈 배열로 저장
+
+        // AI 감지 결과가 없으면 빈 배열로 저장 (사진만 있어도 저장 가능)
         final detections = _detections.isNotEmpty
             ? List<Map<String, dynamic>>.from(_detections)
             : <Map<String, dynamic>>[];
-        
-        // 새 문서 생성 및 저장 (전년도 사진 없이도 저장)
-        _savedDocId = await _saveDamageSurveyData(imageUrl!, detections);
-        debugPrint('✅ 새 문서 저장 완료: $_savedDocId (전년도 사진 없이도 저장됨)');
+
+        // 새 문서 생성 및 저장 (사진만 있어도 저장 가능)
+        _savedDocId = await _saveDamageSurveyData(imageUrl, detections);
+        debugPrint('✅ 새 문서 저장 완료: $_savedDocId (사진만으로도 저장됨)');
       }
       // 사진이 없는 경우 텍스트만 저장
       else if (_imageBytes == null) {
         await _saveTextDataOnly();
         debugPrint('✅ 텍스트 데이터만 저장 완료');
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -757,17 +948,199 @@ class _ImprovedDamageSurveyDialogState
     }
   }
 
+  // 이미지 제목 자동 생성 (사진만 삽입해도 의미있는 제목 생성)
+  String _generateImageTitle() {
+    // 위치 정보가 있으면 우선 사용
+    if (_locationController.text.trim().isNotEmpty) {
+      return _locationController.text.trim();
+    }
+
+    // 부재 정보로 제목 생성
+    final parts = <String>[];
+    if (_selectedPartName != null && _selectedPartName!.isNotEmpty) {
+      parts.add(_selectedPartName!);
+    }
+    if (_partNumberController.text.trim().isNotEmpty) {
+      parts.add('${_partNumberController.text.trim()}번');
+    }
+    if (_selectedDirection != null && _selectedDirection!.isNotEmpty) {
+      parts.add(_selectedDirection!);
+    }
+    if (_selectedPosition != null && _selectedPosition!.isNotEmpty) {
+      parts.add(_selectedPosition!);
+    }
+
+    if (parts.isNotEmpty) {
+      return parts.join(' ');
+    }
+
+    // 모든 정보가 없으면 타임스탬프 기반 제목
+    final now = DateTime.now();
+    return '손상부 조사 ${now.year}년 ${now.month}월 ${now.day}일';
+  }
+
   List<Map<String, dynamic>> _normalizeDetections(
     List<Map<String, dynamic>> detections,
   ) {
     return detections.map((d) {
       final label = (d['label'] as String?)?.replaceAll('_', ' ') ?? '미분류';
-      return {
-        'label': label,
-        'score': d['score'],
-        'bbox': d['bbox'],  // 백엔드와 키 이름 일치 ('box' → 'bbox')
-      };
+      final score = (d['score'] as num?)?.toDouble() ?? 0.0;
+      final bbox = _extractBoundingBox(d);
+
+      // 디버깅: bbox 추출 결과 로깅 (디버그 모드에서만)
+      if (kDebugMode) {
+        debugPrint(
+          '🔍 Detection: label=$label, score=$score, bbox=$bbox, rawBbox=${d['bbox']}',
+        );
+      }
+
+      return {'label': label, 'score': score, if (bbox != null) 'bbox': bbox};
     }).toList();
+  }
+
+  List<double>? _extractBoundingBox(Map<String, dynamic> detection) {
+    final dynamic rawBox =
+        detection['bbox'] ??
+        detection['box'] ??
+        detection['rect'] ??
+        detection['region'];
+    if (rawBox == null) {
+      if (kDebugMode) {
+        debugPrint('⚠️ _extractBoundingBox: rawBox가 null입니다');
+      }
+      return null;
+    }
+
+    final imageWidth = _actualImageWidth;
+    final imageHeight = _actualImageHeight;
+    final hasImageSize = (imageWidth ?? 0) > 0 && (imageHeight ?? 0) > 0;
+
+    double? x1;
+    double? y1;
+    double? x2;
+    double? y2;
+    bool normalized = false;
+
+    double? parseDouble(dynamic value) {
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        return double.tryParse(value);
+      }
+      return null;
+    }
+
+    bool valuesInUnitRange(Iterable<double> values) {
+      for (final v in values) {
+        if (v < 0 || v > 1) return false;
+      }
+      return true;
+    }
+
+    if (rawBox is List && rawBox.length == 4) {
+      final values = rawBox
+          .map((item) => parseDouble(item) ?? 0.0)
+          .toList(growable: false);
+      final looksLTRB = values[2] > values[0] && values[3] > values[1];
+      normalized = valuesInUnitRange(values);
+
+      if (looksLTRB) {
+        x1 = values[0];
+        y1 = values[1];
+        x2 = values[2];
+        y2 = values[3];
+      } else {
+        x1 = values[0];
+        y1 = values[1];
+        x2 = values[0] + values[2].abs();
+        y2 = values[1] + values[3].abs();
+        normalized =
+            normalized &&
+            values[2] >= 0 &&
+            values[3] >= 0 &&
+            values[2] <= 1 &&
+            values[3] <= 1;
+      }
+    } else if (rawBox is Map) {
+      final lowered = rawBox.map(
+        (key, value) => MapEntry(key.toString().toLowerCase(), value),
+      );
+
+      double? readValue(List<String> keys) {
+        for (final key in keys) {
+          if (lowered.containsKey(key)) {
+            final parsed = parseDouble(lowered[key]);
+            if (parsed != null) return parsed;
+          }
+        }
+        return null;
+      }
+
+      final left = readValue(['x1', 'xmin', 'left']);
+      final top = readValue(['y1', 'ymin', 'top']);
+      final right = readValue(['x2', 'xmax', 'right']);
+      final bottom = readValue(['y2', 'ymax', 'bottom']);
+
+      if (left != null && top != null && right != null && bottom != null) {
+        x1 = left;
+        y1 = top;
+        x2 = right;
+        y2 = bottom;
+        normalized = valuesInUnitRange([left, top, right, bottom]);
+      } else {
+        final baseX = readValue(['x', 'cx']);
+        final baseY = readValue(['y', 'cy']);
+        final width = readValue(['w', 'width']);
+        final height = readValue(['h', 'height']);
+
+        if (baseX != null && baseY != null && width != null && height != null) {
+          x1 = baseX;
+          y1 = baseY;
+          x2 = baseX + width;
+          y2 = baseY + height;
+          normalized =
+              valuesInUnitRange([baseX, baseY]) &&
+              valuesInUnitRange([width, height]);
+        }
+      }
+    } else {
+      return null;
+    }
+
+    if (x1 == null || y1 == null || x2 == null || y2 == null) {
+      return null;
+    }
+
+    if (normalized && hasImageSize) {
+      x1 *= imageWidth!;
+      x2 *= imageWidth;
+      y1 *= imageHeight!;
+      y2 *= imageHeight;
+    }
+
+    double left = x1;
+    double top = y1;
+    double right = x2;
+    double bottom = y2;
+
+    if (right < left) {
+      final temp = right;
+      right = left;
+      left = temp;
+    }
+    if (bottom < top) {
+      final temp = bottom;
+      bottom = top;
+      top = temp;
+    }
+
+    if (hasImageSize) {
+      left = left.clamp(0, imageWidth!).toDouble();
+      right = right.clamp(0, imageWidth).toDouble();
+      top = top.clamp(0, imageHeight!).toDouble();
+      bottom = bottom.clamp(0, imageHeight).toDouble();
+    }
+
+    return [left, top, right, bottom];
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -872,7 +1245,9 @@ class _ImprovedDamageSurveyDialogState
                   border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white,
-                  errorText: _currentStep == SurveyStep.register && _selectedPartName == null
+                  errorText:
+                      _currentStep == SurveyStep.register &&
+                          _selectedPartName == null
                       ? '부재명을 선택해주세요'
                       : null,
                 ),
@@ -886,7 +1261,8 @@ class _ImprovedDamageSurveyDialogState
                     if (value != null) {
                       _positions = PositionOptions.getPositionsForMember(value);
                       // 현재 선택된 위치가 새로운 옵션에 없으면 초기화
-                      if (_selectedPosition != null && !_positions.contains(_selectedPosition)) {
+                      if (_selectedPosition != null &&
+                          !_positions.contains(_selectedPosition)) {
                         _selectedPosition = null;
                       }
                     }
@@ -923,7 +1299,9 @@ class _ImprovedDamageSurveyDialogState
                   border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white,
-                  errorText: _currentStep == SurveyStep.register && _selectedDirection == null
+                  errorText:
+                      _currentStep == SurveyStep.register &&
+                          _selectedDirection == null
                       ? '향을 선택해주세요'
                       : null,
                 ),
@@ -952,8 +1330,11 @@ class _ImprovedDamageSurveyDialogState
                   fillColor: Colors.white,
                 ),
                 items: _positions.map((pos) {
-                  final displayText = _selectedPartName != null 
-                      ? PositionOptions.getPositionDisplayText(_selectedPartName!, pos)
+                  final displayText = _selectedPartName != null
+                      ? PositionOptions.getPositionDisplayText(
+                          _selectedPartName!,
+                          pos,
+                        )
                       : pos;
                   return DropdownMenuItem(value: pos, child: Text(displayText));
                 }).toList(),
@@ -969,10 +1350,98 @@ class _ImprovedDamageSurveyDialogState
   }
 
   // ② 손상부 조사 단계 - 기존 UI
+  Widget? _buildAiStatusBanner() {
+    Widget buildContainer({
+      required Color color,
+      required IconData icon,
+      required String title,
+      required String body,
+      Widget? trailing,
+    }) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.7)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.black54),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(body, style: const TextStyle(fontSize: 13, height: 1.4)),
+                ],
+              ),
+            ),
+            if (trailing != null) ...[const SizedBox(width: 12), trailing],
+          ],
+        ),
+      );
+    }
+
+    if (_aiStatusLoading) {
+      return buildContainer(
+        color: Colors.blue.shade50,
+        icon: Icons.sync,
+        title: 'AI 모델 상태 확인 중입니다',
+        body: '잠시만 기다려주세요. 모델 준비 상태를 확인하고 있습니다.',
+      );
+    }
+
+    if (_aiStatusError != null) {
+      return buildContainer(
+        color: Colors.orange.shade50,
+        icon: Icons.warning_amber_rounded,
+        title: 'AI 상태 확인 실패',
+        body: _aiStatusError!,
+        trailing: TextButton(
+          onPressed: _loadAiStatus,
+          child: const Text('다시 시도'),
+        ),
+      );
+    }
+
+    if (_aiStatus == null) {
+      return null;
+    }
+
+    final ready = _aiStatus!.isReady;
+    final labels = _aiStatus!.labelNames;
+    final baseMessage = ready
+        ? 'AI 모델이 ${_aiStatus!.device ?? 'CPU'} 모드로 준비되었습니다.'
+        : 'AI 모델이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.';
+    final detail = labels.isNotEmpty
+        ? '$baseMessage\n대상 클래스: ${labels.join(', ')}'
+        : baseMessage;
+
+    return buildContainer(
+      color: ready ? Colors.green.shade50 : Colors.orange.shade50,
+      icon: ready ? Icons.check_circle_outline : Icons.info_outline,
+      title: ready ? 'AI 모델 준비 완료' : 'AI 모델 준비 중',
+      body: detail,
+      trailing: TextButton(onPressed: _loadAiStatus, child: const Text('새로고침')),
+    );
+  }
+
   Widget _buildDetailStep(Color headerColor, Color accentBlue) {
+    final statusBanner = _buildAiStatusBanner();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (statusBanner != null) ...[statusBanner, const SizedBox(height: 16)],
         // 1️⃣ 사진 비교
         _buildSectionTitle('사진 비교', Icons.photo_library, headerColor),
         const SizedBox(height: 12),
@@ -994,8 +1463,8 @@ class _ImprovedDamageSurveyDialogState
                 onTap: _loading ? null : _pickImageAndDetect,
                 isLoading: _loading,
                 detections: _detections.isNotEmpty ? _detections : null,
-                imageWidth: 640,  // 4:3 비율 유지
-                imageHeight: 480, // 4:3 비율 (640:480)
+                imageWidth: _actualImageWidth,
+                imageHeight: _actualImageHeight,
               ),
             ),
           ],
@@ -1029,7 +1498,11 @@ class _ImprovedDamageSurveyDialogState
         const SizedBox(height: 24),
 
         // 5-1️⃣ 직접 추가 (표준 손상 용어 전체 선택)
-        _buildSectionTitle('직접 추가 (표준 손상 용어)', Icons.add_circle_outline, headerColor),
+        _buildSectionTitle(
+          '직접 추가 (표준 손상 용어)',
+          Icons.add_circle_outline,
+          headerColor,
+        ),
         const SizedBox(height: 12),
         _buildDirectAddSection(),
         const SizedBox(height: 24),
@@ -1081,10 +1554,7 @@ class _ImprovedDamageSurveyDialogState
                   const SizedBox(width: 12),
                   const Text(
                     '감지 결과를 확인하세요',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -1105,16 +1575,12 @@ class _ImprovedDamageSurveyDialogState
                 const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: _detections.isNotEmpty
-                    ? CustomPaint(
-                        painter: BoundingBoxPainter(
-                          detections: _detections,
-                          imageWidth: 640,  // DETA 모델 입력 크기
-                          imageHeight: 640,
-                        ),
-                        child: Image.memory(_imageBytes!, fit: BoxFit.contain),
-                      )
-                    : Image.memory(_imageBytes!, fit: BoxFit.contain),
+                  child: _buildImageWithBoundingBoxes(
+                    imageSource: _imageBytes!,
+                    detections: _detections.isNotEmpty ? _detections : null,
+                    imageWidth: _actualImageWidth,
+                    imageHeight: _actualImageHeight,
+                  ),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -1239,7 +1705,7 @@ class _ImprovedDamageSurveyDialogState
   @override
   Widget build(BuildContext context) {
     final headerColor = const Color(0xFF1C3763); // ✅ 진한 네이비 (명확한 대비)
-    final accentBlue = const Color(0xFF1C3763);  // ✅ 포인트 네이비 (통일)
+    final accentBlue = const Color(0xFF1C3763); // ✅ 포인트 네이비 (통일)
     final grayBg = const Color(0xFFF8FAFC); // 밝은 회색톤 배경
 
     // 화면 크기 가져오기
@@ -1333,7 +1799,9 @@ class _ImprovedDamageSurveyDialogState
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: Text(_currentStep == SurveyStep.register ? '취소' : '이전'),
+                    child: Text(
+                      _currentStep == SurveyStep.register ? '취소' : '이전',
+                    ),
                   ),
                   const SizedBox(width: 12),
                   // 텍스트 데이터 저장 버튼 (단계 2, 3, 4에서만 표시)
@@ -1357,13 +1825,20 @@ class _ImprovedDamageSurveyDialogState
                   ElevatedButton(
                     onPressed: _loading ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: accentBlue,              // ✅ #1C3763 (진한 네이비)
-                      foregroundColor: Colors.white,            // ✅ #FFFFFF (흰색 텍스트)
-                      disabledBackgroundColor: const Color(0xFFE6E9EF), // ✅ 비활성: 밝은 회색
-                      disabledForegroundColor: const Color(0xFF8A93A3), // ✅ 비활성: 회색 텍스트
+                      backgroundColor: accentBlue, // ✅ #1C3763 (진한 네이비)
+                      foregroundColor: Colors.white, // ✅ #FFFFFF (흰색 텍스트)
+                      disabledBackgroundColor: const Color(
+                        0xFFE6E9EF,
+                      ), // ✅ 비활성: 밝은 회색
+                      disabledForegroundColor: const Color(
+                        0xFF8A93A3,
+                      ), // ✅ 비활성: 회색 텍스트
                       elevation: 0,
                       minimumSize: const Size(100, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -1406,9 +1881,49 @@ class _ImprovedDamageSurveyDialogState
     );
   }
 
+  /// 이미지와 바운딩 박스를 함께 표시하는 위젯 빌더
+  Widget _buildImageWithBoundingBoxes({
+    required Uint8List imageSource,
+    List<Map<String, dynamic>>? detections,
+    double? imageWidth,
+    double? imageHeight,
+  }) {
+    // 바운딩 박스를 그릴 수 있는 조건 확인
+    final hasValidDetections =
+        detections != null &&
+        detections.isNotEmpty &&
+        detections.any((d) => d['bbox'] != null);
+    final hasValidImageSize =
+        imageWidth != null &&
+        imageHeight != null &&
+        imageWidth > 0 &&
+        imageHeight > 0;
+
+    if (hasValidDetections && hasValidImageSize) {
+      return CustomPaint(
+        foregroundPainter: BoundingBoxPainter(
+          detections: detections!,
+          imageWidth: imageWidth!,
+          imageHeight: imageHeight!,
+        ),
+        child: Image.memory(
+          imageSource,
+          fit: BoxFit.contain,
+          width: double.infinity,
+        ),
+      );
+    } else {
+      return Image.memory(
+        imageSource,
+        fit: BoxFit.contain,
+        width: double.infinity,
+      );
+    }
+  }
+
   Widget _buildPhotoBox(
     String label,
-    dynamic imageSource, {  // Uint8List? 또는 String? (URL) 지원
+    dynamic imageSource, { // Uint8List? 또는 String? (URL) 지원
     VoidCallback? onTap,
     bool isLoading = false,
     List<Map<String, dynamic>>? detections,
@@ -1443,13 +1958,13 @@ class _ImprovedDamageSurveyDialogState
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add_a_photo,
-                            color: Colors.black38, size: 40),
-                        SizedBox(height: 8),
-                        Text(
-                          '사진 등록',
-                          style: TextStyle(color: Colors.black54),
+                        Icon(
+                          Icons.add_a_photo,
+                          color: Colors.black38,
+                          size: 40,
                         ),
+                        SizedBox(height: 8),
+                        Text('사진 등록', style: TextStyle(color: Colors.black54)),
                       ],
                     ),
                   )
@@ -1470,9 +1985,16 @@ class _ImprovedDamageSurveyDialogState
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.error_outline, color: Colors.red, size: 40),
+                              Icon(
+                                Icons.error_outline,
+                                color: Colors.red,
+                                size: 40,
+                              ),
                               SizedBox(height: 8),
-                              Text('이미지 로드 실패', style: TextStyle(color: Colors.red)),
+                              Text(
+                                '이미지 로드 실패',
+                                style: TextStyle(color: Colors.red),
+                              ),
                             ],
                           ),
                         );
@@ -1483,33 +2005,50 @@ class _ImprovedDamageSurveyDialogState
                   // Uint8List인 경우 Image.memory 사용
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: (detections != null && detections.isNotEmpty && imageWidth != null && imageHeight != null)
-                      ? CustomPaint(
-                          painter: BoundingBoxPainter(
-                            detections: detections,
-                            imageWidth: imageWidth,
-                            imageHeight: imageHeight,
-                          ),
-                          child: Image.memory(
-                            imageSource,
-                            fit: BoxFit.contain, // 4:3 비율 유지
-                            width: double.infinity,
-                          ),
-                        )
-                      : Image.memory(
-                          imageSource,
-                          fit: BoxFit.contain, // 4:3 비율 유지
-                          width: double.infinity,
-                        ),
+                    child: _buildImageWithBoundingBoxes(
+                      imageSource: imageSource,
+                      detections: detections,
+                      imageWidth: imageWidth,
+                      imageHeight: imageHeight,
+                    ),
                   ),
                 if (isLoading)
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: Colors.black.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Center(child: CircularProgressIndicator()),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                            if (_loadingMessage != null &&
+                                _loadingMessage!.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  _loadingMessage!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -1532,10 +2071,7 @@ class _ImprovedDamageSurveyDialogState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_detections.isEmpty)
-            const Text(
-              '감지된 손상이 없습니다.',
-              style: TextStyle(color: Colors.black54),
-            )
+            const Text('감지된 손상이 없습니다.', style: TextStyle(color: Colors.black54))
           else ...[
             const Text(
               '감지된 손상:',
@@ -1566,10 +2102,7 @@ class _ImprovedDamageSurveyDialogState
               const SizedBox(height: 8),
               Text(
                 'AI 설명: $_autoExplanation',
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 13),
               ),
             ],
           ],
@@ -1733,10 +2266,7 @@ class _ImprovedDamageSurveyDialogState
       children: [
         Text(
           category,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -1839,9 +2369,7 @@ class _ImprovedDamageSurveyDialogState
                     }
                   });
                 },
-                deleteIcon: isCustom
-                    ? const Icon(Icons.close, size: 16)
-                    : null,
+                deleteIcon: isCustom ? const Icon(Icons.close, size: 16) : null,
                 onDeleted: isCustom
                     ? () {
                         setState(() {
@@ -1875,7 +2403,10 @@ class _ImprovedDamageSurveyDialogState
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
               ),
             ),
           ),
@@ -1891,9 +2422,7 @@ class _ImprovedDamageSurveyDialogState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text(
           '새 손상 유형 추가',
           style: TextStyle(
@@ -1908,10 +2437,7 @@ class _ImprovedDamageSurveyDialogState
           children: [
             const Text(
               '표준 용어에 없는 새로운 손상 유형을 입력하세요.',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF6B7280),
-              ),
+              style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -1924,7 +2450,10 @@ class _ImprovedDamageSurveyDialogState
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF1E2A44), width: 1.2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF1E2A44),
+                    width: 1.2,
+                  ),
                 ),
               ),
             ),
@@ -1933,10 +2462,7 @@ class _ImprovedDamageSurveyDialogState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              '취소',
-              style: TextStyle(color: Color(0xFF6B7280)),
-            ),
+            child: const Text('취소', style: TextStyle(color: Color(0xFF6B7280))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -2084,6 +2610,7 @@ class DamageDetectionResult {
 }
 
 /// 바운딩 박스를 이미지 위에 그리는 CustomPainter
+/// BoxFit.contain을 고려하여 실제 렌더링 영역을 계산합니다.
 class BoundingBoxPainter extends CustomPainter {
   const BoundingBoxPainter({
     required this.detections,
@@ -2095,38 +2622,124 @@ class BoundingBoxPainter extends CustomPainter {
   final double imageWidth;
   final double imageHeight;
 
+  /// 손상 유형별 색상 반환
+  Color _getDamageColor(String label, double score) {
+    // 손상 유형에 따른 색상 매핑
+    final labelLower = label.toLowerCase();
+    if (labelLower.contains('갈램') || labelLower.contains('갈래')) {
+      return const Color(0xFFFF6B6B); // 빨간색
+    } else if (labelLower.contains('균열')) {
+      return const Color(0xFFFFA500); // 주황색
+    } else if (labelLower.contains('부후')) {
+      return const Color(0xFF8B4513); // 갈색
+    } else if (labelLower.contains('압괴') || labelLower.contains('터짐')) {
+      return const Color(0xFFDC143C); // 진한 빨간색
+    }
+
+    // 신뢰도에 따른 색상 조정
+    if (score >= 0.7) {
+      return const Color(0xFFFF0000); // 높은 신뢰도: 진한 빨간색
+    } else if (score >= 0.5) {
+      return const Color(0xFFFF6B6B); // 중간 신뢰도: 빨간색
+    } else {
+      return const Color(0xFFFFA500); // 낮은 신뢰도: 주황색
+    }
+  }
+
+  /// BoxFit.contain을 사용할 때 실제 이미지 렌더링 영역을 계산합니다.
+  /// [containerSize]: 위젯의 전체 크기
+  /// [imageSize]: 원본 이미지 크기
+  /// 반환: (실제 렌더링 크기, 오프셋)
+  (Size, Offset) _calculateRenderedImageBounds(
+    Size containerSize,
+    Size imageSize,
+  ) {
+    // 이미지와 컨테이너의 비율 계산
+    final imageAspectRatio = imageSize.width / imageSize.height;
+    final containerAspectRatio = containerSize.width / containerSize.height;
+
+    double renderedWidth;
+    double renderedHeight;
+    double offsetX;
+    double offsetY;
+
+    if (imageAspectRatio > containerAspectRatio) {
+      // 이미지가 더 넓음: 너비에 맞춤
+      renderedWidth = containerSize.width;
+      renderedHeight = containerSize.width / imageAspectRatio;
+      offsetX = 0;
+      offsetY = (containerSize.height - renderedHeight) / 2;
+    } else {
+      // 이미지가 더 높음: 높이에 맞춤
+      renderedWidth = containerSize.height * imageAspectRatio;
+      renderedHeight = containerSize.height;
+      offsetX = (containerSize.width - renderedWidth) / 2;
+      offsetY = 0;
+    }
+
+    return (Size(renderedWidth, renderedHeight), Offset(offsetX, offsetY));
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
+    if (imageWidth <= 0 || imageHeight <= 0) return;
+    if (detections.isEmpty) return;
+
+    // BoxFit.contain을 고려한 실제 렌더링 영역 계산
+    final imageSize = Size(imageWidth, imageHeight);
+    final (renderedSize, offset) = _calculateRenderedImageBounds(
+      size,
+      imageSize,
+    );
+
+    // 스케일 팩터 계산 (원본 이미지 대비 렌더링 크기)
+    final scaleX = renderedSize.width / imageWidth;
+    final scaleY = renderedSize.height / imageHeight;
+
+    // 모든 감지 결과에 대해 바운딩 박스 그리기
     for (final det in detections) {
       final bbox = det['bbox'] as List?;
       if (bbox == null || bbox.length != 4) continue;
 
+      // 원본 이미지 좌표에서 바운딩 박스 추출
       final x1 = (bbox[0] as num).toDouble();
       final y1 = (bbox[1] as num).toDouble();
       final x2 = (bbox[2] as num).toDouble();
       final y2 = (bbox[3] as num).toDouble();
 
-      final scaleX = size.width / imageWidth;
-      final scaleY = size.height / imageHeight;
-
+      // 렌더링 좌표로 변환 (오프셋 추가)
       final rect = Rect.fromLTRB(
-        x1 * scaleX,
-        y1 * scaleY,
-        x2 * scaleX,
-        y2 * scaleY,
+        offset.dx + x1 * scaleX,
+        offset.dy + y1 * scaleY,
+        offset.dx + x2 * scaleX,
+        offset.dy + y2 * scaleY,
       );
 
+      // 손상 유형별 색상 결정
+      final label = det['label'] as String? ?? '';
+      final score = (det['score'] as num?)?.toDouble() ?? 0.0;
+      final boxColor = _getDamageColor(label, score);
+
+      // 바운딩 박스 그리기 (더 두껍고 명확하게)
+      final boxPaint = Paint()
+        ..color = boxColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0;
+
+      // 외곽선 (검은색) 추가로 가시성 향상
       canvas.drawRect(
         rect,
         Paint()
-          ..color = Colors.red
+          ..color = Colors.black
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0,
+          ..strokeWidth = 4.0,
       );
 
-      final label = det['label'] as String? ?? '';
-      final score = (det['score'] as num?)?.toDouble() ?? 0;
-      final text = '$label ${(score * 100).toStringAsFixed(0)}%';
+      // 실제 바운딩 박스
+      canvas.drawRect(rect, boxPaint);
+
+      // 라벨과 점수 텍스트 준비
+      final text = '$label ${(score * 100).toStringAsFixed(1)}%';
 
       final textPainter = TextPainter(
         text: TextSpan(
@@ -2141,20 +2754,35 @@ class BoundingBoxPainter extends CustomPainter {
       );
       textPainter.layout();
 
+      // 텍스트 배경 위치 계산 (바운딩 박스 위쪽)
       final textBg = Rect.fromLTWH(
         rect.left,
-        rect.top - textPainter.height - 4,
+        (rect.top - textPainter.height - 4).clamp(offset.dy, double.infinity),
         textPainter.width + 8,
         textPainter.height + 4,
       );
 
-      canvas.drawRect(textBg, Paint()..color = Colors.red);
+      // 텍스트 배경 그리기 (반투명 배경 + 테두리)
+      final bgPaint = Paint()..color = boxColor.withValues(alpha: 0.9);
+      canvas.drawRect(textBg, bgPaint);
+
+      // 텍스트 배경 테두리
+      canvas.drawRect(
+        textBg,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+
       textPainter.paint(canvas, Offset(rect.left + 4, textBg.top + 2));
     }
   }
 
   @override
   bool shouldRepaint(BoundingBoxPainter oldDelegate) {
-    return detections != oldDelegate.detections;
+    return detections != oldDelegate.detections ||
+        imageWidth != oldDelegate.imageWidth ||
+        imageHeight != oldDelegate.imageHeight;
   }
 }

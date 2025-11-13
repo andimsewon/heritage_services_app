@@ -1,11 +1,14 @@
 // lib/services/firebase_service.dart
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:my_cross_app/models/section_form_models.dart';
+import 'package:my_cross_app/core/utils/error_handler.dart';
+import 'package:my_cross_app/core/utils/input_validator.dart';
 
 /// Firebase Storage 업로드 오류 (Secure Context 문제)
 class SecureContextException implements Exception {
@@ -32,18 +35,18 @@ class FirebaseService {
     required String folder,
     required Uint8List bytes,
   }) async {
-    // 입력 검증
-    if (heritageId.isEmpty) {
-      throw ArgumentError('heritageId가 비어있습니다.');
+    // 입력 검증 (InputValidator 사용)
+    final heritageIdError = InputValidator.validateHeritageId(heritageId);
+    if (heritageIdError != null) {
+      throw ArgumentError(heritageIdError);
     }
-    if (folder.isEmpty) {
-      throw ArgumentError('folder가 비어있습니다.');
+    final folderError = InputValidator.validateFolder(folder);
+    if (folderError != null) {
+      throw ArgumentError(folderError);
     }
-    if (bytes.isEmpty) {
-      throw ArgumentError('이미지 데이터가 비어있습니다.');
-    }
-    if (bytes.length > 10 * 1024 * 1024) {
-      throw ArgumentError('이미지 크기가 너무 큽니다. (최대 10MB)');
+    final imageSizeError = InputValidator.validateImageSize(bytes, maxSizeMB: 10);
+    if (imageSizeError != null) {
+      throw ArgumentError(imageSizeError);
     }
 
     try {
@@ -83,38 +86,23 @@ class FirebaseService {
     } on TimeoutException {
       debugPrint('⏰ 이미지 업로드 타임아웃');
       rethrow;
-    } catch (e) {
-      debugPrint('❌ Firebase Storage 업로드 실패: $e');
-      debugPrint('  - 오류 타입: ${e.runtimeType}');
-      debugPrint('  - 오류 메시지: ${e.toString()}');
+    } catch (e, stackTrace) {
+      // ErrorHandler를 사용한 에러 로깅
+      ErrorHandler.logFirebaseError(e, 'uploadImage', stackTrace: stackTrace);
 
       // HTTP 환경에서의 Service Worker 오류인 경우 특별 처리
       if (kIsWeb &&
           (e.toString().contains('Service Worker') ||
               e.toString().contains('Secure Context') ||
               e.toString().contains('not secure'))) {
-        debugPrint('⚠️ Secure Context 오류 감지 - HTTP 환경에서 실행 중입니다.');
-        debugPrint('💡 해결 방법:');
-        debugPrint('   1. HTTPS 환경에서 실행');
-        debugPrint('   2. Firebase Hosting에 배포');
-        debugPrint('   3. localhost에서 실행');
-
         throw SecureContextException(
             '이미지 업로드 실패: HTTPS 환경에서만 사용 가능합니다.\n'
             'Firebase Hosting에 배포하거나 HTTPS 환경에서 실행해주세요.');
       }
 
-      // 권한 오류
-      if (e.toString().contains('permission-denied')) {
-        throw Exception('이미지 업로드 권한이 없습니다. Firebase 보안 규칙을 확인하세요.');
-      }
-
-      // 할당량 초과
-      if (e.toString().contains('quota') || e.toString().contains('storage')) {
-        throw Exception('Firebase Storage 할당량을 초과했습니다.');
-      }
-
-      throw Exception('Firebase Storage upload failed: $e');
+      // 사용자 친화적 에러 메시지
+      final userMessage = ErrorHandler.getUserFriendlyMessage(e);
+      throw Exception(userMessage);
     }
   }
 

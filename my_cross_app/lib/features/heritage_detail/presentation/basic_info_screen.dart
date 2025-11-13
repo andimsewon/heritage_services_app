@@ -16,7 +16,6 @@ import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
 import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:my_cross_app/core/widgets/optimized_stream_builder.dart';
-import 'package:my_cross_app/core/widgets/responsive_page.dart';
 import 'package:my_cross_app/core/widgets/skeleton_loader.dart';
 import 'package:my_cross_app/features/heritage_detail/application/heritage_detail_view_model.dart';
 import 'package:my_cross_app/features/heritage_detail/data/ai_prediction_repository.dart';
@@ -397,23 +396,24 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     } catch (e, stackTrace) {
       debugPrint('❌ 상세 데이터 로드 실패: $e');
       debugPrint('스택 트레이스: $stackTrace');
-      
+
       if (!mounted) return;
-      
+
       String errorMessage = '상세 정보를 불러오는 중 오류가 발생했습니다.';
-      
+
       // 구체적인 오류 메시지 제공
       final errorStr = e.toString();
       if (errorStr.contains('permission-denied')) {
         errorMessage = '데이터 조회 권한이 없습니다.';
-      } else if (errorStr.contains('network') || errorStr.contains('Connection')) {
+      } else if (errorStr.contains('network') ||
+          errorStr.contains('Connection')) {
         errorMessage = '네트워크 연결을 확인해주세요.';
       } else if (errorStr.contains('timeout')) {
         errorMessage = '요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
       } else if (errorStr.length < 100) {
         errorMessage = '오류: $errorStr';
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
@@ -453,7 +453,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         final m = snap.data() ?? <String, dynamic>{};
         return {
           'item': {
-            'ccbaMnm1': (m['name'] as String?) ?? (_args?['name'] as String? ?? ''),
+            'ccbaMnm1':
+                (m['name'] as String?) ?? (_args?['name'] as String? ?? ''),
             'ccmaName': m['ccmaName'] ?? m['kindName'] ?? '',
             'ccbaAsdt': m['ccbaAsdt'] ?? m['asdt'] ?? '',
             'ccbaPoss': m['ccbaPoss'] ?? m['owner'] ?? '',
@@ -483,21 +484,23 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     try {
       final ccbaKdcd = _args?['ccbaKdcd'] as String? ?? '';
       final ccbaAsno = _args?['ccbaAsno'] as String? ?? '';
-      
+
       if (ccbaKdcd.isEmpty || ccbaAsno.isEmpty) {
         throw ArgumentError('문화유산 코드 또는 번호가 없습니다.');
       }
 
-      return await _api.fetchDetail(
-        ccbaKdcd: ccbaKdcd,
-        ccbaAsno: ccbaAsno,
-        ccbaCtcd: _args?['ccbaCtcd'] as String? ?? '',
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException('문화유산 상세 정보 로드 시간 초과');
-        },
-      );
+      return await _api
+          .fetchDetail(
+            ccbaKdcd: ccbaKdcd,
+            ccbaAsno: ccbaAsno,
+            ccbaCtcd: _args?['ccbaCtcd'] as String? ?? '',
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException('문화유산 상세 정보 로드 시간 초과');
+            },
+          );
     } on TimeoutException {
       debugPrint('⏰ API 로드 타임아웃');
       rethrow;
@@ -854,12 +857,14 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
       debugPrint('🔍 텍스트 로드 - HeritageId: $heritageId');
 
       // Firebase에서 최신 데이터 가져오기 (타임아웃 적용)
-      final surveys = await _fb.getDetailSurveys(heritageId).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException('텍스트 필드 데이터 로드 시간 초과');
-        },
-      );
+      final surveys = await _fb
+          .getDetailSurveys(heritageId)
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException('텍스트 필드 데이터 로드 시간 초과');
+            },
+          );
 
       if (!mounted) return;
 
@@ -874,12 +879,17 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
 
         // 텍스트 필드에 데이터 설정 (mounted 체크 후)
         if (mounted) {
-          _inspectionResult.text = (latestData['inspectionResult'] as String?) ?? '';
-          _managementItems.text = (latestData['managementItems'] as String?) ?? '';
+          _inspectionResult.text =
+              (latestData['inspectionResult'] as String?) ?? '';
+          _managementItems.text =
+              (latestData['managementItems'] as String?) ?? '';
           _damageSummary.text = (latestData['damageSummary'] as String?) ?? '';
-          _investigatorOpinion.text = (latestData['investigatorOpinion'] as String?) ?? '';
-          _gradeClassification.text = (latestData['gradeClassification'] as String?) ?? '';
-          _existingHistory.text = (latestData['existingHistory'] as String?) ?? '';
+          _investigatorOpinion.text =
+              (latestData['investigatorOpinion'] as String?) ?? '';
+          _gradeClassification.text =
+              (latestData['gradeClassification'] as String?) ?? '';
+          _existingHistory.text =
+              (latestData['existingHistory'] as String?) ?? '';
         }
 
         debugPrint('✅ 텍스트 필드 데이터 로드 완료!');
@@ -899,11 +909,13 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     } catch (e, stackTrace) {
       debugPrint('❌ 텍스트 필드 데이터 로드 실패: $e');
       debugPrint('스택 트레이스: $stackTrace');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('텍스트 데이터 로드 실패: ${e.toString().length > 50 ? e.toString().substring(0, 50) + "..." : e.toString()}'),
+            content: Text(
+              '텍스트 데이터 로드 실패: ${e.toString().length > 50 ? e.toString().substring(0, 50) + "..." : e.toString()}',
+            ),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -952,6 +964,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
       builder: (_) => ImprovedDamageSurveyDialog(
         aiService: _ai,
         heritageId: heritageId,
+        heritageName: _name.isEmpty ? '미상' : _name,
         autoCapture: autoCapture,
       ),
     );
@@ -1183,36 +1196,58 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
             : null,
       ),
       body: SafeArea(
-        child: ResponsivePage(
-          controller: _mainScrollController,
-          maxWidth: 1040.0,
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: 24,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 1040.0),
+                child: CustomScrollView(
+                  controller: _mainScrollController,
+                  slivers: [
+                    // 고정된 섹션 네비게이션 바
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _NavigationBarDelegate(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFE5E7EB),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: _buildTopNavigationBar(),
+                        ),
+                        horizontalPadding: horizontalPadding,
+                      ),
+                    ),
+                    // 섹션 콘텐츠
+                    SliverPadding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: 24,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          ...currentSections,
+                          const SizedBox(height: 24),
+                        ]),
+                      ),
                     ),
                   ],
                 ),
-                child: _buildTopNavigationBar(),
               ),
-              const SizedBox(height: 24),
-              ...currentSections,
-              const SizedBox(height: 24),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -1824,9 +1859,9 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                   });
 
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('저장되었습니다')),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('저장되었습니다')));
                   }
                 } catch (e) {
                   debugPrint('❌ 저장 실패: $e');
@@ -2089,6 +2124,51 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         ),
       );
     } else {
+      // _detailViewModel이 null일 때도 모든 섹션 표시
+      // 1. 손상부 종합
+      sections.add(
+        Container(
+          key: _sectionKeys['damageSummary'],
+          child: DamageSummaryTable(
+            sectionNumber: _sectionNumberFor('damageSummary'),
+            value: DamageSummary.initial(),
+            onChanged: (_) {},
+            heritageId: heritageId,
+            heritageName: _name.isEmpty ? '미상' : _name,
+          ),
+        ),
+      );
+      sections.add(const SizedBox(height: 24));
+
+      // 2. 조사자 의견
+      sections.add(
+        Container(
+          key: _sectionKeys['investigatorOpinion'],
+          child: InvestigatorOpinionField(
+            sectionNumber: _sectionNumberFor('investigatorOpinion'),
+            value: InvestigatorOpinion.empty(),
+            onChanged: (_) {},
+            heritageId: heritageId,
+            heritageName: _name.isEmpty ? '미상' : _name,
+          ),
+        ),
+      );
+      sections.add(const SizedBox(height: 24));
+
+      // 3. 등급 분류
+      sections.add(
+        Container(
+          key: _sectionKeys['gradeClassification'],
+          child: GradeClassificationCard(
+            sectionNumber: _sectionNumberFor('gradeClassification'),
+            value: GradeClassification.initial(),
+            onChanged: (_) {},
+          ),
+        ),
+      );
+      sections.add(const SizedBox(height: 24));
+
+      // 4. AI 예측 기능
       sections.add(
         Container(
           key: _sectionKeys['aiPrediction'],
@@ -2172,31 +2252,6 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
           ),
         ),
       );
-      sections.add(const SizedBox(height: 24));
-      sections.add(
-        Container(
-          key: _sectionKeys['gradeClassification'],
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Center(
-            child: Text(
-              '등급 분류를 확인하려면 데이터를 먼저 로드해주세요.',
-              style: TextStyle(color: Color(0xFF6B7280)),
-            ),
-          ),
-        ),
-      );
     }
 
     sections.add(const SizedBox(height: 48));
@@ -2240,6 +2295,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         .toList();
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 64), // 최소 높이 보장
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2254,17 +2310,24 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                 onPressed: () => _scrollToSection(item.key),
                 icon: Icon(
                   item.icon,
-                  size: 16,
+                  size: 18, // 아이콘 크기 증가
                   color: isActive
                       ? const Color(0xFF1E2A44)
                       : const Color(0xFF4B5563),
                 ),
-                label: Text('${index + 1}. ${item.shortTitle}'),
+                label: Text(
+                  '${index + 1}. ${item.shortTitle}',
+                  style: TextStyle(
+                    fontSize: 13, // 폰트 크기 명시
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                    horizontal: 14, // 패딩 증가
+                    vertical: 10, // 패딩 증가
                   ),
+                  minimumSize: const Size(0, 44), // 최소 높이 보장
                   foregroundColor: isActive
                       ? const Color(0xFF1E2A44)
                       : const Color(0xFF1F2937),
@@ -2284,6 +2347,46 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         ),
       ),
     );
+  }
+}
+
+// 네비게이션 바 고정을 위한 Delegate
+class _NavigationBarDelegate extends SliverPersistentHeaderDelegate {
+  _NavigationBarDelegate({
+    required this.child,
+    required this.horizontalPadding,
+  });
+
+  final Widget child;
+  final double horizontalPadding;
+  static const double _navigationBarHeight = 80.0; // 높이 증가
+
+  @override
+  double get minExtent => _navigationBarHeight;
+
+  @override
+  double get maxExtent => _navigationBarHeight;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: 8, // 패딩 조정
+      ),
+      color: const Color(0xFFF5F6FA),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_NavigationBarDelegate oldDelegate) {
+    return oldDelegate.child != child ||
+        oldDelegate.horizontalPadding != horizontalPadding;
   }
 }
 
@@ -3151,13 +3254,12 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                     ),
                   );
                 }
-                final docs = querySnapshot.docs
-                    .where(
-                      (doc) =>
-                          ((doc.data())['imageUrl'] as String?)?.isNotEmpty ??
-                          false,
-                    )
-                    .toList();
+                final docs = querySnapshot.docs.where((doc) {
+                  final data = doc.data();
+                  final url =
+                      (data['url'] as String?) ?? (data['imageUrl'] as String?);
+                  return url != null && url.isNotEmpty;
+                }).toList();
                 if (docs.isEmpty) {
                   return const Center(
                     child: Text(
@@ -3178,18 +3280,42 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                     itemBuilder: (_, index) {
                       final doc = docs[index];
                       final data = doc.data();
-                      final url = data['imageUrl'] as String? ?? '';
+                      // 'url' 또는 'imageUrl' 필드 확인 (최신 저장 로직은 'url' 사용)
+                      final url =
+                          (data['url'] as String?) ??
+                          (data['imageUrl'] as String?) ??
+                          '';
                       final detections = (data['detections'] as List? ?? [])
-                          .cast<Map<String, dynamic>>();
+                          .map((item) {
+                            if (item is Map) {
+                              return Map<String, dynamic>.from(
+                                item.map(
+                                  (key, value) =>
+                                      MapEntry(key.toString(), value),
+                                ),
+                              );
+                            }
+                            return null;
+                          })
+                          .whereType<Map<String, dynamic>>()
+                          .toList(growable: false);
                       final grade = data['severityGrade'] as String?;
                       final location = data['location'] as String?;
                       final phenomenon = data['phenomenon'] as String?;
+                      final imageWidth =
+                          (data['width'] as num?)?.toDouble() ??
+                          (data['imageWidth'] as num?)?.toDouble();
+                      final imageHeight =
+                          (data['height'] as num?)?.toDouble() ??
+                          (data['imageHeight'] as num?)?.toDouble();
                       return _DamageCard(
                         url: url,
                         detections: detections,
                         severityGrade: grade,
                         location: location,
                         phenomenon: phenomenon,
+                        imageWidth: imageWidth,
+                        imageHeight: imageHeight,
                         onDelete: () => widget.onDelete(doc.id, url),
                       );
                     },
@@ -3227,12 +3353,11 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
           );
         }
 
-        final docs = snapshot.data!.docs
-            .where(
-              (doc) =>
-                  ((doc.data())['imageUrl'] as String?)?.isNotEmpty ?? false,
-            )
-            .toList();
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data();
+          final url = (data['url'] as String?) ?? (data['imageUrl'] as String?);
+          return url != null && url.isNotEmpty;
+        }).toList();
 
         if (docs.isEmpty) {
           return Container(
@@ -3443,7 +3568,48 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
     required String? location,
     required String? phenomenon,
     required VoidCallback onDelete,
+    double? imageWidth,
+    double? imageHeight,
   }) {
+    final proxiedUrl = _proxyImageUrl(url, maxWidth: 1280, maxHeight: 960);
+    final parsedDetections = detections
+        .map((det) => Map<String, dynamic>.from(det))
+        .where((det) {
+          final bbox = det['bbox'];
+          return bbox is List && bbox.length == 4;
+        })
+        .toList(growable: false);
+    final canDrawBoxes =
+        imageWidth != null &&
+        imageHeight != null &&
+        imageWidth > 0 &&
+        imageHeight > 0 &&
+        parsedDetections.isNotEmpty;
+
+    final baseImage = OptimizedImage(
+      imageUrl: proxiedUrl,
+      fit: BoxFit.contain,
+      width: double.infinity,
+      height: double.infinity,
+      errorWidget: Container(
+        color: Colors.grey.shade200,
+        child: const Icon(Icons.broken_image, size: 50),
+      ),
+    );
+
+    final photoLayer = SizedBox.expand(
+      child: canDrawBoxes
+          ? CustomPaint(
+              foregroundPainter: BoundingBoxPainter(
+                detections: parsedDetections,
+                imageWidth: imageWidth!,
+                imageHeight: imageHeight!,
+              ),
+              child: baseImage,
+            )
+          : baseImage,
+    );
+
     return Container(
       width: 200,
       decoration: BoxDecoration(
@@ -3460,17 +3626,9 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                 top: Radius.circular(12),
               ),
               child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  OptimizedImage(
-                    imageUrl: url,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorWidget: Container(
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.broken_image, size: 50),
-                    ),
-                  ),
+                  photoLayer,
                   Positioned(
                     top: 4,
                     right: 4,
@@ -3746,6 +3904,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       widget.firestore ?? FirebaseFirestore.instance;
   FirebaseStorage get _storage => widget.storage ?? FirebaseStorage.instance;
   final Uuid _uuid = const Uuid();
+  final _ai = AiDetectionService(baseUrl: Env.aiBase);
 
   bool _invalidHeritage = false;
   String _selectedYear = '2024년 조사';
@@ -4049,6 +4208,13 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               }
             }
           }
+          Map<String, dynamic>? aiSummary;
+          final summaryRaw = mapItem['aiSummary'];
+          if (summaryRaw is Map) {
+            aiSummary = Map<String, dynamic>.from(
+              summaryRaw.map((key, value) => MapEntry(key.toString(), value)),
+            );
+          }
           result.add(
             _HistoryImage(
               id: id,
@@ -4057,6 +4223,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
               storagePath: storagePath,
               uploadedAt: uploadedAt,
               rawValue: mapItem,
+              aiSummary: aiSummary,
             ),
           );
         }
@@ -4251,9 +4418,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
     } catch (e) {
       print('사진 선택 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 선택 중 오류가 발생했습니다: $e')));
     }
   }
 
@@ -4276,14 +4443,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       // 해당 컨트롤러에 사진 URL 업데이트
       _updatePhotoController(photoKey, downloadUrl);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진이 성공적으로 업로드되었습니다.')));
     } catch (e) {
       print('사진 업로드 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 업로드 중 오류가 발생했습니다: $e')));
     }
   }
 
@@ -4620,9 +4787,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
           _hasUnsavedChanges = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_selectedYear 데이터를 불러왔습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$_selectedYear 데이터를 불러왔습니다.')));
       } else {
         // 데이터가 없는 경우 필드 초기화
         _clearAllFields();
@@ -4632,9 +4799,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
     } catch (e) {
       print('연도별 데이터 불러오기 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('데이터 불러오기 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('데이터 불러오기 중 오류가 발생했습니다: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -4850,14 +5017,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _hasUnsavedChanges = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$_selectedYear 데이터가 저장되었습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$_selectedYear 데이터가 저장되었습니다.')));
     } catch (e) {
       print('연도별 데이터 저장 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('데이터 저장 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('데이터 저장 중 오류가 발생했습니다: $e')));
     } finally {
       setState(() => _isSaving = false);
     }
@@ -4916,9 +5083,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
 
   Future<void> _addPhoto(_HistoryPhotoKind kind) async {
     if (!_isEditable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('수정 모드에서만 사진을 추가할 수 있습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('수정 모드에서만 사진을 추가할 수 있습니다.')));
       return;
     }
     if (_uploadingKinds.contains(kind)) return;
@@ -4937,22 +5104,34 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       target.add(image);
     });
 
+    Map<String, dynamic>? aiSummary;
+    if (kind == _HistoryPhotoKind.damage) {
+      aiSummary = await _autoDetectDamage(bytes);
+    }
+
     try {
-      final metadata = await _persistPhoto(image: image, kind: kind);
+      final metadata = await _persistPhoto(
+        image: image,
+        kind: kind,
+        aiSummary: aiSummary,
+      );
       if (!mounted) return;
+      final storedSummary =
+          metadata['aiSummary'] as Map<String, dynamic>? ?? aiSummary;
       setState(() {
         image.markUploaded(
           url: metadata['url'] as String,
           storagePath: metadata['storagePath'] as String,
           uploadedAt: metadata['uploadedAt'] as String,
           rawValue: metadata,
+          aiSummary: storedSummary,
         );
         image.isUploading = false;
         _uploadingKinds.remove(kind);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진이 업로드되었습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진이 업로드되었습니다.')));
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('Failed to upload history photo: $e');
@@ -4963,15 +5142,95 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
         _uploadingKinds.remove(kind);
         target.remove(image);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 업로드 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 업로드 실패: $e')));
     }
+  }
+
+  Future<Map<String, dynamic>?> _autoDetectDamage(Uint8List bytes) async {
+    try {
+      final result = await _ai.detect(bytes);
+      final summary = _buildAiSummary(result);
+      _showDamageAiResultBanner(summary);
+      return summary;
+    } on AiModelNotLoadedException catch (e) {
+      _showAiError('AI 모델이 아직 준비되지 않았습니다. ${e.message}');
+    } on AiConnectionException catch (e) {
+      _showAiError('AI 서버에 연결할 수 없습니다. ${e.message}');
+    } on AiTimeoutException catch (_) {
+      _showAiError('AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+    } on AiServerException catch (e) {
+      _showAiError(e.message);
+    } catch (e) {
+      _showAiError('AI 감지 실패: $e');
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _buildAiSummary(AiDetectionResult result) {
+    final detections = result.detections
+        .map((det) => Map<String, dynamic>.from(det))
+        .toList();
+    detections.sort((a, b) {
+      final scoreA = (a['score'] as num?)?.toDouble() ?? 0.0;
+      final scoreB = (b['score'] as num?)?.toDouble() ?? 0.0;
+      return scoreB.compareTo(scoreA);
+    });
+    final top = detections.isNotEmpty ? detections.first : null;
+
+    final grade = result.grade?.toUpperCase();
+    final explanation = result.explanation;
+
+    return {
+      'status': 'success',
+      'count': result.count ?? detections.length,
+      if (grade != null && grade.isNotEmpty) 'grade': grade,
+      if (explanation != null && explanation.isNotEmpty)
+        'explanation': explanation,
+      'detections': detections,
+      if (top != null && top['label'] != null) 'topLabel': top['label'],
+      if (top != null && top['score'] is num)
+        'topScore': (top['score'] as num).toDouble(),
+      'generatedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  void _showDamageAiResultBanner(Map<String, dynamic> summary) {
+    if (!mounted) return;
+    final count = summary['count'] as int? ?? 0;
+    final topLabel = summary['topLabel'] as String?;
+    final score = (summary['topScore'] as num?)?.toDouble();
+    final scoreText = score != null
+        ? ' (${(score * 100).toStringAsFixed(1)}%)'
+        : '';
+    final message = count == 0
+        ? 'AI 감지 결과: 손상이 감지되지 않았습니다.'
+        : 'AI 감지 완료: ${topLabel ?? '손상'}$scoreText 포함 총 $count건';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade700,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _showAiError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<Map<String, dynamic>> _persistPhoto({
     required _HistoryImage image,
     required _HistoryPhotoKind kind,
+    Map<String, dynamic>? aiSummary,
   }) async {
     final bytes = image.bytes;
     if (bytes == null) {
@@ -5002,6 +5261,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       'url': url,
       'storagePath': storagePath,
       'uploadedAt': uploadedAt,
+      if (aiSummary != null) 'aiSummary': aiSummary,
     };
     await _firestore
         .collection('heritage_management')
@@ -5044,9 +5304,9 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
       }
       if (!mounted) return;
       setState(() => target.insert(index, image));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('사진 삭제 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('사진 삭제 실패: $e')));
     }
   }
 
@@ -7224,6 +7484,15 @@ class _HistoryImageTile extends StatelessWidget {
               ),
             ),
           ),
+        if (image.hasAiSummary)
+          Positioned(
+            left: 8,
+            bottom: 8,
+            child: _AiSummaryBadge(
+              summary: image.aiSummary!,
+              onTap: () => _showAiSummaryDialog(context),
+            ),
+          ),
         if (image.isUploading)
           const Positioned.fill(
             child: ColoredBox(
@@ -7256,6 +7525,182 @@ class _HistoryImageTile extends StatelessWidget {
       ),
     );
   }
+
+  void _showAiSummaryDialog(BuildContext context) {
+    final summary = image.aiSummary;
+    if (summary == null) return;
+    final detections =
+        (summary['detections'] as List?)
+            ?.map(
+              (e) => e is Map
+                  ? Map<String, dynamic>.from(
+                      e.map((key, value) => MapEntry(key.toString(), value)),
+                    )
+                  : null,
+            )
+            .whereType<Map<String, dynamic>>()
+            .toList() ??
+        const [];
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('AI 손상 감지 결과'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (summary['grade'] != null)
+                  _buildSummaryRow('등급', summary['grade'].toString()),
+                if (summary['explanation'] != null &&
+                    summary['explanation'].toString().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      summary['explanation'].toString(),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                _buildSummaryRow(
+                  '감지 수',
+                  '${summary['count'] ?? detections.length}건',
+                ),
+                const SizedBox(height: 12),
+                if (detections.isEmpty) const Text('감지된 손상이 없습니다.'),
+                if (detections.isNotEmpty) ...[
+                  const Text(
+                    '상위 손상',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final det in detections.take(3))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        '• ${det['label'] ?? '손상'} (${_formatScore(det['score'])})',
+                        style: const TextStyle(color: Color(0xFF374151)),
+                      ),
+                    ),
+                  if (detections.length > 3)
+                    Text('+ ${detections.length - 3}건 추가 결과'),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 64,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF111827),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Color(0xFF4B5563)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatScore(dynamic raw) {
+    final value = (raw as num?)?.toDouble();
+    if (value == null) return '-';
+    return '${(value * 100).toStringAsFixed(1)}%';
+  }
+}
+
+class _AiSummaryBadge extends StatelessWidget {
+  const _AiSummaryBadge({
+    required this.summary,
+    required this.onTap,
+    super.key,
+  });
+
+  final Map<String, dynamic> summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final grade = summary['grade'] as String?;
+    final label = summary['topLabel'] as String?;
+    final double? score = (summary['topScore'] as num?)?.toDouble();
+    final parts = <String>[];
+    if (grade != null && grade.isNotEmpty) {
+      parts.add('등급 $grade');
+    }
+    if (label != null && label.isNotEmpty) {
+      final double? percent = score != null
+          ? ((score * 100).clamp(0, 100)).toDouble()
+          : null;
+      final percentText = percent != null
+          ? ' ${percent.toStringAsFixed(0)}%'
+          : '';
+      parts.add('$label$percentText');
+    }
+    final text = parts.isEmpty ? 'AI 결과 보기' : parts.join(' · ');
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.auto_graph, color: Colors.white, size: 16),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _HistoryImage {
@@ -7266,6 +7711,7 @@ class _HistoryImage {
     this.storagePath,
     this.uploadedAt,
     this.rawValue,
+    this.aiSummary,
     this.isUploading = false,
   });
 
@@ -7275,7 +7721,10 @@ class _HistoryImage {
   String? storagePath;
   String? uploadedAt;
   Object? rawValue;
+  Map<String, dynamic>? aiSummary;
   bool isUploading;
+
+  bool get hasAiSummary => aiSummary != null;
 
   ImageProvider get provider {
     if (bytes != null && bytes!.isNotEmpty) {
@@ -7292,11 +7741,13 @@ class _HistoryImage {
     required String storagePath,
     required String uploadedAt,
     required Map<String, dynamic> rawValue,
+    Map<String, dynamic>? aiSummary,
   }) {
     this.url = url;
     this.storagePath = storagePath;
     this.uploadedAt = uploadedAt;
     this.rawValue = rawValue;
+    this.aiSummary = aiSummary ?? this.aiSummary;
   }
 
   Map<String, dynamic> toFirestore() => {
@@ -7742,9 +8193,9 @@ class _DamageDetectionDialogState extends State<DamageDetectionDialog> {
 
   Future<void> _handleSave() async {
     if (_imageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('사진을 먼저 촬영하거나 업로드하세요.')));
       return;
     }
 
