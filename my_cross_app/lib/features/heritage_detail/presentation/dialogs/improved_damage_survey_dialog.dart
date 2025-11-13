@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:my_cross_app/core/utils/error_handler.dart';
 import 'package:my_cross_app/core/utils/input_validator.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
@@ -1970,36 +1971,31 @@ class _ImprovedDamageSurveyDialogState
                     ),
                   )
                 else if (imageSource is String)
-                  // URL인 경우 Image.network 사용
+                  // URL인 경우 최적화된 네트워크 이미지 사용
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageSource,
+                    child: OptimizedImage(
+                      imageUrl: imageSource,
                       fit: BoxFit.contain, // 4:3 비율 유지
                       width: double.infinity,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(child: CircularProgressIndicator());
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                color: Colors.red,
-                                size: 40,
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                '이미지 로드 실패',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                      placeholder: const Center(child: CircularProgressIndicator()),
+                      errorWidget: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 40,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              '이미지 로드 실패',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   )
                 else if (imageSource is Uint8List)

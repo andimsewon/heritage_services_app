@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
 
@@ -261,17 +262,25 @@ class LocationStatusCard extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  Image.network(
-                    url,
+                  OptimizedImage(
+                    imageUrl: url,
                     fit: BoxFit.cover,
                     width: double.infinity,
                     height: double.infinity,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.broken_image, size: 50),
-                      );
-                    },
+                    placeholder: Container(
+                      color: Colors.grey.shade100,
+                      child: const Center(
+                        child: SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                    errorWidget: Container(
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.broken_image, size: 50),
+                    ),
                   ),
                   Positioned(
                     top: 8,

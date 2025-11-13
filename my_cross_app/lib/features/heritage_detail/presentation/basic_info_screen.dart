@@ -243,6 +243,140 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
 
   String _activeSectionKey = 'basicInfo';
   int _currentTabIndex = 0; // 0: 현장 조사, 1: 조사자 의견, 2: 종합진단
+  
+  // 스크롤 감지 최적화를 위한 변수들
+  Timer? _scrollThrottleTimer;
+  bool _isScrollingProgrammatically = false;
+  DateTime _lastScrollUpdate = DateTime.now();
+  
+  @override
+  void initState() {
+    super.initState();
+    // 스크롤 리스너 추가: 현재 보이는 섹션 자동 감지 (throttled)
+    _mainScrollController.addListener(_onScroll);
+  }
+  
+  @override
+  void dispose() {
+    _mainScrollController.removeListener(_onScroll);
+    _scrollThrottleTimer?.cancel();
+    _mainScrollController.dispose();
+    _tabController?.dispose();
+    _detailViewModel?.dispose();
+    _metaDateController.dispose();
+    _metaOrganizationController.dispose();
+    _metaInvestigatorController.dispose();
+    super.dispose();
+  }
+  
+  // 스크롤 시 현재 섹션 자동 감지 (최적화된 버전)
+  void _onScroll() {
+    // 프로그래밍 방식 스크롤 중에는 감지하지 않음
+    if (_isScrollingProgrammatically) return;
+    if (!_mainScrollController.hasClients) return;
+    
+    // Throttling: 마지막 업데이트로부터 100ms 이내면 스킵
+    final now = DateTime.now();
+    if (now.difference(_lastScrollUpdate).inMilliseconds < 100) {
+      return;
+    }
+    
+    // 타이머가 이미 실행 중이면 취소하고 새로 시작 (debounce)
+    _scrollThrottleTimer?.cancel();
+    _scrollThrottleTimer = Timer(const Duration(milliseconds: 150), () {
+      _updateActiveSection();
+    });
+  }
+  
+  // 실제 섹션 업데이트 로직 (throttled)
+  void _updateActiveSection() {
+    if (!_mainScrollController.hasClients) return;
+    if (_isScrollingProgrammatically) return;
+    
+    final currentTabSections = _getCurrentTabSections();
+    if (currentTabSections.isEmpty) return;
+    
+    // 스크롤 위치 기반으로 섹션 찾기 (더 효율적)
+    final scrollOffset = _mainScrollController.offset;
+    final viewportHeight = _mainScrollController.position.viewportDimension;
+    final navBarHeight = 120.0;
+    final threshold = navBarHeight + 100; // 네비게이션 바 + 여유 공간
+    
+    String? newActiveSection;
+    double? minDistance;
+    
+    // 각 섹션의 위치를 확인
+    for (final sectionKey in currentTabSections) {
+      final key = _sectionKeys[sectionKey];
+      if (key?.currentContext == null) continue;
+      
+      final RenderBox? renderBox = key!.currentContext!.findRenderObject() as RenderBox?;
+      if (renderBox == null) continue;
+      
+      // 더 효율적인 위치 계산
+      try {
+        final position = renderBox.localToGlobal(Offset.zero);
+        final sectionTop = position.dy;
+        final sectionHeight = renderBox.size.height;
+        final sectionBottom = sectionTop + sectionHeight;
+        
+        // 뷰포트 상단 근처에 있는 섹션 찾기
+        if (sectionTop <= threshold && sectionBottom > threshold) {
+          final distance = (sectionTop - threshold).abs();
+          if (minDistance == null || distance < minDistance) {
+            minDistance = distance;
+            newActiveSection = sectionKey;
+          }
+        }
+      } catch (e) {
+        // 렌더링 오류 무시하고 계속 진행
+        continue;
+      }
+    }
+    
+    // 첫 번째 섹션이 아직 보이지 않으면 첫 번째 섹션을 활성화
+    if (newActiveSection == null && currentTabSections.isNotEmpty) {
+      final firstSectionKey = currentTabSections.first;
+      final firstKey = _sectionKeys[firstSectionKey];
+      if (firstKey?.currentContext != null) {
+        try {
+          final renderBox = firstKey!.currentContext!.findRenderObject() as RenderBox?;
+          if (renderBox != null) {
+            final position = renderBox.localToGlobal(Offset.zero);
+            if (position.dy > threshold) {
+              newActiveSection = firstSectionKey;
+            }
+          }
+        } catch (e) {
+          // 오류 무시
+        }
+      }
+    }
+    
+    // 활성 섹션 업데이트 (변경된 경우에만)
+    if (newActiveSection != null && newActiveSection != _activeSectionKey) {
+      _lastScrollUpdate = DateTime.now();
+      if (mounted) {
+        setState(() {
+          _activeSectionKey = newActiveSection!;
+        });
+      }
+    }
+  }
+  
+  // 현재 탭의 섹션 목록 반환
+  List<String> _getCurrentTabSections() {
+    switch (_currentTabIndex) {
+      case 0: // 현장 조사
+        return ['basicInfo', 'metaInfo', 'location', 'photos', 'damageSurvey'];
+      case 1: // 조사자 의견
+        return ['preservationHistory', 'inspectionResult', 'preservationItems', 'management'];
+      case 2: // 종합진단
+        return ['damageSummary', 'investigatorOpinion', 'gradeClassification', 'aiPrediction'];
+      default:
+        return [];
+    }
+  }
 
   // 탭별 섹션 캐싱 (성능 최적화)
   List<Widget>? _cachedFieldSurveySections;
@@ -344,8 +478,10 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
       }
       _tabController = TabController(length: 3, vsync: this);
       _tabController!.addListener(() {
+        setState(() {
+          _currentTabIndex = _tabController!.index;
+        });
         if (!_tabController!.indexIsChanging) {
-          setState(() => _currentTabIndex = _tabController!.index);
           _scrollToTabSection(_tabController!.index);
         }
       });
@@ -566,26 +702,22 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                   child: Center(
                     child: InteractiveViewer(
                       maxScale: 4,
-                      child: Image.network(
-                        proxiedUrl,
+                      child: OptimizedImage(
+                        imageUrl: proxiedUrl,
                         fit: BoxFit.contain,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          final total = loadingProgress.expectedTotalBytes;
-                          final loaded = loadingProgress.cumulativeBytesLoaded;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              value: total != null ? loaded / total : null,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                        placeholder: const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
                             ),
-                          );
-                        },
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.broken_image_outlined,
-                          color: Colors.white70,
-                          size: 64,
+                          ),
+                        ),
+                        errorWidget: const Center(
+                          child: Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.white70,
+                            size: 64,
+                          ),
                         ),
                       ),
                     ),
@@ -1011,25 +1143,34 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     );
   }
 
-  @override
-  void dispose() {
-    _detailViewModel?.dispose();
-    _mainScrollController.dispose();
-    _tabController?.dispose();
-    super.dispose();
-  }
 
-  // 섹션으로 스크롤 이동
+  // 섹션으로 스크롤 이동 (최적화된 버전)
   void _scrollToSection(String sectionKey) {
-    setState(() => _activeSectionKey = sectionKey);
+    // 활성 섹션 즉시 업데이트
+    if (_activeSectionKey != sectionKey && mounted) {
+      setState(() {
+        _activeSectionKey = sectionKey;
+      });
+    }
+    
     final key = _sectionKeys[sectionKey];
     if (key?.currentContext != null) {
+      // 프로그래밍 방식 스크롤 시작
+      _isScrollingProgrammatically = true;
+      
       Scrollable.ensureVisible(
         key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         alignment: 0.08,
-      );
+      ).then((_) {
+        // 스크롤 완료 후 잠시 대기 후 감지 재개
+        Future.delayed(const Duration(milliseconds: 400), () {
+          _isScrollingProgrammatically = false;
+          // 스크롤 완료 후 섹션 위치 재확인
+          _updateActiveSection();
+        });
+      });
     }
   }
 
@@ -1182,14 +1323,69 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                   color: Colors.white,
                   child: TabBar(
                     controller: _tabController!,
-                    labelColor: const Color(0xFF1E2A44),
-                    unselectedLabelColor: const Color(0xFF6B7280),
-                    indicatorColor: const Color(0xFF1E2A44),
-                    indicatorWeight: 3,
-                    tabs: const [
-                      Tab(text: '현장 조사'),
-                      Tab(text: '조사자 의견'),
-                      Tab(text: '종합진단'),
+                    labelColor: Colors.white,
+                    unselectedLabelColor: const Color(0xFF6E6E73),
+                    indicatorColor: Colors.transparent,
+                    indicatorWeight: 0,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    indicator: BoxDecoration(
+                      color: const Color(0xFF5AC8FA), // 차분한 하늘색
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
+                    ),
+                    tabs: [
+                      Tab(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _currentTabIndex == 0
+                                ? const Color(0xFF5AC8FA)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text('현장 조사'),
+                        ),
+                      ),
+                      Tab(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _currentTabIndex == 1
+                                ? const Color(0xFF5AC8FA)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text('조사자 의견'),
+                        ),
+                      ),
+                      Tab(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _currentTabIndex == 2
+                                ? const Color(0xFF5AC8FA)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text('종합진단'),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1206,23 +1402,24 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                 child: CustomScrollView(
                   controller: _mainScrollController,
                   slivers: [
-                    // 고정된 섹션 네비게이션 바
+                    // 고정된 섹션 네비게이션 바 (상단 고정)
                     SliverPersistentHeader(
                       pinned: true,
+                      floating: false,
                       delegate: _NavigationBarDelegate(
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: const Color(0xFFE5E7EB),
                               width: 1,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
@@ -1375,17 +1572,21 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
 
   // 메타 정보 섹션 빌드
   Widget _buildMetaInfoSection() {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0x1A000000), // Apple-style subtle border
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -1395,60 +1596,120 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E2A44).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF0071E3).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.description,
-                  color: Color(0xFF1E2A44),
-                  size: 20,
+                  Icons.description_outlined,
+                  color: Color(0xFF0071E3),
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                _numberedTitle('metaInfo', '메타 정보'),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: Color(0xFF111827),
-                  letterSpacing: -0.3,
+              Expanded(
+                child: Text(
+                  _numberedTitle('metaInfo', '메타 정보'),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           TextField(
             controller: _metaDateController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: '조사 일자',
               hintText: 'YYYY-MM-DD',
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0x1A000000),
+                  width: 1,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0x1A000000),
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF0071E3),
+                  width: 2,
+                ),
+              ),
               filled: true,
-              fillColor: Color(0xFFF8FAFC),
+              fillColor: const Color(0xFFF5F7FA),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _metaOrganizationController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: '조사 기관',
               hintText: '기관명',
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0x1A000000),
+                  width: 1,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0x1A000000),
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF0071E3),
+                  width: 2,
+                ),
+              ),
               filled: true,
-              fillColor: Color(0xFFF8FAFC),
+              fillColor: const Color(0xFFF5F7FA),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _metaInvestigatorController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: '조사자',
               hintText: '성명',
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0x1A000000),
+                  width: 1,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0x1A000000),
+                  width: 1,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF0071E3),
+                  width: 2,
+                ),
+              ),
               filled: true,
-              fillColor: Color(0xFFF8FAFC),
+              fillColor: const Color(0xFFF5F7FA),
             ),
           ),
         ],
@@ -2296,51 +2557,80 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         .toList();
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 64), // 최소 높이 보장
+      constraints: const BoxConstraints(minHeight: 72),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: navItems.asMap().entries.map((entry) {
             final index = entry.key;
             final item = entry.value;
             final isActive = item.key == _activeSectionKey;
             return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: OutlinedButton.icon(
-                onPressed: () => _scrollToSection(item.key),
-                icon: Icon(
-                  item.icon,
-                  size: 18, // 아이콘 크기 증가
-                  color: isActive
-                      ? const Color(0xFF1E2A44)
-                      : const Color(0xFF4B5563),
-                ),
-                label: Text(
-                  '${index + 1}. ${item.shortTitle}',
-                  style: TextStyle(
-                    fontSize: 13, // 폰트 크기 명시
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              padding: const EdgeInsets.only(right: 10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _scrollToSection(item.key),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? const Color(0xFF5AC8FA) // 차분한 하늘색 활성 색상
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isActive
+                              ? const Color(0xFF5AC8FA)
+                              : const Color(0xFFE5E7EB),
+                          width: isActive ? 2 : 1,
+                        ),
+                        boxShadow: isActive
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF5AC8FA).withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            item.icon,
+                            size: 18,
+                            color: isActive
+                                ? Colors.white
+                                : const Color(0xFF6E6E73),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${index + 1}. ${item.shortTitle}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: isActive
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              color: isActive
+                                  ? Colors.white
+                                  : const Color(0xFF1D1D1F),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14, // 패딩 증가
-                    vertical: 10, // 패딩 증가
-                  ),
-                  minimumSize: const Size(0, 44), // 최소 높이 보장
-                  foregroundColor: isActive
-                      ? const Color(0xFF1E2A44)
-                      : const Color(0xFF1F2937),
-                  side: BorderSide(
-                    color: isActive
-                        ? const Color(0xFF1E2A44)
-                        : const Color(0xFFE5E7EB),
-                    width: isActive ? 1.4 : 1,
-                  ),
-                  backgroundColor: isActive
-                      ? const Color(0xFFE8EEF9)
-                      : Colors.white,
                 ),
               ),
             );
@@ -2360,7 +2650,7 @@ class _NavigationBarDelegate extends SliverPersistentHeaderDelegate {
 
   final Widget child;
   final double horizontalPadding;
-  static const double _navigationBarHeight = 80.0; // 높이 증가
+  static const double _navigationBarHeight = 96.0; // 높이 증가
 
   @override
   double get minExtent => _navigationBarHeight;
@@ -2377,9 +2667,18 @@ class _NavigationBarDelegate extends SliverPersistentHeaderDelegate {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: horizontalPadding,
-        vertical: 8, // 패딩 조정
+        vertical: 0,
       ),
-      color: const Color(0xFFF5F6FA),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: child,
     );
   }
@@ -2474,13 +2773,16 @@ class BasicInfoCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0x1A000000), // Apple-style subtle border
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2491,15 +2793,15 @@ class BasicInfoCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E2A44).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF0071E3).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.info_outline,
-                  color: Color(0xFF1E2A44),
-                  size: 20,
+                  Icons.info_outlined,
+                  color: Color(0xFF0071E3),
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 12),
@@ -2512,18 +2814,19 @@ class BasicInfoCard extends StatelessWidget {
                           ? '${sectionNumber!}. 기본 정보'
                           : '기본 정보',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: Color(0xFF111827),
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 20,
+                        color: Color(0xFF1D1D1F),
+                        letterSpacing: -0.2,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '문화유산의 기본 정보를 확인합니다',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: Colors.grey.shade600,
+                        letterSpacing: -0.1,
                       ),
                     ),
                   ],
@@ -2585,24 +2888,27 @@ class BasicInfoCard extends StatelessWidget {
 
   Widget _buildOverviewRow(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+        color: const Color(0xFFF5F7FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0x1A000000),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 80,
+            width: 90,
             child: Text(
               label,
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: Color(0xFF1E2A44),
+                color: Color(0xFF1D1D1F),
                 letterSpacing: -0.2,
               ),
             ),
@@ -2610,7 +2916,11 @@ class BasicInfoCard extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF374151)),
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF6E6E73),
+                letterSpacing: -0.1,
+              ),
             ),
           ),
         ],
@@ -2651,13 +2961,16 @@ class HeritagePhotoSection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0x1A000000), // Apple-style subtle border
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2807,17 +3120,15 @@ class HeritagePhotoSection extends StatelessWidget {
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1E2A44),
-                              elevation: 2,
-                              shadowColor: const Color(
-                                0xFF1E2A44,
-                              ).withOpacity(0.3),
+                              backgroundColor: const Color(0xFF0071E3),
+                              elevation: 0,
+                              shadowColor: Colors.transparent,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
+                                horizontal: 20,
+                                vertical: 12,
                               ),
                             ),
                           ),
@@ -3003,20 +3314,24 @@ class _SectionTitle extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E2A44).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFF0071E3).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: const Color(0xFF1E2A44), size: 20),
+              child: Icon(
+                icon,
+                color: const Color(0xFF0071E3),
+                size: 22,
+              ),
             ),
             Text(
               sectionNumber != null ? '$sectionNumber. $title' : title,
               style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                color: Color(0xFF111827),
-                letterSpacing: -0.3,
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
+                color: Color(0xFF1D1D1F),
+                letterSpacing: -0.2,
               ),
             ),
           ],
@@ -3070,13 +3385,16 @@ class _EmptyPhotoState extends StatelessWidget {
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF1E2A44)),
+                side: const BorderSide(
+                  color: Color(0xFF0071E3),
+                  width: 1.5,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 16 : 20,
-                  vertical: 10,
+                  horizontal: isCompact ? 18 : 22,
+                  vertical: 12,
                 ),
               ),
             ),
@@ -3112,19 +3430,39 @@ class DamageSurveySection extends StatefulWidget {
 class _DamageSurveySectionState extends State<DamageSurveySection> {
   Map<String, dynamic>? _selectedDamage;
   int? _selectedIndex;
+  
+  // 등급 표시 로직: AI가 손상을 감지하지 못했을 경우 ' - ' 표시
+  String _getDisplayGrade(Map<String, dynamic> data) {
+    final grade = data['severityGrade']?.toString();
+    if (grade != null && grade.isNotEmpty && grade != 'null') {
+      return grade;
+    }
+    
+    // detections 확인: 비어있거나 null이면 ' - ' 표시
+    final detections = data['detections'] as List?;
+    if (detections == null || detections.isEmpty) {
+      return ' - ';
+    }
+    
+    // 등급이 없지만 감지는 된 경우도 ' - ' 표시
+    return ' - ';
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0x1A000000), // Apple-style subtle border
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -3135,15 +3473,15 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E2A44).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF0071E3).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.search,
-                  color: Color(0xFF1E2A44),
-                  size: 20,
+                  Icons.build_outlined,
+                  color: Color(0xFF0071E3),
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 12),
@@ -3156,10 +3494,10 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                           ? '${widget.sectionNumber}. 손상부 조사'
                           : '손상부 조사',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: Color(0xFF111827),
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 20,
+                        color: Color(0xFF1D1D1F),
+                        letterSpacing: -0.2,
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
@@ -3169,8 +3507,9 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                     Text(
                       '손상부를 조사하고 기록합니다',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: Colors.grey.shade600,
+                        letterSpacing: -0.1,
                       ),
                     ),
                   ],
@@ -3195,43 +3534,47 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E2A44),
-                  elevation: 2,
-                  shadowColor: const Color(0xFF1E2A44).withOpacity(0.3),
+                  backgroundColor: const Color(0xFF0071E3),
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+                    horizontal: 20,
+                    vertical: 12,
                   ),
                 ),
               ),
               ElevatedButton.icon(
                 onPressed: _selectedDamage != null ? _openDeepInspection : null,
                 icon: const Icon(
-                  Icons.assignment,
-                  size: 16,
+                  Icons.assignment_outlined,
+                  size: 18,
                   color: Colors.white,
                 ),
                 label: Text(
                   _selectedDamage != null ? '심화조사' : '심화조사 (선택 필요)',
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _selectedDamage != null
-                      ? const Color(0xFF4B6CB7)
+                      ? const Color(0xFF5AC8FA)
                       : const Color(0xFF9CA3AF),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+                    horizontal: 20,
+                    vertical: 12,
                   ),
-                  elevation: 2,
-                  shadowColor: const Color(0xFF4B6CB7).withOpacity(0.3),
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                 ),
               ),
             ],
@@ -3243,97 +3586,108 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
           // Interactive Damage Table
           _buildDamageTable(),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 240,
-            child: OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: widget.damageStream,
-              loadingBuilder: (context) =>
-                  const SkeletonList(itemCount: 3, itemHeight: 120),
-              builder: (context, querySnapshot) {
-                if (querySnapshot.docs.isEmpty) {
-                  return _buildEmptyState(
-                    icon: Icons.photo_camera_outlined,
-                    title: '등록된 손상부 조사가 없습니다',
-                    subtitle: '조사 등록 버튼을 눌러 첫 조사를 시작하세요',
-                  );
-                }
-                final docs = querySnapshot.docs.where((doc) {
-                  final data = doc.data();
-                  final url =
-                      (data['url'] as String?) ?? (data['imageUrl'] as String?);
-                  return url != null && url.isNotEmpty;
-                }).toList();
-                if (docs.isEmpty) {
-                  return _buildEmptyState(
-                    icon: Icons.image_not_supported,
-                    title: '이미지가 포함된 조사가 없습니다',
-                    subtitle: '사진을 포함하여 조사를 등록해주세요',
-                  );
-                }
-                return ScrollConfiguration(
-                  behavior: const MaterialScrollBehavior(),
-                  child: ListView.separated(
-                    primary: false,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (_, index) {
-                      final doc = docs[index];
+          // Responsive height for damage list
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // 화면 크기에 따라 높이 조정
+              final height = MediaQuery.of(context).size.height > 600 
+                  ? 320.0 
+                  : MediaQuery.of(context).size.height > 400 
+                      ? 240.0 
+                      : 200.0;
+              return SizedBox(
+                height: height,
+                child: OptimizedStreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: widget.damageStream,
+                  loadingBuilder: (context) =>
+                      const SkeletonList(itemCount: 3, itemHeight: 120),
+                  builder: (context, querySnapshot) {
+                    if (querySnapshot.docs.isEmpty) {
+                      return _buildEmptyState(
+                        icon: Icons.photo_camera_outlined,
+                        title: '등록된 손상부 조사가 없습니다',
+                        subtitle: '조사 등록 버튼을 눌러 첫 조사를 시작하세요',
+                      );
+                    }
+                    final docs = querySnapshot.docs.where((doc) {
                       final data = doc.data();
-                      // 'url' 또는 'imageUrl' 필드 확인 (최신 저장 로직은 'url' 사용)
                       final url =
-                          (data['url'] as String?) ??
-                          (data['imageUrl'] as String?) ??
-                          '';
-                      final detections = (data['detections'] as List? ?? [])
-                          .map((item) {
-                            if (item is Map) {
-                              return Map<String, dynamic>.from(
-                                item.map(
-                                  (key, value) =>
-                                      MapEntry(key.toString(), value),
-                                ),
-                              );
-                            }
-                            return null;
-                          })
-                          .whereType<Map<String, dynamic>>()
-                          .toList(growable: false);
-                      final grade = data['severityGrade'] as String?;
-                      final location = data['location'] as String?;
-                      final phenomenon = data['phenomenon'] as String?;
-                      final imageWidth =
-                          (data['width'] as num?)?.toDouble() ??
-                          (data['imageWidth'] as num?)?.toDouble();
-                      final imageHeight =
-                          (data['height'] as num?)?.toDouble() ??
-                          (data['imageHeight'] as num?)?.toDouble();
-                      final previewUrl = _proxyImageUrl(
-                        url,
-                        maxWidth: 1280,
-                        maxHeight: 960,
+                          (data['url'] as String?) ?? (data['imageUrl'] as String?);
+                      return url != null && url.isNotEmpty;
+                    }).toList();
+                    if (docs.isEmpty) {
+                      return _buildEmptyState(
+                        icon: Icons.image_not_supported,
+                        title: '이미지가 포함된 조사가 없습니다',
+                        subtitle: '사진을 포함하여 조사를 등록해주세요',
                       );
-                      final timestamp = data['timestamp']?.toString() ??
-                          data['createdAt']?.toString() ??
-                          data['date']?.toString();
-                      return DamageCardPreview(
-                        imageUrl: previewUrl,
-                        detections: detections,
-                        severityGrade: grade,
-                        location: location,
-                        phenomenon: phenomenon,
-                        timestamp: timestamp,
-                        imageWidth: imageWidth,
-                        imageHeight: imageHeight,
-                        onDelete: () => widget.onDelete(doc.id, url),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
+                    }
+                    return ScrollConfiguration(
+                      behavior: const MaterialScrollBehavior(),
+                      child: ListView.separated(
+                        primary: false,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (_, index) {
+                          final doc = docs[index];
+                          final data = doc.data();
+                          // 'url' 또는 'imageUrl' 필드 확인 (최신 저장 로직은 'url' 사용)
+                          final url =
+                              (data['url'] as String?) ??
+                              (data['imageUrl'] as String?) ??
+                              '';
+                          final detections = (data['detections'] as List? ?? [])
+                              .map((item) {
+                                if (item is Map) {
+                                  return Map<String, dynamic>.from(
+                                    item.map(
+                                      (key, value) =>
+                                          MapEntry(key.toString(), value),
+                                    ),
+                                  );
+                                }
+                                return null;
+                              })
+                              .whereType<Map<String, dynamic>>()
+                              .toList(growable: false);
+                          final grade = data['severityGrade'] as String?;
+                          final location = data['location'] as String?;
+                          final phenomenon = data['phenomenon'] as String?;
+                          final imageWidth =
+                              (data['width'] as num?)?.toDouble() ??
+                              (data['imageWidth'] as num?)?.toDouble();
+                          final imageHeight =
+                              (data['height'] as num?)?.toDouble() ??
+                              (data['imageHeight'] as num?)?.toDouble();
+                          final previewUrl = _proxyImageUrl(
+                            url,
+                            maxWidth: 1280,
+                            maxHeight: 960,
+                          );
+                          final timestamp = data['timestamp']?.toString() ??
+                              data['createdAt']?.toString() ??
+                              data['date']?.toString();
+                          return DamageCardPreview(
+                            imageUrl: previewUrl,
+                            detections: detections,
+                            severityGrade: grade,
+                            location: location,
+                            phenomenon: phenomenon,
+                            timestamp: timestamp,
+                            imageWidth: imageWidth,
+                            imageHeight: imageHeight,
+                            onDelete: () => widget.onDelete(doc.id, url),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -3521,7 +3875,7 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              data['severityGrade']?.toString() ?? '—',
+                              _getDisplayGrade(data),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -3583,7 +3937,12 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
   }
 
   Color _getGradeColor(String? grade) {
-    switch (grade) {
+    // ' - ' 또는 null인 경우 회색 반환
+    if (grade == null || grade.isEmpty || grade == 'null' || grade.trim() == '-') {
+      return const Color(0xFF9CA3AF);
+    }
+    
+    switch (grade.trim()) {
       case 'A':
         return const Color(0xFF4CAF50);
       case 'B':

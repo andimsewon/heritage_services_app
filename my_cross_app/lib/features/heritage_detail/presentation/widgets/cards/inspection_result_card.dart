@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/ui/section_form/section_data_list.dart';
@@ -1000,8 +1001,21 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                   child: imageBytes != null
                       ? Image.memory(imageBytes, fit: BoxFit.contain)
                       : imageUrl != null
-                      ? Image.network(imageUrl, fit: BoxFit.contain)
-                      : Container(),
+                          ? OptimizedImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.contain,
+                              placeholder: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                              errorWidget: const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          : Container(),
                 ),
               ),
             ],

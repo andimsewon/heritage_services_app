@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:my_cross_app/core/config/env.dart';
+import 'package:my_cross_app/core/ui/widgets/ambient_background.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/ui/widgets/responsive_table.dart';
 import 'package:my_cross_app/features/heritage_detail/presentation/basic_info_screen.dart';
@@ -57,7 +58,9 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   int _totalCount = 0;
   bool _loading = false;
   String _curKeyword = '';
-  
+  bool _showCustomOnly = false;
+  DateTime? _lastUpdated;
+
   // 상세 주소 캐싱 (성능 최적화)
   final Map<String, String> _detailAddressCache = {};
 
@@ -182,6 +185,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         _customRows
           ..clear()
           ..addAll(filtered);
+        _lastUpdated = DateTime.now();
       });
     } catch (e) {
       if (!mounted) return;
@@ -300,6 +304,16 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     return buffer.toString();
   }
 
+  String _formatTimestamp(DateTime? value) {
+    if (value == null) return '동기화 대기';
+    final date = value;
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$month/$day $hour:$minute 업데이트';
+  }
+
   Widget _buildFilterCard() {
     Widget buildDropdown({
       required String label,
@@ -310,7 +324,10 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
       return DropdownButtonFormField<String>(
         value: value ?? '',
         items: options.entries
-            .map((e) => DropdownMenuItem<String>(value: e.key, child: Text(e.value)))
+            .map(
+              (e) =>
+                  DropdownMenuItem<String>(value: e.key, child: Text(e.value)),
+            )
             .toList(),
         onChanged: onChanged,
         decoration: InputDecoration(labelText: label),
@@ -349,9 +366,23 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: buildDropdown(label: '종목', value: _kind, options: _kindOptions, onChanged: (v) => setState(() => _kind = v))),
+                      Expanded(
+                        child: buildDropdown(
+                          label: '종목',
+                          value: _kind,
+                          options: _kindOptions,
+                          onChanged: (v) => setState(() => _kind = v),
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: buildDropdown(label: '지역', value: _region, options: _regionOptions, onChanged: (v) => setState(() => _region = v))),
+                      Expanded(
+                        child: buildDropdown(
+                          label: '지역',
+                          value: _region,
+                          options: _regionOptions,
+                          onChanged: (v) => setState(() => _region = v),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -365,12 +396,22 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
               children: [
                 SizedBox(
                   width: 200,
-                  child: buildDropdown(label: '종목', value: _kind, options: _kindOptions, onChanged: (v) => setState(() => _kind = v)),
+                  child: buildDropdown(
+                    label: '종목',
+                    value: _kind,
+                    options: _kindOptions,
+                    onChanged: (v) => setState(() => _kind = v),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 SizedBox(
                   width: 200,
-                  child: buildDropdown(label: '지역', value: _region, options: _regionOptions, onChanged: (v) => setState(() => _region = v)),
+                  child: buildDropdown(
+                    label: '지역',
+                    value: _region,
+                    options: _regionOptions,
+                    onChanged: (v) => setState(() => _region = v),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(child: buildSearchField(dense: false)),
@@ -382,13 +423,121 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
+  Widget _buildShortcutChips(BuildContext context) {
+    const shortcuts = <_ShortcutChipData>[
+      _ShortcutChipData(icon: Icons.all_inclusive, label: '전체', kindCode: ''),
+      _ShortcutChipData(
+        icon: Icons.museum_outlined,
+        label: '국보',
+        kindCode: '11',
+      ),
+      _ShortcutChipData(
+        icon: Icons.account_balance_outlined,
+        label: '보물',
+        kindCode: '12',
+      ),
+      _ShortcutChipData(icon: Icons.park_outlined, label: '사적', kindCode: '13'),
+      _ShortcutChipData(
+        icon: Icons.eco_outlined,
+        label: '천연기념물',
+        kindCode: '15',
+      ),
+    ];
+    final currentKind = _kind ?? '';
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final shortcut in shortcuts)
+          _ShortcutChip(
+            icon: shortcut.icon,
+            label: shortcut.label,
+            selected: currentKind == shortcut.kindCode,
+            onSelected: () {
+              setState(() {
+                _kind = shortcut.kindCode;
+              });
+              _fetch(reset: true);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(
+    BuildContext context, {
+    required bool isTableLayout,
+  }) {
+    final theme = Theme.of(context);
+    final lastRefresh = _formatTimestamp(_lastUpdated);
+    final customCount = _customRows.length;
+    final totalPages = _totalPages;
+    final pageLabel = totalPages == 0
+        ? '0 / 0쪽'
+        : '${_page.toString().padLeft(2, '0')} / ${totalPages.toString().padLeft(2, '0')}쪽';
+    final badgeSpacing = isTableLayout ? 18.0 : 12.0;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // 뱃지들을 한 줄로 배치
+            _SummaryBadge(
+              label: '총 검색 건수',
+              value: _formatCount(_totalCount),
+              icon: Icons.layers_outlined,
+              color: const Color(0xFF1D4ED8),
+            ),
+            const SizedBox(width: 12),
+            _SummaryBadge(
+              label: '내가 추가한 유산',
+              value: customCount.toString(),
+              icon: Icons.edit_note_outlined,
+              color: const Color(0xFFDB2777),
+            ),
+            const SizedBox(width: 12),
+            _SummaryBadge(
+              label: '현재 페이지',
+              value: pageLabel,
+              icon: Icons.menu_book_outlined,
+              color: const Color(0xFF0F766E),
+            ),
+            const Spacer(),
+            // 토글과 새로고침을 한 줄에
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Switch.adaptive(
+                  value: _showCustomOnly,
+                  onChanged: (value) =>
+                      setState(() => _showCustomOnly = value),
+                ),
+                const SizedBox(width: 4),
+                Text('내 추가만', style: theme.textTheme.bodySmall),
+                const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  tooltip: '새로고침',
+                  onPressed: _loading ? null : () => _fetch(reset: true),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildTableHeader(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -396,7 +545,10 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           const _CellHeader('종목', flex: 2),
           const _CellHeader('유산명', flex: 4),
           const _CellHeader('소재지', flex: 3),
-          const Expanded(flex: 3, child: Text('주소', style: TextStyle(fontWeight: FontWeight.bold))),
+          const Expanded(
+            flex: 3,
+            child: Text('주소', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
           // 삭제 버튼 공간을 위한 고정 너비 (40px)
           const SizedBox(width: 40),
         ],
@@ -405,7 +557,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   }
 
   Widget _buildResultList({required bool tableLayout}) {
-    final totalItems = _customRows.length + _rows.length;
+    final apiRows = _showCustomOnly ? const <HeritageRow>[] : _rows;
+    final totalItems = _customRows.length + apiRows.length;
     if (totalItems == 0) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -472,7 +625,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           );
         }
 
-        final row = _rows[index - _customRows.length];
+        final row = apiRows[index - _customRows.length];
         final addrText = row.addr.trim();
         final sojaejiText = row.sojaeji.trim();
         final region = addrText.isNotEmpty ? addrText : sojaejiText;
@@ -481,7 +634,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
           return InkWell(
             onTap: () => _openApiHeritageDialog(row),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
                 children: [
                   _Cell(row.kindName, flex: 2),
@@ -492,7 +645,8 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                     child: FutureBuilder<String>(
                       future: _getDetailAddress(row),
                       builder: (context, snapshot) {
-                        final detail = snapshot.hasData && snapshot.data!.trim().isNotEmpty
+                        final detail =
+                            snapshot.hasData && snapshot.data!.trim().isNotEmpty
                             ? snapshot.data!.trim()
                             : detailFallback;
                         return Text(
@@ -561,7 +715,9 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
               label: '다음',
               onPressed: _loading
                   ? null
-                  : () => _goToPage(endPage < totalPages ? endPage + 1 : totalPages),
+                  : () => _goToPage(
+                      endPage < totalPages ? endPage + 1 : totalPages,
+                    ),
             ),
           if (endPage < totalPages)
             _PaginationButton(
@@ -573,8 +729,6 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -583,76 +737,114 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
         title: const Text('국가 유산 검색'),
         actions: const [],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isTableLayout = constraints.maxWidth >= 960;
-            final horizontalPadding = constraints.maxWidth >= 1280
-                ? 48.0
-                : 16.0;
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AmbientBackground(),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isTableLayout = constraints.maxWidth >= 960;
+                final horizontalPadding = constraints.maxWidth >= 1280
+                    ? 48.0
+                    : 16.0;
 
-            return Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: 16,
-              ),
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isTableLayout ? 1200 : 680,
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: 16,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildFilterCard(),
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '총 ${_formatCount(_totalCount)}건',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isTableLayout ? 1200 : 720,
                       ),
-                      if (_loading)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
-                          child: LinearProgressIndicator(minHeight: 2),
-                        ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: isTableLayout
-                            ? ResponsiveTable(
-                                minWidth: 960,
-                                child: Column(
-                                  children: [
-                                    _buildTableHeader(context),
-                                    const Divider(height: 0),
-                                    Expanded(
-                                      child: RefreshIndicator(
-                                        onRefresh: () => _fetch(reset: true),
-                                        child: _buildResultList(
-                                          tableLayout: true,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildFilterCard(),
+                          const SizedBox(height: 12),
+                          _buildShortcutChips(context),
+                          const SizedBox(height: 16),
+                          _buildSummaryCard(
+                            context,
+                            isTableLayout: isTableLayout,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Text(
+                                '총 ${_formatCount(_totalCount)}건',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              )
-                            : RefreshIndicator(
-                                onRefresh: () => _fetch(reset: true),
-                                child: _buildResultList(tableLayout: false),
                               ),
+                              const SizedBox(width: 8),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _showCustomOnly
+                                    ? const _InlineBadge(label: '내 추가만 보기')
+                                    : const SizedBox.shrink(),
+                              ),
+                              const Spacer(),
+                              Text(
+                                _totalPages == 0
+                                    ? '페이지 0 / 0'
+                                    : '페이지 $_page / $_totalPages',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            child: _loading
+                                ? const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: LinearProgressIndicator(
+                                      minHeight: 2,
+                                    ),
+                                  )
+                                : const SizedBox(height: 2),
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: isTableLayout
+                                ? ResponsiveTable(
+                                    minWidth: 960,
+                                    child: Column(
+                                      children: [
+                                        _buildTableHeader(context),
+                                        const Divider(height: 0),
+                                        Expanded(
+                                          child: RefreshIndicator(
+                                            onRefresh: () =>
+                                                _fetch(reset: true),
+                                            child: _buildResultList(
+                                              tableLayout: true,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : RefreshIndicator(
+                                    onRefresh: () => _fetch(reset: true),
+                                    child: _buildResultList(tableLayout: false),
+                                  ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildPagination(),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      _buildPagination(),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            );
-          },
-        ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -689,6 +881,122 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
   }
 }
 
+class _SummaryBadge extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  const _SummaryBadge({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                value,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShortcutChipData {
+  final IconData icon;
+  final String label;
+  final String kindCode;
+  const _ShortcutChipData({
+    required this.icon,
+    required this.label,
+    required this.kindCode,
+  });
+}
+
+class _ShortcutChip extends StatelessWidget {
+  const _ShortcutChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+    );
+  }
+}
+
+class _InlineBadge extends StatelessWidget {
+  const _InlineBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEDD5),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style:
+            Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: const Color(0xFF9A3412)) ??
+            const TextStyle(
+              color: Color(0xFF9A3412),
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
 class _CellHeader extends StatelessWidget {
   final String text;
   final int flex;
@@ -720,10 +1028,7 @@ class _LocationCell extends StatefulWidget {
   final HeritageRow row;
   final Future<String> Function(HeritageRow) getDetailAddress;
 
-  const _LocationCell({
-    required this.row,
-    required this.getDetailAddress,
-  });
+  const _LocationCell({required this.row, required this.getDetailAddress});
 
   @override
   State<_LocationCell> createState() => _LocationCellState();
@@ -737,19 +1042,19 @@ class _LocationCellState extends State<_LocationCell> {
   void initState() {
     super.initState();
     // 초기 주소 표시 (sojaeji 또는 addr)
-    _cachedAddress = widget.row.sojaeji.isNotEmpty 
-        ? widget.row.sojaeji 
+    _cachedAddress = widget.row.sojaeji.isNotEmpty
+        ? widget.row.sojaeji
         : widget.row.addr;
-    
+
     // 배경에서 상세 주소 가져오기
     _loadDetailAddress();
   }
 
   Future<void> _loadDetailAddress() async {
     if (_isLoading) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final detailAddress = await widget.getDetailAddress(widget.row);
       if (mounted && detailAddress != _cachedAddress) {
@@ -806,13 +1111,15 @@ class _HeritageListCard extends StatelessWidget {
     final theme = Theme.of(context);
     final regionText = (location ?? '').trim();
     final detailFallback = address.trim();
-    final labelStyle = (theme.textTheme.bodySmall ?? const TextStyle(fontSize: 12)).copyWith(
-      fontWeight: FontWeight.w600,
-      color: Colors.grey.shade600,
-    );
-    final valueStyle = (theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 14)).copyWith(
-      color: Colors.grey.shade700,
-    );
+    final labelStyle =
+        (theme.textTheme.bodySmall ?? const TextStyle(fontSize: 12)).copyWith(
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade600,
+        );
+    final valueStyle =
+        (theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 14)).copyWith(
+          color: Colors.grey.shade700,
+        );
 
     Widget buildInfoText({
       required String label,
@@ -825,14 +1132,13 @@ class _HeritageListCard extends StatelessWidget {
             TextSpan(text: '$label  ', style: labelStyle),
             TextSpan(
               text: value,
-              style: valueStyle.copyWith(
-                color: valueColor ?? valueStyle.color,
-              ),
+              style: valueStyle.copyWith(color: valueColor ?? valueStyle.color),
             ),
           ],
         ),
       );
     }
+
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -888,19 +1194,22 @@ class _HeritageListCard extends StatelessWidget {
                 FutureBuilder<String>(
                   future: getDetailAddress!(row!),
                   builder: (context, snapshot) {
-                    final detailValue = snapshot.hasData && snapshot.data!.trim().isNotEmpty
+                    final detailValue =
+                        snapshot.hasData && snapshot.data!.trim().isNotEmpty
                         ? snapshot.data!.trim()
                         : detailFallback;
                     final hasDetail = detailValue.isNotEmpty;
-                    final waiting = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
+                    final waiting =
+                        snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData;
                     final displayText = waiting
                         ? '주소 불러오는 중…'
                         : (hasDetail ? detailValue : '주소 정보 없음');
                     final valueColor = waiting
                         ? Colors.grey.shade500
                         : hasDetail
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade400;
+                        ? Colors.grey.shade800
+                        : Colors.grey.shade400;
                     return buildInfoText(
                       label: '주소',
                       value: displayText,
@@ -911,7 +1220,9 @@ class _HeritageListCard extends StatelessWidget {
               else
                 buildInfoText(
                   label: '주소',
-                  value: detailFallback.isNotEmpty ? detailFallback : '주소 정보 없음',
+                  value: detailFallback.isNotEmpty
+                      ? detailFallback
+                      : '주소 정보 없음',
                   valueColor: detailFallback.isNotEmpty
                       ? Colors.grey.shade800
                       : Colors.grey.shade400,
@@ -975,14 +1286,14 @@ class _CustomRow extends StatelessWidget {
     // region은 이미 sojaeji를 우선 사용하도록 설정되어 있지만,
     // 혹시 모를 경우를 대비해 sojaeji를 직접 확인
     final sojaejiValue = (data['sojaeji'] as String? ?? '').trim();
-    final displayRegion = sojaejiValue.isNotEmpty 
-        ? sojaejiValue 
+    final displayRegion = sojaejiValue.isNotEmpty
+        ? sojaejiValue
         : (region.isNotEmpty ? region : '');
-    
+
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
             _Cell('${data['kindName'] as String? ?? ''} (내 추가)', flex: 2),
@@ -1006,10 +1317,7 @@ class _CustomRow extends StatelessWidget {
                 icon: const Icon(Icons.delete_outline),
                 iconSize: 20,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 40,
-                  minHeight: 40,
-                ),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 onPressed: onDelete,
               ),
             ),
@@ -1039,50 +1347,50 @@ class _PaginationButton extends StatelessWidget {
     const disabledTextColor = Color(0xFF9CA3AF);
 
     final buttonStyle = ButtonStyle(
-      minimumSize: const MaterialStatePropertyAll(Size(32, 32)),
-      padding: const MaterialStatePropertyAll(
+      minimumSize: const WidgetStatePropertyAll(Size(32, 32)),
+      padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
-      shape: MaterialStateProperty.all(
+      shape: WidgetStateProperty.all(
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
-      backgroundColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.disabled)) {
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
           return Colors.white;
         }
         if (selected) {
           return selectedBg;
         }
-        if (states.contains(MaterialState.hovered) ||
-            states.contains(MaterialState.pressed)) {
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.pressed)) {
           return hoverBg;
         }
         return Colors.white;
       }),
-      foregroundColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.disabled)) {
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
           return disabledTextColor;
         }
         return selected ? Colors.white : defaultTextColor;
       }),
-      overlayColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.pressed)) {
-          return hoverBg.withOpacity(0.6);
+      overlayColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return hoverBg.withValues(alpha: 0.6);
         }
-        if (states.contains(MaterialState.hovered)) {
-          return hoverBg.withOpacity(0.4);
+        if (states.contains(WidgetState.hovered)) {
+          return hoverBg.withValues(alpha: 0.4);
         }
         return null;
       }),
-      side: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.disabled)) {
+      side: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
           return const BorderSide(color: defaultBorder);
         }
         if (selected ||
-            states.contains(MaterialState.hovered) ||
-            states.contains(MaterialState.focused)) {
+            states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused)) {
           return const BorderSide(color: selectedBg);
         }
         return const BorderSide(color: defaultBorder);

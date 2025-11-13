@@ -19,12 +19,16 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="국가유산 모니터링 시스템">
 
-  <!-- 🔥 캐시 완전 무효화 (브라우저 강제 리로드) -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
+  <!-- Performance optimization -->
+  <meta http-equiv="Cache-Control" content="public, max-age=31536000">
+  <meta name="theme-color" content="#0071E3">
+  
+  <!-- Preconnect for faster resource loading -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://www.gstatic.com">
+  <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com">
 
   <!-- 웹에서 파일 업로드를 위한 추가 메타 태그 -->
   <!-- ✅ 뷰포트 설정 (CanvasKit 렌더러용) -->
@@ -39,11 +43,27 @@
       height: 100%;
       margin: 0;
       padding: 0;
-      background-color: #f5f7fa;
+      background-color: #FFFFFF;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.47;
+      color: #1D1D1F;
+    }
+    
+    /* Performance optimizations */
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Smooth scrolling */
+    html {
+      scroll-behavior: smooth;
     }
 
     #flutter-container {
@@ -64,256 +84,72 @@
   <title>Heritage Services App</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- Firebase SDK (Analytics 제거) -->
-  <script type="module">
-    // Import the functions you need from the SDKs you need
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-    import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
-    import { getStorage } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-storage.js";
+  <!-- Firebase SDK (지연 로딩으로 성능 최적화) -->
+  <script type="module" defer>
+    // Firebase 초기화를 지연하여 초기 로딩 속도 향상
+    (async () => {
+      try {
+        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js");
+        const { getFirestore } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js");
+        const { getStorage } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-storage.js");
 
-    // Your web app's Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyAg4BcMA1qeRgQfV9pTxbeiwSeo4vSiP18",
-      authDomain: "heritageservices-23a6c.firebaseapp.com",
-      projectId: "heritageservices-23a6c",
-      storageBucket: "heritageservices-23a6c.firebasestorage.app",
-      messagingSenderId: "661570902154",
-      appId: "1:661570902154:web:17d16562436aa476da3573"
-    };
+        const firebaseConfig = {
+          apiKey: "AIzaSyAg4BcMA1qeRgQfV9pTxbeiwSeo4vSiP18",
+          authDomain: "heritageservices-23a6c.firebaseapp.com",
+          projectId: "heritageservices-23a6c",
+          storageBucket: "heritageservices-23a6c.firebasestorage.app",
+          messagingSenderId: "661570902154",
+          appId: "1:661570902154:web:17d16562436aa476da3573"
+        };
 
-    // Initialize Firebase (Analytics 제거)
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
 
-    // Firebase 연결 설정 개선
-    console.log('🔥 Firebase 초기화 완료');
-
-    // 연결 상태 모니터링
-    db.enableNetwork().then(() => {
-      console.log('✅ Firestore 네트워크 연결 활성화');
-    }).catch((error) => {
-      console.error('❌ Firestore 네트워크 연결 실패:', error);
-    });
-
-    // 전역 변수로 설정 (Flutter에서 접근 가능)
-    window.firebaseApp = app;
-    window.firebaseDb = db;
-    window.firebaseStorage = storage;
+        // 전역 변수로 설정 (Flutter에서 접근 가능)
+        window.firebaseApp = app;
+        window.firebaseDb = db;
+        window.firebaseStorage = storage;
+      } catch (error) {
+        console.error('Firebase 초기화 오류:', error);
+      }
+    })();
   </script>
-  <!-- ✅ Service Worker 완전 비활성화 (HTTP 환경 지원) -->
-  <script>
-    console.log('🔥 캐시 클리어 시작...');
-
-    // 1. 기존 Service Worker 모두 제거
+  <!-- Service Worker 비활성화 및 성능 최적화 -->
+  <script defer>
+    // Service Worker 비활성화 (HTTP 환경 지원)
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations()
-        .then((registrations) => {
-          if (registrations.length > 0) {
-            console.log(`🗑️ ${registrations.length}개 Service Worker 삭제 중...`);
-          }
-          registrations.forEach((registration) => {
-            registration.unregister()
-              .then(() => console.log('✅ Service Worker 삭제됨'))
-              .catch((err) => console.warn('⚠️ Service worker unregister failed:', err));
-          });
-        })
-        .catch((err) => console.warn('Service worker lookup failed:', err));
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(reg => reg.unregister().catch(() => {}));
+      }).catch(() => {});
     }
 
-    // 1-1. 모든 캐시 스토리지 삭제 (CanvasKit wasm 캐시 포함)
-    if ('caches' in window) {
-      caches.keys().then(cacheNames => {
-        if (cacheNames.length > 0) {
-          console.log(`🗑️ ${cacheNames.length}개 캐시 삭제 중...`);
-          return Promise.all(
-            cacheNames.map(cacheName => {
-              console.log(`  - 삭제: ${cacheName}`);
-              return caches.delete(cacheName);
-            })
-          );
-        }
-      }).then(() => {
-        console.log('✅ 모든 캐시 삭제 완료');
-      }).catch(err => console.warn('⚠️ 캐시 삭제 실패:', err));
-    }
-
-    // 2. Service Worker API 자체를 무력화 (강제 비활성화)
-    if ('serviceWorker' in navigator) {
-      Object.defineProperty(navigator, 'serviceWorker', {
-        get: function () {
-          console.log('Service Worker API blocked for HTTP environment');
-          return undefined;
-        }
-      });
-    }
-
-    // 3. Flutter 설정으로 Service Worker 비활성화 + CanvasKit 렌더러 사용
+    // Flutter 설정 (CanvasKit 렌더러 사용)
     window.flutterConfiguration = {
       serviceWorkerVersion: null,
-      // ✅ CanvasKit 렌더러 사용 (더 안정적인 렌더링)
       renderer: "canvaskit",
     };
 
     // 4. ✅ 기존 리사이즈 이벤트는 새로운 강력한 시스템으로 대체됨
 
-    // 🔥 반응형 웹 문제 완전 해결을 위한 강력한 함수
-    function forceResponsiveSize() {
-      const html = document.documentElement;
-      const body = document.body;
-      const flutterContainer = document.getElementById('flutter-container');
-      const flutterView = document.querySelector('flutter-view');
-      const glassPane = document.querySelector('flt-glass-pane');
-      const sceneHost = document.querySelector('flt-scene-host');
-      const platformView = document.querySelector('flt-platform-view');
-      const canvas = document.querySelector('canvas');
-
-      // 모든 요소에 강제로 100% 크기 적용
-      const elements = [html, body, flutterContainer, flutterView, glassPane, sceneHost, platformView, canvas];
-
-      elements.forEach(element => {
-        if (element) {
-          // 기본 크기 설정
-          element.style.setProperty('width', '100vw', 'important');
-          element.style.setProperty('height', '100vh', 'important');
-          element.style.setProperty('min-width', '100vw', 'important');
-          element.style.setProperty('min-height', '100vh', 'important');
-          element.style.setProperty('max-width', '100vw', 'important');
-          element.style.setProperty('max-height', '100vh', 'important');
-
-          // 위치 설정
-          element.style.setProperty('position', 'absolute', 'important');
-          element.style.setProperty('top', '0', 'important');
-          element.style.setProperty('left', '0', 'important');
-          element.style.setProperty('right', '0', 'important');
-          element.style.setProperty('bottom', '0', 'important');
-
-          // 변환 설정
-          element.style.setProperty('transform', 'scale(1)', 'important');
-          element.style.setProperty('transform-origin', 'top left', 'important');
-
-          // 오버플로우 설정
-          element.style.setProperty('overflow', 'hidden', 'important');
-
-          // 마진/패딩 제거
-          element.style.setProperty('margin', '0', 'important');
-          element.style.setProperty('padding', '0', 'important');
-        }
-      });
-
-      // CanvasKit 캔버스 특별 처리
-      if (canvas) {
-        canvas.style.setProperty('display', 'block', 'important');
-        canvas.style.setProperty('outline', 'none', 'important');
-        canvas.style.setProperty('border', 'none', 'important');
-        canvas.style.setProperty('background', 'transparent', 'important');
-      }
-
-      // Flutter 컨테이너 특별 처리
-      if (flutterContainer) {
-        flutterContainer.style.setProperty('position', 'fixed', 'important');
-        flutterContainer.style.setProperty('z-index', '1', 'important');
-      }
-
-      console.log('🔧 강력한 반응형 크기 적용 완료');
-    }
-
-    // 🔥 텍스트 방향 수정 함수
-    function fixTextDirection() {
-      // 모든 텍스트 요소 찾기
-      const textElements = document.querySelectorAll('flt-text, flt-text span, flt-text div, [class*="text"]');
-
-      textElements.forEach(element => {
-        // 텍스트 방향 강제 수정
-        element.style.setProperty('writing-mode', 'horizontal-tb', 'important');
-        element.style.setProperty('text-orientation', 'mixed', 'important');
-        element.style.setProperty('direction', 'ltr', 'important');
-        element.style.setProperty('unicode-bidi', 'normal', 'important');
-        element.style.setProperty('white-space', 'nowrap', 'important');
-        element.style.setProperty('overflow', 'visible', 'important');
-        element.style.setProperty('text-overflow', 'clip', 'important');
-      });
-
-      // 버튼 크기 수정
-      const buttons = document.querySelectorAll('flt-elevated-button, flt-outlined-button, flt-text-button, [class*="button"]');
-      buttons.forEach(button => {
-        button.style.setProperty('min-width', 'auto', 'important');
-        button.style.setProperty('min-height', '32px', 'important');
-        button.style.setProperty('padding', '4px 8px', 'important');
-        button.style.setProperty('font-size', '12px', 'important');
-        button.style.setProperty('line-height', '1.2', 'important');
-      });
-
-      // 아이콘 버튼 크기 수정
-      const iconButtons = document.querySelectorAll('flt-icon-button, [class*="icon-button"]');
-      iconButtons.forEach(button => {
-        button.style.setProperty('width', '24px', 'important');
-        button.style.setProperty('height', '24px', 'important');
-        button.style.setProperty('min-width', '24px', 'important');
-        button.style.setProperty('min-height', '24px', 'important');
-        button.style.setProperty('padding', '2px', 'important');
-      });
-
-      console.log('🔧 텍스트 방향 및 버튼 크기 수정 완료');
-    }
-
-    // 🔥 화면 크기 변경 감지 및 강제 수정
+    // 반응형 크기 조정 (성능 최적화: throttling 적용)
+    let resizeTimer;
     function handleResize() {
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      console.log(`📐 화면 크기 변경: ${viewportWidth}x${viewportHeight}`);
-
-      // 즉시 크기 수정
-      forceResponsiveSize();
-      fixTextDirection();
-
-      // Flutter 리사이즈 이벤트 발생
-      window.dispatchEvent(new Event('flutter-resize'));
-
-      // 추가 지연 후 한 번 더 수정 (Flutter가 다시 설정하는 경우 대비)
-      setTimeout(() => {
-        forceResponsiveSize();
-        fixTextDirection();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const html = document.documentElement;
+        const body = document.body;
+        const flutterContainer = document.getElementById('flutter-container');
+        if (flutterContainer) {
+          flutterContainer.style.width = '100%';
+          flutterContainer.style.height = '100%';
+        }
+        window.dispatchEvent(new Event('flutter-resize'));
       }, 100);
     }
 
-    // 🔥 모든 가능한 이벤트에 리사이즈 핸들러 연결
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    window.addEventListener('load', handleResize);
-    window.addEventListener('DOMContentLoaded', handleResize);
-
-    // 🔥 Flutter 관련 이벤트에도 연결
-    window.addEventListener('flutter-first-frame', handleResize);
-    window.addEventListener('flutter-resize', handleResize);
-
-    // 초기 로드는 새로운 강력한 시스템에서 자동 처리됨
-
-    // 5. ✅ 주기적으로 강제 크기 수정 (Flutter가 다시 설정하는 경우 대비)
-    setInterval(function () {
-      // 인라인 스타일 제거
-      const html = document.documentElement;
-      const flutterView = document.querySelector('flutter-view');
-
-      if (html.style.height || html.style.width) {
-        console.log('🔧 HTML 인라인 스타일 제거');
-        html.style.removeProperty('height');
-        html.style.removeProperty('width');
-      }
-
-      if (flutterView && (flutterView.style.height || flutterView.style.width)) {
-        console.log('🔧 Flutter 뷰 인라인 스타일 제거');
-        flutterView.style.removeProperty('height');
-        flutterView.style.removeProperty('width');
-      }
-
-      // 강제 크기 수정
-      forceResponsiveSize();
-      fixTextDirection();
-    }, 50); // 0.05초마다 체크 (더 자주)
-
-    // 6. ✅ Flutter 로드 완료는 새로운 강력한 시스템에서 자동 처리됨
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('orientationchange', handleResize, { passive: true });
   </script>
 </head>
 

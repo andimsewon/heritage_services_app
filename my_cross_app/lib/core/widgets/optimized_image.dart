@@ -1,6 +1,7 @@
 // lib/widgets/optimized_image.dart
 // 최적화된 이미지 위젯
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -34,20 +35,28 @@ class OptimizedImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 메모리 캐시 크기 계산 (maxWidth/maxHeight 우선, 없으면 width/height 사용)
-    final memCacheWidth = maxWidth ?? width?.toInt();
-    final memCacheHeight = maxHeight ?? height?.toInt();
+    // 메모리 캐시 크기 계산 (성능 최적화: 웹에서는 더 작은 크기 사용)
+    final memCacheWidth = maxWidth ?? (width?.toInt() ?? 1200);
+    final memCacheHeight = maxHeight ?? (height?.toInt() ?? 1200);
+    
+    // 웹에서는 더 작은 캐시 크기로 메모리 절약 (성능 최적화)
+    final effectiveMemCacheWidth = kIsWeb 
+        ? (memCacheWidth > 800 ? 800 : memCacheWidth)
+        : memCacheWidth;
+    final effectiveMemCacheHeight = kIsWeb
+        ? (memCacheHeight > 800 ? 800 : memCacheHeight)
+        : memCacheHeight;
     
     Widget imageWidget = CachedNetworkImage(
       imageUrl: imageUrl,
       width: width,
       height: height,
       fit: fit,
-      memCacheWidth: memCacheWidth,
-      memCacheHeight: memCacheHeight,
-      maxWidthDiskCache: maxWidth ?? 1920, // 디스크 캐시 최대 크기
+      memCacheWidth: effectiveMemCacheWidth,
+      memCacheHeight: effectiveMemCacheHeight,
+      maxWidthDiskCache: maxWidth ?? 1920,
       maxHeightDiskCache: maxHeight ?? 1920,
-      fadeInDuration: fadeInDuration,
+      fadeInDuration: kIsWeb ? const Duration(milliseconds: 150) : fadeInDuration,
       placeholder: (context, url) => placeholder ?? _buildSkeletonPlaceholder(),
       errorWidget: (context, url, error) => errorWidget ?? _buildErrorWidget(),
       imageBuilder: (context, imageProvider) {
@@ -58,8 +67,26 @@ class OptimizedImage extends StatelessWidget {
             width: width,
             height: height,
             fit: fit,
+            // 웹에서 이미지 로딩 최적화
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (wasSynchronouslyLoaded) return child;
+              return AnimatedOpacity(
+                opacity: frame == null ? 0 : 1,
+                duration: fadeInDuration,
+                curve: Curves.easeOut,
+                child: child,
+              );
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return _buildSkeletonPlaceholder();
+            },
           ),
         );
+      },
+      // 웹에서 더 빠른 로딩을 위한 옵션
+      httpHeaders: const {
+        'Cache-Control': 'max-age=31536000',
       },
     );
 
@@ -71,14 +98,19 @@ class OptimizedImage extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: const Color(0xFFF5F7FA), // Apple-style light gray
         borderRadius: borderRadius,
       ),
-      child: const Center(
+      child: Center(
         child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              const Color(0xFF0071E3).withOpacity(0.6),
+            ),
+          ),
         ),
       ),
     );
