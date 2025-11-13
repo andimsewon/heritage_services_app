@@ -8,6 +8,7 @@ import 'package:my_cross_app/core/utils/input_validator.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
+import 'package:my_cross_app/features/heritage_detail/presentation/widgets/damage_bounding_box_overlay.dart';
 import 'package:my_cross_app/utils/position_options.dart';
 
 /// 조사 단계 정의
@@ -1888,37 +1889,37 @@ class _ImprovedDamageSurveyDialogState
     double? imageWidth,
     double? imageHeight,
   }) {
-    // 바운딩 박스를 그릴 수 있는 조건 확인
-    final hasValidDetections =
-        detections != null &&
-        detections.isNotEmpty &&
-        detections.any((d) => d['bbox'] != null);
-    final hasValidImageSize =
-        imageWidth != null &&
-        imageHeight != null &&
-        imageWidth > 0 &&
-        imageHeight > 0;
+    final image = Image.memory(
+      imageSource,
+      fit: BoxFit.contain,
+      width: double.infinity,
+    );
 
-    if (hasValidDetections && hasValidImageSize) {
-      return CustomPaint(
-        foregroundPainter: BoundingBoxPainter(
-          detections: detections!,
-          imageWidth: imageWidth!,
-          imageHeight: imageHeight!,
-        ),
-        child: Image.memory(
-          imageSource,
-          fit: BoxFit.contain,
-          width: double.infinity,
-        ),
-      );
-    } else {
-      return Image.memory(
-        imageSource,
-        fit: BoxFit.contain,
-        width: double.infinity,
-      );
+    final hasValidImageSize =
+        imageWidth != null && imageHeight != null && imageWidth > 0 && imageHeight > 0;
+    if (detections == null || detections.isEmpty || !hasValidImageSize) {
+      return image;
     }
+
+    final sanitizedDetections = detections
+        .map((det) => Map<String, dynamic>.from(det))
+        .where((det) {
+          final bbox = det['bbox'];
+          return bbox is List && bbox.length == 4;
+        })
+        .toList(growable: false);
+
+    if (sanitizedDetections.isEmpty) {
+      return image;
+    }
+
+    return DamageBoundingBoxOverlay(
+      child: image,
+      detections: sanitizedDetections,
+      originalWidth: imageWidth,
+      originalHeight: imageHeight,
+      fit: BoxFit.contain,
+    );
   }
 
   Widget _buildPhotoBox(
@@ -2609,180 +2610,3 @@ class DamageDetectionResult {
   }
 }
 
-/// 바운딩 박스를 이미지 위에 그리는 CustomPainter
-/// BoxFit.contain을 고려하여 실제 렌더링 영역을 계산합니다.
-class BoundingBoxPainter extends CustomPainter {
-  const BoundingBoxPainter({
-    required this.detections,
-    required this.imageWidth,
-    required this.imageHeight,
-  });
-
-  final List<Map<String, dynamic>> detections;
-  final double imageWidth;
-  final double imageHeight;
-
-  /// 손상 유형별 색상 반환
-  Color _getDamageColor(String label, double score) {
-    // 손상 유형에 따른 색상 매핑
-    final labelLower = label.toLowerCase();
-    if (labelLower.contains('갈램') || labelLower.contains('갈래')) {
-      return const Color(0xFFFF6B6B); // 빨간색
-    } else if (labelLower.contains('균열')) {
-      return const Color(0xFFFFA500); // 주황색
-    } else if (labelLower.contains('부후')) {
-      return const Color(0xFF8B4513); // 갈색
-    } else if (labelLower.contains('압괴') || labelLower.contains('터짐')) {
-      return const Color(0xFFDC143C); // 진한 빨간색
-    }
-
-    // 신뢰도에 따른 색상 조정
-    if (score >= 0.7) {
-      return const Color(0xFFFF0000); // 높은 신뢰도: 진한 빨간색
-    } else if (score >= 0.5) {
-      return const Color(0xFFFF6B6B); // 중간 신뢰도: 빨간색
-    } else {
-      return const Color(0xFFFFA500); // 낮은 신뢰도: 주황색
-    }
-  }
-
-  /// BoxFit.contain을 사용할 때 실제 이미지 렌더링 영역을 계산합니다.
-  /// [containerSize]: 위젯의 전체 크기
-  /// [imageSize]: 원본 이미지 크기
-  /// 반환: (실제 렌더링 크기, 오프셋)
-  (Size, Offset) _calculateRenderedImageBounds(
-    Size containerSize,
-    Size imageSize,
-  ) {
-    // 이미지와 컨테이너의 비율 계산
-    final imageAspectRatio = imageSize.width / imageSize.height;
-    final containerAspectRatio = containerSize.width / containerSize.height;
-
-    double renderedWidth;
-    double renderedHeight;
-    double offsetX;
-    double offsetY;
-
-    if (imageAspectRatio > containerAspectRatio) {
-      // 이미지가 더 넓음: 너비에 맞춤
-      renderedWidth = containerSize.width;
-      renderedHeight = containerSize.width / imageAspectRatio;
-      offsetX = 0;
-      offsetY = (containerSize.height - renderedHeight) / 2;
-    } else {
-      // 이미지가 더 높음: 높이에 맞춤
-      renderedWidth = containerSize.height * imageAspectRatio;
-      renderedHeight = containerSize.height;
-      offsetX = (containerSize.width - renderedWidth) / 2;
-      offsetY = 0;
-    }
-
-    return (Size(renderedWidth, renderedHeight), Offset(offsetX, offsetY));
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (imageWidth <= 0 || imageHeight <= 0) return;
-    if (detections.isEmpty) return;
-
-    // BoxFit.contain을 고려한 실제 렌더링 영역 계산
-    final imageSize = Size(imageWidth, imageHeight);
-    final (renderedSize, offset) = _calculateRenderedImageBounds(
-      size,
-      imageSize,
-    );
-
-    // 스케일 팩터 계산 (원본 이미지 대비 렌더링 크기)
-    final scaleX = renderedSize.width / imageWidth;
-    final scaleY = renderedSize.height / imageHeight;
-
-    // 모든 감지 결과에 대해 바운딩 박스 그리기
-    for (final det in detections) {
-      final bbox = det['bbox'] as List?;
-      if (bbox == null || bbox.length != 4) continue;
-
-      // 원본 이미지 좌표에서 바운딩 박스 추출
-      final x1 = (bbox[0] as num).toDouble();
-      final y1 = (bbox[1] as num).toDouble();
-      final x2 = (bbox[2] as num).toDouble();
-      final y2 = (bbox[3] as num).toDouble();
-
-      // 렌더링 좌표로 변환 (오프셋 추가)
-      final rect = Rect.fromLTRB(
-        offset.dx + x1 * scaleX,
-        offset.dy + y1 * scaleY,
-        offset.dx + x2 * scaleX,
-        offset.dy + y2 * scaleY,
-      );
-
-      // 손상 유형별 색상 결정
-      final label = det['label'] as String? ?? '';
-      final score = (det['score'] as num?)?.toDouble() ?? 0.0;
-      final boxColor = _getDamageColor(label, score);
-
-      // 바운딩 박스 그리기 (더 두껍고 명확하게)
-      final boxPaint = Paint()
-        ..color = boxColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0;
-
-      // 외곽선 (검은색) 추가로 가시성 향상
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..color = Colors.black
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4.0,
-      );
-
-      // 실제 바운딩 박스
-      canvas.drawRect(rect, boxPaint);
-
-      // 라벨과 점수 텍스트 준비
-      final text = '$label ${(score * 100).toStringAsFixed(1)}%';
-
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-
-      // 텍스트 배경 위치 계산 (바운딩 박스 위쪽)
-      final textBg = Rect.fromLTWH(
-        rect.left,
-        (rect.top - textPainter.height - 4).clamp(offset.dy, double.infinity),
-        textPainter.width + 8,
-        textPainter.height + 4,
-      );
-
-      // 텍스트 배경 그리기 (반투명 배경 + 테두리)
-      final bgPaint = Paint()..color = boxColor.withValues(alpha: 0.9);
-      canvas.drawRect(textBg, bgPaint);
-
-      // 텍스트 배경 테두리
-      canvas.drawRect(
-        textBg,
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0,
-      );
-
-      textPainter.paint(canvas, Offset(rect.left + 4, textBg.top + 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(BoundingBoxPainter oldDelegate) {
-    return detections != oldDelegate.detections ||
-        imageWidth != oldDelegate.imageWidth ||
-        imageHeight != oldDelegate.imageHeight;
-  }
-}
