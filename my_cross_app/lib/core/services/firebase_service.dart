@@ -810,6 +810,57 @@ class FirebaseService {
     }
   }
 
+  /// 메타 정보 저장 (조사 일자, 조사 기관, 조사자)
+  Future<void> saveMetaInfo({
+    required String heritageId,
+    required String heritageName,
+    required String surveyDate,
+    required String organization,
+    required String investigator,
+  }) async {
+    try {
+      debugPrint('📋 메타 정보 저장 시작: $heritageId');
+      
+      await _fs.collection('heritages').doc(heritageId).set({
+        'metaInfo': {
+          'surveyDate': surveyDate,
+          'organization': organization,
+          'investigator': investigator,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        'heritageName': heritageName,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      debugPrint('✅ 메타 정보 저장 완료');
+    } catch (e) {
+      debugPrint('❌ 메타 정보 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 메타 정보 불러오기
+  Future<Map<String, dynamic>?> getMetaInfo(String heritageId) async {
+    try {
+      debugPrint('📋 메타 정보 불러오기 시작: $heritageId');
+      
+      final doc = await _fs.collection('heritages').doc(heritageId).get();
+      
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final metaInfo = data['metaInfo'] as Map<String, dynamic>?;
+        debugPrint('✅ 메타 정보 불러오기 완료');
+        return metaInfo;
+      } else {
+        debugPrint('⚠️ 메타 정보 없음');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ 메타 정보 불러오기 실패: $e');
+      rethrow;
+    }
+  }
+
   /// 손상부 조사 데이터 저장
   Future<String> saveDamageSurvey({
     required String heritageId,

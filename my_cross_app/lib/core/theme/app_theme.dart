@@ -19,13 +19,13 @@ class AppTheme {
     0xFF6E6E73,
   ); // Apple's secondary text
 
-  // Sky Blue / Azure accent colors (business-appropriate)
-  static const Color accentBlue = Color(0xFF0071E3); // Apple Blue
-  static const Color accentSkyBlue = Color(0xFF5AC8FA); // Soft sky blue
-  static const Color accentAzure = Color(0xFF007AFF); // Azure blue
+  // Professional Blue accent colors (business-appropriate, calm and professional)
+  static const Color accentBlue = Color(0xFF2563EB); // Professional Blue 600 - 차분하고 전문적
+  static const Color accentSkyBlue = Color(0xFF2563EB); // Primary accent (unified)
+  static const Color accentAzure = Color(0xFF1E40AF); // Blue 700 - 더 진한 강조
   static const Color accentLightBlue = Color(
-    0xFFE3F2FD,
-  ); // Very light blue background
+    0xFFEFF6FF,
+  ); // Blue 50 - 매우 연한 배경
 
   // Section/Area separation colors
   static const Color sectionBackground = Color(
@@ -34,8 +34,8 @@ class AppTheme {
   static const Color navigationBackground = Color(
     0xFFE8F0F7,
   ); // Soft blue for navigation
-  static const Color buttonPrimary = Color(0xFF0071E3); // Primary button
-  static const Color buttonSecondary = Color(0xFF5AC8FA); // Secondary button
+  static const Color buttonPrimary = Color(0xFF2563EB); // Primary button - Professional Blue
+  static const Color buttonSecondary = Color(0xFF1E40AF); // Secondary button - Darker Blue
   static const Color borderSubtle = Color(
     0x1A000000,
   ); // Subtle border (10% black)
