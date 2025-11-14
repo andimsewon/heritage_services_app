@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -4108,9 +4109,89 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
           LayoutBuilder(
             builder: (context, constraints) {
               final isMobile = constraints.maxWidth < 600;
+              final isNarrow = constraints.maxWidth < 400;
+              
+              // 좁은 화면에서는 세로 배치
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: widget.onAddSurvey,
+                      icon: Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      label: const Text(
+                        '조사 등록',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: _selectedDamage != null
+                          ? _openDeepInspection
+                          : null,
+                      icon: Icon(
+                        Icons.assignment_outlined,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        _selectedDamage != null
+                            ? '심화조사'
+                            : '심화조사 (선택 필요)',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedDamage != null
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF9CA3AF),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              
+              // 넓은 화면에서는 가로 배치 (Wrap 사용)
               return Wrap(
                 spacing: isMobile ? 8 : 12,
-                runSpacing: isMobile ? 8 : 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.start,
                 children: [
                   ElevatedButton.icon(
                     onPressed: widget.onAddSurvey,
@@ -4149,20 +4230,18 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                       size: isMobile ? 16 : 18,
                       color: Colors.white,
                     ),
-                    label: Flexible(
-                      child: Text(
-                        _selectedDamage != null
-                            ? (isMobile ? '심화조사' : '심화조사')
-                            : (isMobile ? '심화조사\n(선택 필요)' : '심화조사 (선택 필요)'),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: isMobile ? 13 : 14,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: isMobile ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
+                    label: Text(
+                      _selectedDamage != null
+                          ? '심화조사'
+                          : (isMobile ? '심화조사\n(선택 필요)' : '심화조사 (선택 필요)'),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 13 : 14,
                       ),
+                      textAlign: TextAlign.center,
+                      maxLines: isMobile ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _selectedDamage != null
@@ -4240,11 +4319,20 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                           thickness: 10,
                           radius: const Radius.circular(5),
                           child: ScrollConfiguration(
-                            behavior: const MaterialScrollBehavior(),
+                            behavior: const MaterialScrollBehavior().copyWith(
+                              dragDevices: {
+                                PointerDeviceKind.mouse,
+                                PointerDeviceKind.touch,
+                                PointerDeviceKind.stylus,
+                                PointerDeviceKind.trackpad,
+                              },
+                            ),
                             child: ListView.separated(
                               controller: _damagePreviewScrollController,
                               primary: false,
-                              physics: const BouncingScrollPhysics(),
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                               ),
@@ -5073,64 +5161,145 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xFFE5E7EB)),
           ),
-          child: Row(
-            children: [
-              _StatItem(
-                icon: Icons.assignment,
-                label: '총 조사',
-                value: '$totalCount건',
-                color: const Color(0xFF1E2A44),
-              ),
-              const SizedBox(width: 16),
-              _StatItem(
-                icon: Icons.auto_graph,
-                label: '감지된 손상',
-                value: '$totalDetections건',
-                color: const Color(0xFF4B6CB7),
-              ),
-              const Spacer(),
-              if (gradeCounts.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  children: gradeCounts.entries.map((entry) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getGradeColor(entry.key).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: _getGradeColor(entry.key).withOpacity(0.3),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 500;
+              
+              if (isNarrow) {
+                // 좁은 화면: 세로 배치
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _StatItem(
+                          icon: Icons.assignment,
+                          label: '총 조사',
+                          value: '$totalCount건',
+                          color: const Color(0xFF1E2A44),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
+                        const SizedBox(width: 16),
+                        _StatItem(
+                          icon: Icons.auto_graph,
+                          label: '감지된 손상',
+                          value: '$totalDetections건',
+                          color: const Color(0xFF4B6CB7),
+                        ),
+                      ],
+                    ),
+                    if (gradeCounts.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: gradeCounts.entries.map((entry) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
-                              color: _getGradeColor(entry.key),
-                              shape: BoxShape.circle,
+                              color: _getGradeColor(entry.key).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _getGradeColor(entry.key).withValues(alpha: 0.3),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${entry.key}: ${entry.value}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _getGradeColor(entry.key),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: _getGradeColor(entry.key),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${entry.key}: ${entry.value}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _getGradeColor(entry.key),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                          );
+                        }).toList(),
                       ),
-                    );
-                  }).toList(),
-                ),
-            ],
+                    ],
+                  ],
+                );
+              }
+              
+              // 넓은 화면: 가로 배치
+              return Row(
+                children: [
+                  _StatItem(
+                    icon: Icons.assignment,
+                    label: '총 조사',
+                    value: '$totalCount건',
+                    color: const Color(0xFF1E2A44),
+                  ),
+                  const SizedBox(width: 16),
+                  _StatItem(
+                    icon: Icons.auto_graph,
+                    label: '감지된 손상',
+                    value: '$totalDetections건',
+                    color: const Color(0xFF4B6CB7),
+                  ),
+                  const SizedBox(width: 16),
+                  if (gradeCounts.isNotEmpty)
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
+                        children: gradeCounts.entries.map((entry) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getGradeColor(entry.key).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _getGradeColor(entry.key).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: _getGradeColor(entry.key),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${entry.key}: ${entry.value}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _getGradeColor(entry.key),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -5997,10 +6166,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
 
   // 사진 크게 보기 다이얼로그
   void _showImageDialog(String photoKey) {
-    final String? imageUrl = _preservationPhotoUrls[photoKey];
+    final String? remoteUrl = _preservationPhotoUrls[photoKey];
     final Uint8List? imageBytes = _preservationPhotos[photoKey];
 
-    if (imageUrl == null && imageBytes == null) return;
+    if (remoteUrl == null && imageBytes == null) return;
+
+    final String? optimizedUrl = remoteUrl != null
+        ? _proxyImageUrl(remoteUrl, maxWidth: 1600, maxHeight: 1200)
+        : null;
 
     showDialog(
       context: context,
@@ -6022,9 +6195,14 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
                   padding: EdgeInsets.all(16),
                   child: imageBytes != null
                       ? Image.memory(imageBytes, fit: BoxFit.contain)
-                      : imageUrl != null
-                      ? OptimizedImage(imageUrl: imageUrl, fit: BoxFit.contain)
-                      : Container(),
+                      : optimizedUrl != null
+                          ? OptimizedImage(
+                              imageUrl: optimizedUrl,
+                              fit: BoxFit.contain,
+                              maxWidth: 1600,
+                              maxHeight: 1200,
+                            )
+                          : Container(),
                 ),
               ),
             ],
@@ -9333,6 +9511,14 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
   }
 
   Widget _buildSelectedDamageCard() {
+    final String? rawImageUrl =
+        (widget.selectedDamage['imageUrl'] ?? widget.selectedDamage['url'])
+            ?.toString();
+    final String? optimizedThumbUrl =
+        rawImageUrl != null && rawImageUrl.trim().isNotEmpty
+            ? _proxyImageUrl(rawImageUrl, maxWidth: 640, maxHeight: 480)
+            : null;
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -9371,7 +9557,7 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
                     ],
                   ),
                 ),
-                if (widget.selectedDamage['imageUrl'] != null)
+                if (optimizedThumbUrl != null)
                   Container(
                     width: 80,
                     height: 80,
@@ -9384,9 +9570,10 @@ class _DeepInspectionScreenState extends State<DeepInspectionScreen> {
                       child: AspectRatio(
                         aspectRatio: 4 / 3,
                         child: OptimizedImage(
-                          imageUrl: widget.selectedDamage['imageUrl']
-                              .toString(),
+                          imageUrl: optimizedThumbUrl,
                           fit: BoxFit.contain,
+                          maxWidth: 640,
+                          maxHeight: 480,
                           errorWidget: const Icon(Icons.image_not_supported),
                         ),
                       ),
@@ -10164,6 +10351,13 @@ class _DeepDamageInspectionDialogState
 
   @override
   Widget build(BuildContext context) {
+    final String rawDamageUrl =
+        (widget.selectedDamage['imageUrl'] as String?) ??
+            (widget.selectedDamage['url'] as String?) ??
+            damageImageUrl;
+    final String optimizedDamageUrl =
+        _proxyImageUrl(rawDamageUrl, maxWidth: 1600, maxHeight: 1200);
+
     return Dialog(
       insetPadding: const EdgeInsets.all(20),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -10198,12 +10392,10 @@ class _DeepDamageInspectionDialogState
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: OptimizedImage(
-                                imageUrl:
-                                    widget.selectedDamage['imageUrl']
-                                        as String? ??
-                                    widget.selectedDamage['url'] as String? ??
-                                    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800',
+                                imageUrl: optimizedDamageUrl,
                                 fit: BoxFit.cover,
+                                maxWidth: 1600,
+                                maxHeight: 1200,
                                 errorWidget: Container(
                                   color: Colors.grey.shade200,
                                   child: const Center(

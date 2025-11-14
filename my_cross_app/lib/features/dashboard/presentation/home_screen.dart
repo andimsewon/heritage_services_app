@@ -136,65 +136,88 @@ class _HeroBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1F4E79), Color(0xFF2C6FB6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _HeroPill(label: 'Smart Heritage Service'),
-              _HeroPill(label: '정기 조사 2024'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 720;
+        final glyphSize = isCompact ? 120.0 : 160.0;
+        final padding = EdgeInsets.all(isCompact ? 22 : 28);
+
+        final textBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '국가유산 조사·등록 허브',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '문화재 현황을 빠르게 검색하고 조사 결과를 체계적으로 정리합니다. 필드 데이터 업로드부터 보고서 발행까지 한 화면에서 진행하세요.',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+          ],
+        );
+
+        final glyph = _HeroGlyph(size: glyphSize);
+
+        return Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1F4E79), Color(0xFF2C6FB6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 30,
+                offset: const Offset(0, 18),
+              ),
             ],
           ),
-          const SizedBox(height: 20),
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: const [
+                  _HeroPill(label: 'Smart Heritage Service'),
+                  _HeroPill(label: '정기 조사 2024'),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (isCompact)
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '국가유산 조사·등록 허브',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '문화재 현황을 빠르게 검색하고 조사 결과를 체계적으로 정리합니다. 필드 데이터 업로드부터 보고서 발행까지 한 화면에서 진행하세요.',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
-                      ),
+                    textBlock,
+                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.center,
+                      child: glyph,
                     ),
                   ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: textBlock),
+                    const SizedBox(width: 20),
+                    glyph,
+                  ],
                 ),
-              ),
-              const SizedBox(width: 20),
-              const _HeroGlyph(),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -224,22 +247,32 @@ class _HeroPill extends StatelessWidget {
 }
 
 class _HeroGlyph extends StatelessWidget {
-  const _HeroGlyph();
+  const _HeroGlyph({this.size = 160});
+  final double size;
 
   @override
   Widget build(BuildContext context) {
+    final middle = size * 0.75;
+    final inner = size * 0.5;
+    final iconOffset = size * 0.12;
+    final iconSize = size * 0.2 + 24;
+
     return SizedBox(
-      height: 160,
-      width: 160,
+      height: size,
+      width: size,
       child: Stack(
-        children: const [
-          _GlyphCircle(size: 160, opacity: 0.35),
-          _GlyphCircle(size: 120, opacity: 0.55),
-          _GlyphCircle(size: 80, opacity: 0.85),
+        children: [
+          _GlyphCircle(size: size, opacity: 0.35),
+          _GlyphCircle(size: middle, opacity: 0.55),
+          _GlyphCircle(size: inner, opacity: 0.85),
           Positioned(
-            right: 16,
-            bottom: 16,
-            child: Icon(Icons.travel_explore, color: Colors.white, size: 42),
+            right: iconOffset,
+            bottom: iconOffset,
+            child: Icon(
+              Icons.travel_explore,
+              color: Colors.white,
+              size: iconSize,
+            ),
           ),
         ],
       ),

@@ -464,59 +464,71 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
-  Widget _buildSummaryCard(
-    BuildContext context, {
-    required bool isTableLayout,
-  }) {
+  Widget _buildSummaryCard(BuildContext context) {
     final theme = Theme.of(context);
-    final lastRefresh = _formatTimestamp(_lastUpdated);
+    final refreshLabel = _formatTimestamp(_lastUpdated);
     final customCount = _customRows.length;
     final totalPages = _totalPages;
     final pageLabel = totalPages == 0
         ? '0 / 0쪽'
         : '${_page.toString().padLeft(2, '0')} / ${totalPages.toString().padLeft(2, '0')}쪽';
-    final badgeSpacing = isTableLayout ? 18.0 : 12.0;
 
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            // 뱃지들을 한 줄로 배치
-            _SummaryBadge(
-              label: '총 검색 건수',
-              value: _formatCount(_totalCount),
-              icon: Icons.layers_outlined,
-              color: const Color(0xFF1D4ED8),
-            ),
-            const SizedBox(width: 12),
-            _SummaryBadge(
-              label: '내가 추가한 유산',
-              value: customCount.toString(),
-              icon: Icons.edit_note_outlined,
-              color: const Color(0xFFDB2777),
-            ),
-            const SizedBox(width: 12),
-            _SummaryBadge(
-              label: '현재 페이지',
-              value: pageLabel,
-              icon: Icons.menu_book_outlined,
-              color: const Color(0xFF0F766E),
-            ),
-            const Spacer(),
-            // 토글과 새로고침을 한 줄에
-            Row(
-              mainAxisSize: MainAxisSize.min,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 720;
+            final badges = Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                Switch.adaptive(
-                  value: _showCustomOnly,
-                  onChanged: (value) =>
-                      setState(() => _showCustomOnly = value),
+                _SummaryBadge(
+                  label: '총 검색 건수',
+                  value: _formatCount(_totalCount),
+                  icon: Icons.layers_outlined,
+                  color: const Color(0xFF1D4ED8),
                 ),
-                const SizedBox(width: 4),
-                Text('내 추가만', style: theme.textTheme.bodySmall),
-                const SizedBox(width: 12),
+                _SummaryBadge(
+                  label: '내가 추가한 유산',
+                  value: customCount.toString(),
+                  icon: Icons.edit_note_outlined,
+                  color: const Color(0xFFDB2777),
+                ),
+                _SummaryBadge(
+                  label: '현재 페이지',
+                  value: pageLabel,
+                  icon: Icons.menu_book_outlined,
+                  color: const Color(0xFF0F766E),
+                ),
+              ],
+            );
+
+            final controls = Wrap(
+              alignment: isCompact ? WrapAlignment.start : WrapAlignment.end,
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Switch.adaptive(
+                      value: _showCustomOnly,
+                      onChanged: (value) =>
+                          setState(() => _showCustomOnly = value),
+                    ),
+                    const SizedBox(width: 4),
+                    Text('내 추가만', style: theme.textTheme.bodySmall),
+                  ],
+                ),
+                Text(
+                  refreshLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
                   tooltip: '새로고침',
@@ -525,12 +537,33 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                   constraints: const BoxConstraints(),
                 ),
               ],
-            ),
-          ],
+            );
+
+            if (isCompact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  badges,
+                  const SizedBox(height: 16),
+                  controls,
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: badges),
+                const SizedBox(width: 16),
+                controls,
+              ],
+            );
+          },
         ),
       ),
     );
   }
+
 
   Widget _buildTableHeader(BuildContext context) {
     final theme = Theme.of(context);
@@ -770,7 +803,6 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                             const SizedBox(height: 12),
                             _buildSummaryCard(
                               context,
-                              isTableLayout: isTableLayout,
                             ),
                             const SizedBox(height: 8),
                             Row(

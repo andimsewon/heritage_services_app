@@ -1711,152 +1711,274 @@ class _ImprovedDamageSurveyDialogState
     final grayBg = const Color(0xFFF8FAFC); // 밝은 회색톤 배경
 
     // 화면 크기 가져오기
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final media = MediaQuery.of(context);
+    final screenWidth = media.size.width;
+    final screenHeight = media.size.height;
+    final maxHeight = screenHeight * 0.9; // 뷰포트의 90%로 제한
 
     return Dialog(
       // 화면의 10% 여백
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: screenWidth * 0.1,
-        vertical: screenHeight * 0.1,
-      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      clipBehavior: Clip.antiAlias, // 자식이 둥근 모서리 밖으로 나가지 않도록
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        // 화면의 80% 크기
-        width: screenWidth * 0.8,
-        height: screenHeight * 0.8,
-        decoration: BoxDecoration(
-          color: grayBg,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ═══════════════ 헤더 ═══════════════
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: headerColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.assessment, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
-                  Text(
-                    _getStepTitle(),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
+      child: SafeArea(
+        // 노치/태스크바 등 시스템 인셋 고려
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 560, // 최대 너비 제한
+            maxHeight: maxHeight, // 최대 높이 제한 (중요!)
+            minWidth: 360, // 최소 너비
+            minHeight: 420, // 최소 높이 (너무 작아지지 않도록)
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: grayBg,
+              borderRadius: BorderRadius.circular(16),
             ),
-
-            // ═══════════════ 스크롤 가능한 본문 ═══════════════
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: _buildStepContent(headerColor, accentBlue, grayBg),
-              ),
-            ),
-
-            // ═══════════════ 하단 고정 버튼 ═══════════════
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: _goBack,
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: headerColor),
-                      foregroundColor: headerColor,
-                      minimumSize: const Size(100, 44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      _currentStep == SurveyStep.register ? '취소' : '이전',
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // 내용에 맞게 크기 조정
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ═══════════════ 헤더 ═══════════════
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: headerColor,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  // 텍스트 데이터 저장 버튼 (단계 2, 3, 4에서만 표시)
-                  if (_currentStep != SurveyStep.register)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: OutlinedButton.icon(
-                        onPressed: _saveTextDataOnly,
-                        icon: const Icon(Icons.save_outlined, size: 18),
-                        label: const Text('텍스트 저장'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: headerColor,
-                          side: BorderSide(color: headerColor),
-                          minimumSize: const Size(120, 44),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.assessment, color: Colors.white, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _getStepTitle(),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                       ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ═══════════════ 스크롤 가능한 본문 ═══════════════
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: _buildStepContent(headerColor, accentBlue, grayBg),
+                  ),
+                ),
+
+                // ═══════════════ 하단 고정 버튼 (모달 내부에 고정) ═══════════════
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
                     ),
-                  ElevatedButton(
-                    onPressed: _loading ? null : _handleSave,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentBlue, // ✅ #1C3763 (진한 네이비)
-                      foregroundColor: Colors.white, // ✅ #FFFFFF (흰색 텍스트)
-                      disabledBackgroundColor: const Color(
-                        0xFFE6E9EF,
-                      ), // ✅ 비활성: 밝은 회색
-                      disabledForegroundColor: const Color(
-                        0xFF8A93A3,
-                      ), // ✅ 비활성: 회색 텍스트
-                      elevation: 0,
-                      minimumSize: const Size(100, 44),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 6,
+                        spreadRadius: 0,
+                        offset: const Offset(0, -1),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      _getButtonText(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    top: false, // 상단 SafeArea는 이미 적용됨
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // 버튼들이 필요한 최소 너비 계산
+                        final backButtonWidth = 100.0;
+                        final saveButtonWidth = _currentStep != SurveyStep.register ? 130.0 : 0.0;
+                        final primaryButtonWidth = 160.0; // "감지 결과 확인" 등 긴 텍스트 고려
+                        final spacing = 12.0;
+                        final totalMinWidth = backButtonWidth + 
+                            (saveButtonWidth > 0 ? saveButtonWidth + spacing : 0) + 
+                            primaryButtonWidth + 
+                            (spacing * 2);
+                        
+                        // 화면이 좁으면 세로 배치, 넓으면 가로 배치
+                        final isNarrow = constraints.maxWidth < totalMinWidth;
+                        
+                        if (isNarrow) {
+                          // 세로 배치 (작은 화면)
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // 주요 버튼 (위쪽)
+                              ElevatedButton(
+                                onPressed: _loading ? null : _handleSave,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: accentBlue,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: const Color(0xFFE6E9EF),
+                                  disabledForegroundColor: const Color(0xFF8A93A3),
+                                  elevation: 0,
+                                  minimumSize: const Size(double.infinity, 48),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  _getButtonText(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // 보조 버튼들 (아래쪽)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: _goBack,
+                                      style: OutlinedButton.styleFrom(
+                                        side: BorderSide(color: headerColor),
+                                        foregroundColor: headerColor,
+                                        minimumSize: const Size(0, 48),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _currentStep == SurveyStep.register ? '취소' : '이전',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_currentStep != SurveyStep.register) ...[
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: _saveTextDataOnly,
+                                        icon: const Icon(Icons.save_outlined, size: 18),
+                                        label: const Text(
+                                          '텍스트 저장',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: headerColor,
+                                          side: BorderSide(color: headerColor),
+                                          minimumSize: const Size(0, 48),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          );
+                        } else {
+                          // 가로 배치 (넓은 화면)
+                          return Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton(
+                                onPressed: _goBack,
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: headerColor),
+                                  foregroundColor: headerColor,
+                                  minimumSize: const Size(100, 48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  _currentStep == SurveyStep.register ? '취소' : '이전',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              // 텍스트 데이터 저장 버튼 (단계 2, 3, 4에서만 표시)
+                              if (_currentStep != SurveyStep.register)
+                                OutlinedButton.icon(
+                                  onPressed: _saveTextDataOnly,
+                                  icon: const Icon(Icons.save_outlined, size: 18),
+                                  label: const Text(
+                                    '텍스트 저장',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: headerColor,
+                                    side: BorderSide(color: headerColor),
+                                    minimumSize: const Size(130, 48),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ElevatedButton(
+                                onPressed: _loading ? null : _handleSave,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: accentBlue,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: const Color(0xFFE6E9EF),
+                                  disabledForegroundColor: const Color(0xFF8A93A3),
+                                  elevation: 0,
+                                  minimumSize: const Size(160, 48),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  _getButtonText(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                      },
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
