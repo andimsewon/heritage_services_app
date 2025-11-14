@@ -562,6 +562,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     if (totalItems == 0) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        shrinkWrap: true,
         padding: const EdgeInsets.symmetric(vertical: 48),
         children: [
           Column(
@@ -585,6 +586,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
 
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
+      shrinkWrap: true,
       padding: padding,
       itemCount: totalItems,
       separatorBuilder: (_, __) => separator,
@@ -760,70 +762,66 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                       constraints: BoxConstraints(
                         maxWidth: isTableLayout ? 1200 : 720,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildFilterCard(),
-                          const SizedBox(height: 12),
-                          _buildShortcutChips(context),
-                          const SizedBox(height: 16),
-                          _buildSummaryCard(
-                            context,
-                            isTableLayout: isTableLayout,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Text(
-                                '총 ${_formatCount(_totalCount)}건',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildFilterCard(),
+                            const SizedBox(height: 12),
+                            _buildSummaryCard(
+                              context,
+                              isTableLayout: isTableLayout,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Text(
+                                  '총 ${_formatCount(_totalCount)}건',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
-                                child: _showCustomOnly
-                                    ? const _InlineBadge(label: '내 추가만 보기')
-                                    : const SizedBox.shrink(),
-                              ),
-                              const Spacer(),
-                              Text(
-                                _totalPages == 0
-                                    ? '페이지 0 / 0'
-                                    : '페이지 $_page / $_totalPages',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 250),
-                            child: _loading
-                                ? const Padding(
-                                    padding: EdgeInsets.only(top: 2),
-                                    child: LinearProgressIndicator(
-                                      minHeight: 2,
-                                    ),
-                                  )
-                                : const SizedBox(height: 2),
-                          ),
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: isTableLayout
+                                const SizedBox(width: 8),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  child: _showCustomOnly
+                                      ? const _InlineBadge(label: '내 추가만 보기')
+                                      : const SizedBox.shrink(),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  _totalPages == 0
+                                      ? '페이지 0 / 0'
+                                      : '페이지 $_page / $_totalPages',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              child: _loading
+                                  ? const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: LinearProgressIndicator(
+                                        minHeight: 2,
+                                      ),
+                                    )
+                                  : const SizedBox(height: 2),
+                            ),
+                            const SizedBox(height: 12),
+                            isTableLayout
                                 ? ResponsiveTable(
                                     minWidth: 960,
                                     child: Column(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         _buildTableHeader(context),
                                         const Divider(height: 0),
-                                        Expanded(
-                                          child: RefreshIndicator(
-                                            onRefresh: () =>
-                                                _fetch(reset: true),
-                                            child: _buildResultList(
-                                              tableLayout: true,
-                                            ),
+                                        RefreshIndicator(
+                                          onRefresh: () => _fetch(reset: true),
+                                          child: _buildResultList(
+                                            tableLayout: true,
                                           ),
                                         ),
                                       ],
@@ -833,10 +831,10 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                                     onRefresh: () => _fetch(reset: true),
                                     child: _buildResultList(tableLayout: false),
                                   ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildPagination(),
-                        ],
+                            const SizedBox(height: 12),
+                            _buildPagination(),
+                          ],
+                        ),
                       ),
                     ),
                   ),

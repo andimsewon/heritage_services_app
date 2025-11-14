@@ -3057,9 +3057,12 @@ class BasicInfoCard extends StatelessWidget {
     // 정기조사 지침 기준에 맞춰 소재지(지역)/주소(상세)를 분리
     final trimmedLcad = lcad.trim();
     final trimmedLcto = lcto.trim();
+    final trimmedOwner = owner.trim();
+    final trimmedAdmin = admin.trim();
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
-    final cardPadding = EdgeInsets.all(isMobile ? 16 : 24);
+    final isTablet = screenWidth >= 600 && screenWidth < 1024;
+    final cardPadding = EdgeInsets.all(isMobile ? 20 : (isTablet ? 24 : 28));
 
     // 소재지: 지역만 표시 (lcto에서 첫 번째 공백 이전 부분만 추출)
     String regionLocation = '';
@@ -3077,95 +3080,206 @@ class BasicInfoCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: const Color(0x1A000000), // Apple-style subtle border
-          width: 1,
+          color: const Color(0xFFE5E7EB),
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
-      padding: cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(isMobile ? 8 : 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.info_outlined,
-                  color: const Color(0xFF2563EB),
-                  size: isMobile ? 20 : 22,
-                ),
+          // 헤더 섹션 (그라데이션 배경)
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF2563EB),
+                  const Color(0xFF3B82F6),
+                  const Color(0xFF60A5FA),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sectionNumber != null
-                          ? '${sectionNumber!}. 기본 정보'
-                          : '기본 정보',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 18 : 20,
-                        color: const Color(0xFF1D1D1F),
-                        letterSpacing: -0.2,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+            ),
+            padding: EdgeInsets.all(isMobile ? 20 : 24),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 10 : 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.info_rounded,
+                    color: Colors.white,
+                    size: isMobile ? 22 : 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sectionNumber != null
+                            ? '${sectionNumber!}. 기본 정보'
+                            : '기본 정보',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: isMobile ? 20 : 22,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '문화유산의 기본 정보를 확인합니다',
+                        style: TextStyle(
+                          fontSize: isMobile ? 13 : 14,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          letterSpacing: -0.2,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 콘텐츠 섹션
+          Padding(
+            padding: cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 유산명 (강조 표시)
+                _buildHighlightedRow(
+                  icon: Icons.landscape_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  label: '유산명',
+                  value: name.isEmpty ? '미상' : name,
+                  isHighlighted: true,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: isMobile ? 16 : 18),
+
+                // 지정연월
+                _buildOverviewRow(
+                  icon: Icons.calendar_today_rounded,
+                  iconColor: const Color(0xFF10B981),
+                  label: '지정연월',
+                  value: _formatDate(asdt),
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: isMobile ? 14 : 16),
+
+                // 종목
+                _buildOverviewRow(
+                  icon: Icons.category_rounded,
+                  iconColor: const Color(0xFF8B5CF6),
+                  label: '종목',
+                  value: kind.isEmpty ? '-' : kind,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: isMobile ? 14 : 16),
+
+                // 소재지 (지역)
+                _buildOverviewRow(
+                  icon: Icons.location_city_rounded,
+                  iconColor: const Color(0xFFF59E0B),
+                  label: '소재지',
+                  value: regionLocation.isEmpty ? '-' : regionLocation,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: isMobile ? 14 : 16),
+
+                // 주소 (상세)
+                _buildOverviewRow(
+                  icon: Icons.place_rounded,
+                  iconColor: const Color(0xFFEF4444),
+                  label: '주소',
+                  value: detailAddress.isEmpty ? '-' : detailAddress,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: isMobile ? 14 : 16),
+
+                // 관리번호
+                _buildOverviewRow(
+                  icon: Icons.numbers_rounded,
+                  iconColor: const Color(0xFF06B6D4),
+                  label: '관리번호',
+                  value: managementNumber.isEmpty ? '-' : managementNumber,
+                  isMobile: isMobile,
+                ),
+
+                // 소유자와 관리자 정보 추가
+                if (trimmedOwner.isNotEmpty || trimmedAdmin.isNotEmpty) ...[
+                  SizedBox(height: isMobile ? 18 : 20),
+                  Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.grey.shade300,
+                          Colors.transparent,
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '문화유산의 기본 정보를 확인합니다',
-                      style: TextStyle(
-                        fontSize: isMobile ? 12 : 13,
-                        color: Colors.grey.shade600,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // 유산명
-          _buildOverviewRow('유산명', name.isEmpty ? '미상' : name),
-          const SizedBox(height: 12),
+                  ),
+                  SizedBox(height: isMobile ? 18 : 20),
+                ],
 
-          // 지정연월
-          _buildOverviewRow('지정연월', _formatDate(asdt)),
-          const SizedBox(height: 12),
+                // 소유자
+                if (trimmedOwner.isNotEmpty) ...[
+                  _buildOverviewRow(
+                    icon: Icons.person_outline_rounded,
+                    iconColor: const Color(0xFF6366F1),
+                    label: '소유자',
+                    value: trimmedOwner,
+                    isMobile: isMobile,
+                  ),
+                  if (trimmedAdmin.isNotEmpty)
+                    SizedBox(height: isMobile ? 14 : 16),
+                ],
 
-          // 종목
-          _buildOverviewRow('종목', kind.isEmpty ? '-' : kind),
-          const SizedBox(height: 12),
-
-          // 소재지 (지역)
-          _buildOverviewRow(
-            '소재지',
-            regionLocation.isEmpty ? '-' : regionLocation,
-          ),
-          const SizedBox(height: 12),
-
-          // 주소 (상세)
-          _buildOverviewRow('주소', detailAddress.isEmpty ? '-' : detailAddress),
-          const SizedBox(height: 12),
-
-          // 관리번호
-          _buildOverviewRow(
-            '관리번호',
-            managementNumber.isEmpty ? '-' : managementNumber,
+                // 관리자
+                if (trimmedAdmin.isNotEmpty)
+                  _buildOverviewRow(
+                    icon: Icons.admin_panel_settings_rounded,
+                    iconColor: const Color(0xFF14B8A6),
+                    label: '관리자',
+                    value: trimmedAdmin,
+                    isMobile: isMobile,
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -3190,38 +3304,157 @@ class BasicInfoCard extends StatelessWidget {
     return dateStr;
   }
 
-  Widget _buildOverviewRow(String label, String value) {
+  Widget _buildOverviewRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required bool isMobile,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+      padding: EdgeInsets.symmetric(
+        vertical: isMobile ? 16 : 18,
+        horizontal: isMobile ? 16 : 20,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x1A000000), width: 1),
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE5E7EB),
+          width: 1.5,
+        ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: Color(0xFF1D1D1F),
-                letterSpacing: -0.2,
-              ),
+          Container(
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: isMobile ? 18 : 20,
             ),
           ),
+          SizedBox(width: isMobile ? 12 : 16),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF6E6E73),
-                letterSpacing: -0.1,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isMobile ? 12 : 13,
+                    color: const Color(0xFF6B7280),
+                    letterSpacing: -0.1,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: isMobile ? 15 : 16,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF111827),
+                    letterSpacing: -0.2,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHighlightedRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required bool isHighlighted,
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 18 : 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            iconColor.withValues(alpha: 0.08),
+            iconColor.withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.2),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: iconColor.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
+            decoration: BoxDecoration(
+              color: iconColor,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: isMobile ? 20 : 22,
+            ),
+          ),
+          SizedBox(width: isMobile ? 14 : 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isMobile ? 12 : 13,
+                    color: iconColor,
+                    letterSpacing: -0.1,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: isMobile ? 18 : 20,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                    letterSpacing: -0.3,
+                    height: 1.3,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
