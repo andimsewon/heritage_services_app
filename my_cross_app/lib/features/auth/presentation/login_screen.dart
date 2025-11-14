@@ -316,8 +316,7 @@ class _LoginHeroPanel extends StatelessWidget {
     final theme = Theme.of(context);
     const highlights = [
       ('현장 업로드', '모바일에서 촬영한 사진·계측파일 즉시 업로드'),
-      ('정기 조사 캘린더', '권역별 일정이 자동으로 동기화됩니다'),
-      ('AI 요약', '조사 보고서 초안을 자동으로 제안'),
+      ('AI 손상도 조사', 'AI 모델로 한옥 손상 유형을 자동 탐지하고 등급을 평가합니다'),
     ];
 
     return Container(
