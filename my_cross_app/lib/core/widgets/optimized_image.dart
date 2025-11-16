@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/utils/image_url_helper.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 class OptimizedImage extends StatefulWidget {
@@ -22,6 +23,8 @@ class OptimizedImage extends StatefulWidget {
   final bool enableMemoryCache;
   final Duration fadeInDuration;
   final bool enableLazyLoading;
+  final bool enableProxyOptimization;
+  final int? proxyImageQuality;
   final double visibilityThreshold;
   final Duration lazyLoadDebounce;
 
@@ -39,6 +42,8 @@ class OptimizedImage extends StatefulWidget {
     this.enableMemoryCache = true,
     this.fadeInDuration = const Duration(milliseconds: 300),
     this.enableLazyLoading = true,
+    this.enableProxyOptimization = true,
+    this.proxyImageQuality,
     this.visibilityThreshold = 0.2,
     this.lazyLoadDebounce = const Duration(milliseconds: 120),
   });
@@ -129,6 +134,10 @@ class _OptimizedImageState extends State<OptimizedImage>
   }
 
   Widget _buildCachedNetworkImage(BuildContext context) {
+    final sanitizedUrl = widget.imageUrl.trim();
+    if (sanitizedUrl.isEmpty) {
+      return widget.errorWidget ?? _buildErrorWidget();
+    }
     final mediaQuery = MediaQuery.maybeOf(context);
     final devicePixelRatio = (mediaQuery?.devicePixelRatio ?? 1.0).clamp(
       1.0,
@@ -157,12 +166,21 @@ class _OptimizedImageState extends State<OptimizedImage>
       math.min(diskCacheCap, (memCacheHeight * devicePixelRatio).round()),
     );
 
+    final optimizedUrl = widget.enableProxyOptimization
+        ? ImageUrlHelper.buildOptimizedUrl(
+            sanitizedUrl,
+            maxWidth: pixelAwareWidth,
+            maxHeight: pixelAwareHeight,
+            quality: widget.proxyImageQuality ?? (kIsWeb ? 70 : 82),
+          )
+        : sanitizedUrl;
+
     final resolvedFadeDuration = kIsWeb
         ? const Duration(milliseconds: 100)
         : widget.fadeInDuration;
 
     return CachedNetworkImage(
-      imageUrl: widget.imageUrl,
+      imageUrl: optimizedUrl,
       width: widget.width,
       height: widget.height,
       fit: widget.fit,

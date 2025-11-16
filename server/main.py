@@ -13,6 +13,7 @@ from common.middleware import setup_middleware
 # AI 모델 로더
 from ai.loader import load_ai_model
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -25,13 +26,14 @@ async def lifespan(app: FastAPI):
     print(f"🚀 {settings.APP_TITLE} v{settings.APP_VERSION} 시작")
     print("=" * 60)
 
-    # AI 모델 로드
+    # AI 모델 로드 (재시도 포함)
     print("\n[Startup] AI 모델 로딩 중...")
-    loaded = load_ai_model()
+    loaded = load_ai_model(max_retries=3, retry_delay=2)
     if loaded:
         print("[Startup] ✅ AI 모델 로드 성공")
     else:
         print("[Startup] ⚠️  AI 모델 로드 실패 (AI 기능이 제한될 수 있습니다)")
+        print("[Startup]    서버 시작 후 자동 재로딩을 시도합니다...")
 
     print("\n[Startup] 서버 준비 완료!")
     print(f"[Startup] 서버 주소: http://{settings.HOST}:{settings.PORT}")
@@ -76,7 +78,7 @@ async def root():
             "ai_status": "/ai/model/status",
             "ai_infer": "/ai/damage/infer",
             "image_proxy": "/image/proxy",
-        }
+        },
     }
 
 
@@ -89,6 +91,7 @@ async def health():
 # 서버 직접 실행 (개발용)
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "main:app",
         host=settings.HOST,

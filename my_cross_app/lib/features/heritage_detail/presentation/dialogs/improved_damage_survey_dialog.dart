@@ -984,7 +984,9 @@ class _ImprovedDamageSurveyDialogState
   List<Map<String, dynamic>> _normalizeDetections(
     List<Map<String, dynamic>> detections,
   ) {
-    return detections.map((d) {
+    final normalized = <Map<String, dynamic>>[];
+
+    for (final d in detections) {
       final label = (d['label'] as String?)?.replaceAll('_', ' ') ?? '미분류';
       final score = (d['score'] as num?)?.toDouble() ?? 0.0;
       final bbox = _extractBoundingBox(d);
@@ -996,8 +998,27 @@ class _ImprovedDamageSurveyDialogState
         );
       }
 
-      return {'label': label, 'score': score, if (bbox != null) 'bbox': bbox};
-    }).toList();
+      // bbox가 null이 아닌 경우에만 추가 (모든 감지 결과가 표시되도록)
+      if (bbox != null && bbox.length == 4) {
+        normalized.add({'label': label, 'score': score, 'bbox': bbox});
+      } else {
+        // bbox가 없는 경우에도 감지 결과는 포함 (태그는 표시되지만 박스는 없음)
+        if (kDebugMode) {
+          debugPrint(
+            '⚠️ Detection without valid bbox: label=$label, score=$score',
+          );
+        }
+        normalized.add({'label': label, 'score': score});
+      }
+    }
+
+    if (kDebugMode) {
+      debugPrint(
+        '📊 Normalized detections: ${normalized.length} total, ${normalized.where((d) => d.containsKey('bbox')).length} with bbox',
+      );
+    }
+
+    return normalized;
   }
 
   List<double>? _extractBoundingBox(Map<String, dynamic> detection) {
@@ -1038,29 +1059,56 @@ class _ImprovedDamageSurveyDialogState
       return true;
     }
 
-    if (rawBox is List && rawBox.length == 4) {
-      final values = rawBox
-          .map((item) => parseDouble(item) ?? 0.0)
-          .toList(growable: false);
-      final looksLTRB = values[2] > values[0] && values[3] > values[1];
-      normalized = valuesInUnitRange(values);
+    List<double>? parseBoxList(dynamic value) {
+      if (value is List && value.length >= 4) {
+        final parsed = <double>[];
+        for (final entry in value.take(4)) {
+          final parsedValue = parseDouble(entry);
+          if (parsedValue == null) return null;
+          parsed.add(parsedValue);
+        }
+        return parsed;
+      }
+      if (value is String && value.trim().isNotEmpty) {
+        final cleaned = value
+            .replaceAll(RegExp('[\\[\\]\\(\\){}]'), ' ')
+            .split(RegExp('[,\\s]+'))
+            .where((token) => token.isNotEmpty)
+            .toList();
+        if (cleaned.length < 4) return null;
+        final parsed = <double>[];
+        for (final token in cleaned.take(4)) {
+          final parsedValue = double.tryParse(token);
+          if (parsedValue == null) return null;
+          parsed.add(parsedValue);
+        }
+        return parsed;
+      }
+      return null;
+    }
+
+    final listValues = parseBoxList(rawBox);
+    if (listValues != null) {
+      final looksLTRB =
+          listValues[2] > listValues[0] && listValues[3] > listValues[1];
+      normalized = valuesInUnitRange(listValues);
 
       if (looksLTRB) {
-        x1 = values[0];
-        y1 = values[1];
-        x2 = values[2];
-        y2 = values[3];
+        x1 = listValues[0];
+        y1 = listValues[1];
+        x2 = listValues[2];
+        y2 = listValues[3];
       } else {
-        x1 = values[0];
-        y1 = values[1];
-        x2 = values[0] + values[2].abs();
-        y2 = values[1] + values[3].abs();
+        x1 = listValues[0];
+        y1 = listValues[1];
+        x2 = listValues[0] + listValues[2].abs();
+        y2 = listValues[1] + listValues[3].abs();
         normalized =
             normalized &&
-            values[2] >= 0 &&
-            values[3] >= 0 &&
-            values[2] <= 1 &&
-            values[3] <= 1;
+            listValues[2] >= 0 &&
+            listValues[3] >= 0 &&
+            listValues[2] <= 1 &&
+            listValues[3] <= 1;
       }
     } else if (rawBox is Map) {
       final lowered = rawBox.map(
@@ -1575,13 +1623,50 @@ class _ImprovedDamageSurveyDialogState
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _buildImageWithBoundingBoxes(
-                    imageSource: _imageBytes!,
-                    detections: _detections.isNotEmpty ? _detections : null,
-                    imageWidth: _actualImageWidth,
-                    imageHeight: _actualImageHeight,
+                Container(
+                  constraints: const BoxConstraints(
+                    maxHeight: 400,
+                    minHeight: 200,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7FA),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: _buildImageWithBoundingBoxes(
+                      imageSource: _imageBytes!,
+                      detections: _detections.isNotEmpty ? _detections : null,
+                      imageWidth: _actualImageWidth,
+                      imageHeight: _actualImageHeight,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ] else ...[
+                // 이미지가 없는 경우 안내 메시지
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7FA),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: const Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text(
+                          '이미지를 불러올 수 없습니다',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -1751,7 +1836,11 @@ class _ImprovedDamageSurveyDialogState
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.assessment, color: Colors.white, size: 24),
+                      const Icon(
+                        Icons.assessment,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -1803,17 +1892,22 @@ class _ImprovedDamageSurveyDialogState
                       builder: (context, constraints) {
                         // 버튼들이 필요한 최소 너비 계산
                         final backButtonWidth = 100.0;
-                        final saveButtonWidth = _currentStep != SurveyStep.register ? 130.0 : 0.0;
-                        final primaryButtonWidth = 160.0; // "감지 결과 확인" 등 긴 텍스트 고려
+                        final saveButtonWidth =
+                            _currentStep != SurveyStep.register ? 130.0 : 0.0;
+                        final primaryButtonWidth =
+                            160.0; // "감지 결과 확인" 등 긴 텍스트 고려
                         final spacing = 12.0;
-                        final totalMinWidth = backButtonWidth + 
-                            (saveButtonWidth > 0 ? saveButtonWidth + spacing : 0) + 
-                            primaryButtonWidth + 
+                        final totalMinWidth =
+                            backButtonWidth +
+                            (saveButtonWidth > 0
+                                ? saveButtonWidth + spacing
+                                : 0) +
+                            primaryButtonWidth +
                             (spacing * 2);
-                        
+
                         // 화면이 좁으면 세로 배치, 넓으면 가로 배치
                         final isNarrow = constraints.maxWidth < totalMinWidth;
-                        
+
                         if (isNarrow) {
                           // 세로 배치 (작은 화면)
                           return Column(
@@ -1826,8 +1920,12 @@ class _ImprovedDamageSurveyDialogState
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: accentBlue,
                                   foregroundColor: Colors.white,
-                                  disabledBackgroundColor: const Color(0xFFE6E9EF),
-                                  disabledForegroundColor: const Color(0xFF8A93A3),
+                                  disabledBackgroundColor: const Color(
+                                    0xFFE6E9EF,
+                                  ),
+                                  disabledForegroundColor: const Color(
+                                    0xFF8A93A3,
+                                  ),
                                   elevation: 0,
                                   minimumSize: const Size(double.infinity, 48),
                                   padding: const EdgeInsets.symmetric(
@@ -1858,11 +1956,15 @@ class _ImprovedDamageSurveyDialogState
                                         foregroundColor: headerColor,
                                         minimumSize: const Size(0, 48),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                       ),
                                       child: Text(
-                                        _currentStep == SurveyStep.register ? '취소' : '이전',
+                                        _currentStep == SurveyStep.register
+                                            ? '취소'
+                                            : '이전',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 14,
@@ -1875,7 +1977,10 @@ class _ImprovedDamageSurveyDialogState
                                     Expanded(
                                       child: OutlinedButton.icon(
                                         onPressed: _saveTextDataOnly,
-                                        icon: const Icon(Icons.save_outlined, size: 18),
+                                        icon: const Icon(
+                                          Icons.save_outlined,
+                                          size: 18,
+                                        ),
                                         label: const Text(
                                           '텍스트 저장',
                                           style: TextStyle(
@@ -1888,7 +1993,9 @@ class _ImprovedDamageSurveyDialogState
                                           side: BorderSide(color: headerColor),
                                           minimumSize: const Size(0, 48),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1916,7 +2023,9 @@ class _ImprovedDamageSurveyDialogState
                                   ),
                                 ),
                                 child: Text(
-                                  _currentStep == SurveyStep.register ? '취소' : '이전',
+                                  _currentStep == SurveyStep.register
+                                      ? '취소'
+                                      : '이전',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
@@ -1927,7 +2036,10 @@ class _ImprovedDamageSurveyDialogState
                               if (_currentStep != SurveyStep.register)
                                 OutlinedButton.icon(
                                   onPressed: _saveTextDataOnly,
-                                  icon: const Icon(Icons.save_outlined, size: 18),
+                                  icon: const Icon(
+                                    Icons.save_outlined,
+                                    size: 18,
+                                  ),
                                   label: const Text(
                                     '텍스트 저장',
                                     style: TextStyle(
@@ -1949,8 +2061,12 @@ class _ImprovedDamageSurveyDialogState
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: accentBlue,
                                   foregroundColor: Colors.white,
-                                  disabledBackgroundColor: const Color(0xFFE6E9EF),
-                                  disabledForegroundColor: const Color(0xFF8A93A3),
+                                  disabledBackgroundColor: const Color(
+                                    0xFFE6E9EF,
+                                  ),
+                                  disabledForegroundColor: const Color(
+                                    0xFF8A93A3,
+                                  ),
                                   elevation: 0,
                                   minimumSize: const Size(160, 48),
                                   padding: const EdgeInsets.symmetric(
@@ -2012,36 +2128,133 @@ class _ImprovedDamageSurveyDialogState
     double? imageWidth,
     double? imageHeight,
   }) {
+    // 이미지 위젯 생성
     final image = Image.memory(
       imageSource,
       fit: BoxFit.contain,
       width: double.infinity,
     );
 
+    // 이미지 크기가 없으면 이미지만 반환
     final hasValidImageSize =
-        imageWidth != null && imageHeight != null && imageWidth > 0 && imageHeight > 0;
-    if (detections == null || detections.isEmpty || !hasValidImageSize) {
+        imageWidth != null &&
+        imageHeight != null &&
+        imageWidth > 0 &&
+        imageHeight > 0;
+    
+    if (detections == null || detections.isEmpty) {
       return image;
     }
 
-    final sanitizedDetections = detections
+    // 이미지 크기가 없어도 이미지는 표시 (바운딩 박스만 표시 안 함)
+    if (!hasValidImageSize) {
+      if (kDebugMode) {
+        debugPrint(
+          '⚠️ Cannot display bounding boxes without image size. width=$imageWidth, height=$imageHeight, detections=${detections.length}',
+        );
+      }
+      // 이미지 크기를 추정하여 사용 (이미지가 표시되도록)
+      return image;
+    }
+
+    final preparedDetections = detections
         .map((det) => Map<String, dynamic>.from(det))
+        .map((det) {
+          final bbox = _extractBoundingBox(det);
+          if (bbox != null) {
+            det['bbox'] = bbox;
+          }
+          return det;
+        })
         .where((det) {
           final bbox = det['bbox'];
-          return bbox is List && bbox.length == 4;
+          if (bbox is! List || bbox.length != 4) return false;
+          return bbox.every((value) => value is num && value.isFinite);
         })
         .toList(growable: false);
 
-    if (sanitizedDetections.isEmpty) {
-      return image;
-    }
+      if (preparedDetections.isEmpty) {
+        if (kDebugMode) {
+          debugPrint(
+            '⚠️ No valid detections with bbox to display. Total detections: ${detections.length}',
+          );
+        }
+        return image;
+      }
 
-    return DamageBoundingBoxOverlay(
+      if (kDebugMode && preparedDetections.length != detections.length) {
+        debugPrint(
+          '⚠️ Bounding box coverage ${preparedDetections.length}/${detections.length}',
+        );
+      }
+
+    // 이미지 크기가 없어도 기본값 사용하여 이미지가 표시되도록
+    final effectiveWidth = imageWidth ?? 800.0;
+    final effectiveHeight = imageHeight ?? 600.0;
+    
+    Widget overlay = DamageBoundingBoxOverlay(
       child: image,
-      detections: sanitizedDetections,
-      originalWidth: imageWidth,
-      originalHeight: imageHeight,
+      detections: preparedDetections,
+      originalWidth: effectiveWidth,
+      originalHeight: effectiveHeight,
       fit: BoxFit.contain,
+    );
+
+    overlay = Stack(
+      children: [
+        Positioned.fill(child: overlay),
+        if (preparedDetections.isNotEmpty)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: _buildDetectionBadge(
+              displayedCount: preparedDetections.length,
+              totalCount: detections.length,
+            ),
+          ),
+      ],
+    );
+
+    return overlay;
+  }
+
+  Widget _buildDetectionBadge({
+    required int displayedCount,
+    required int totalCount,
+  }) {
+    final hasMissing = displayedCount < totalCount;
+    final text = hasMissing
+        ? 'AI 감지 ${displayedCount}/${totalCount}건'
+        : 'AI 감지 ${totalCount}건';
+    final background = hasMissing
+        ? Colors.orange.withOpacity(0.9)
+        : Colors.black.withOpacity(0.7);
+    final icon = hasMissing ? Icons.warning_amber_rounded : Icons.auto_graph;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2100,7 +2313,9 @@ class _ImprovedDamageSurveyDialogState
                       imageUrl: imageSource,
                       fit: BoxFit.contain, // 4:3 비율 유지
                       width: double.infinity,
-                      placeholder: const Center(child: CircularProgressIndicator()),
+                      placeholder: const Center(
+                        child: CircularProgressIndicator(),
+                      ),
                       errorWidget: const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -2727,4 +2942,3 @@ class DamageDetectionResult {
     };
   }
 }
-

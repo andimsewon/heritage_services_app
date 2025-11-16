@@ -68,11 +68,30 @@ class AiDetectionService {
         if (attempt > 0) {
           // 재시도 전 대기 (지수 백오프)
           await Future.delayed(Duration(seconds: attempt * 2));
+          
+          // 모델 상태 확인 (재시도 시)
+          try {
+            final status = await fetchModelStatus();
+            if (!status.isReady) {
+              // 모델이 준비되지 않았으면 추가 대기
+              await Future.delayed(const Duration(seconds: 3));
+            }
+          } catch (_) {
+            // 상태 확인 실패해도 계속 진행
+          }
         }
 
         return await _detectWithTimeout(uri, imageBytes);
       } on AiModelNotLoadedException {
-        // 모델 미로드 오류는 재시도하지 않음
+        // 모델 미로드 오류는 재시도 (서버에서 자동 재로딩 시도)
+        lastException = AiModelNotLoadedException(
+          'AI 모델이 로드되지 않았습니다. 잠시 후 다시 시도해주세요.',
+        );
+        if (attempt < maxRetries) {
+          // 모델 재로딩 대기
+          await Future.delayed(Duration(seconds: 3 + attempt * 2));
+          continue;
+        }
         rethrow;
       } on AiConnectionException catch (e) {
         lastException = e;
@@ -88,6 +107,10 @@ class AiDetectionService {
         rethrow;
       } on AiServerException catch (e) {
         // 500 에러는 서버 측 문제이므로 재시도 가능
+        // 507 (Insufficient Storage)는 메모리 부족이므로 재시도하지 않음
+        if (e.statusCode == 507) {
+          rethrow; // 메모리 부족은 재시도하지 않음
+        }
         lastException = e;
         if (attempt < maxRetries) {
           continue; // 재시도

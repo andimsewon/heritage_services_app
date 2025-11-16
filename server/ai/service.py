@@ -79,7 +79,7 @@ def _filter_by_class_threshold(boxes, scores, labels, class_thresholds):
                 continue  # 유효하지 않은 label
         else:
             label_int = int(label)
-        
+
         # 해당 클래스의 threshold 가져오기 (기본값 0.5)
         threshold = class_thresholds.get(label_int, 0.5)
 
@@ -159,7 +159,7 @@ def _apply_nms(boxes, scores, labels, iou_threshold=0.5):
             label_value = label_tensor.item()
         else:
             continue  # 유효하지 않은 label
-        
+
         mask = labels_tensor == label_value
         class_boxes = boxes_tensor[mask]
         class_scores = scores_tensor[mask]
@@ -167,13 +167,13 @@ def _apply_nms(boxes, scores, labels, iou_threshold=0.5):
 
         if len(class_boxes) > 0:
             keep = nms(class_boxes, class_scores, iou_threshold)
-            
+
             # keep이 텐서인 경우 리스트로 변환
             if torch.is_tensor(keep):
                 keep_list = keep.cpu().tolist()
             else:
                 keep_list = list(keep) if isinstance(keep, (list, tuple)) else [keep]
-            
+
             # class_indices를 안전하게 처리
             if torch.is_tensor(class_indices):
                 # keep_list의 인덱스를 사용하여 class_indices에서 실제 인덱스 가져오기
@@ -190,7 +190,13 @@ def _apply_nms(boxes, scores, labels, iou_threshold=0.5):
                             keep_indices.append(int(original_idx))
             else:
                 # class_indices가 리스트인 경우
-                keep_indices.extend([int(class_indices[i]) for i in keep_list if 0 <= i < len(class_indices)])
+                keep_indices.extend(
+                    [
+                        int(class_indices[i])
+                        for i in keep_list
+                        if 0 <= i < len(class_indices)
+                    ]
+                )
 
     keep_indices = sorted(set(keep_indices))  # 중복 제거
     filtered_boxes = [boxes[i] for i in keep_indices if i < len(boxes)]
@@ -221,83 +227,149 @@ async def detect_damage(image_bytes: bytes) -> dict:
         processor = get_processor()
         id2label = get_id2label()
         id2label_korean = get_id2label_korean()
-        
-        # 모델 디바이스 확인
-        device = next(model.parameters()).device
+
+        # 모델 디바이스 확인 및 검증
+        try:
+            device = next(model.parameters()).device
+            # 모델이 유효한지 확인
+            if device is None:
+                raise HTTPException(
+                    status_code=503, detail="모델 디바이스가 유효하지 않습니다."
+                )
+        except StopIteration:
+            raise HTTPException(
+                status_code=503, detail="모델 파라미터를 확인할 수 없습니다."
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=503, detail=f"모델 디바이스 확인 실패: {str(e)}"
+            )
+
+        # 이미지 파일 크기 검증 (10MB 제한)
+        MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+        if len(image_bytes) > MAX_IMAGE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"이미지 크기가 너무 큽니다. (최대 {MAX_IMAGE_SIZE / (1024*1024):.0f}MB, 현재: {len(image_bytes) / (1024*1024):.2f}MB)",
+            )
 
         # 이미지 로드 및 검증
         try:
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except Exception as e:
             raise HTTPException(
-                status_code=400,
-                detail=f"이미지를 로드할 수 없습니다: {str(e)}"
+                status_code=400, detail=f"이미지를 로드할 수 없습니다: {str(e)}"
             )
 
-        # 이미지 크기 검증
-        if img.size[0] == 0 or img.size[1] == 0:
+        # 이미지 크기 검증 (해상도 제한)
+        MAX_DIMENSION = 4096  # 최대 4096x4096
+        width, height = img.size
+        if width == 0 or height == 0:
             raise HTTPException(
-                status_code=400,
-                detail="이미지 크기가 유효하지 않습니다."
+                status_code=400, detail="이미지 크기가 유효하지 않습니다."
+            )
+        if width > MAX_DIMENSION or height > MAX_DIMENSION:
+            # 큰 이미지는 리사이즈
+            scale = min(MAX_DIMENSION / width, MAX_DIMENSION / height)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            print(
+                f"[AI Service] 이미지 리사이즈: {width}x{height} -> {new_width}x{new_height}"
             )
 
         # 전처리
         try:
             encoding = processor(images=img, return_tensors="pt")
             pixel_values = encoding["pixel_values"]
-            
+
             # 모델과 같은 디바이스로 이동 (중요!)
-            device = next(model.parameters()).device
             pixel_values = pixel_values.to(device)
+        except RuntimeError as e:
+            # 메모리 부족 오류 처리
+            error_msg = str(e).lower()
+            if "out of memory" in error_msg or "cuda" in error_msg:
+                raise HTTPException(
+                    status_code=507,
+                    detail="메모리 부족으로 이미지를 처리할 수 없습니다. 더 작은 이미지를 사용해주세요.",
+                )
+            raise HTTPException(
+                status_code=500,
+                detail=f"이미지 전처리 중 오류가 발생했습니다: {str(e)}",
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=500,
-                detail=f"이미지 전처리 중 오류가 발생했습니다: {str(e)}"
+                detail=f"이미지 전처리 중 오류가 발생했습니다: {str(e)}",
             )
 
         # 추론 (낮은 threshold로 먼저 추출)
         try:
+            # 메모리 정리 (CUDA인 경우)
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+
             with torch.no_grad():
                 outputs = model.predict(pixel_values=pixel_values)
-                
+
                 # target_sizes를 텐서로 변환하고 모델과 같은 디바이스로 이동
-                target_sizes = torch.tensor([img.size[::-1]], dtype=torch.int32).to(device)
-                
+                target_sizes = torch.tensor([img.size[::-1]], dtype=torch.int32).to(
+                    device
+                )
+
                 results = processor.post_process_object_detection(
                     outputs=outputs, target_sizes=target_sizes, threshold=0.05
                 )
-        except Exception as e:
+
+            # 추론 후 메모리 정리
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+        except RuntimeError as e:
+            # 메모리 부족 오류 처리
+            error_msg = str(e).lower()
+            if "out of memory" in error_msg or "cuda" in error_msg:
+                # 메모리 정리 시도
+                if device.type == "cuda":
+                    torch.cuda.empty_cache()
+                raise HTTPException(
+                    status_code=507,
+                    detail="메모리 부족으로 모델 추론을 수행할 수 없습니다. 더 작은 이미지를 사용해주세요.",
+                )
             raise HTTPException(
-                status_code=500,
-                detail=f"모델 추론 중 오류가 발생했습니다: {str(e)}"
+                status_code=500, detail=f"모델 추론 중 오류가 발생했습니다: {str(e)}"
+            )
+        except Exception as e:
+            # 메모리 정리
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+            raise HTTPException(
+                status_code=500, detail=f"모델 추론 중 오류가 발생했습니다: {str(e)}"
             )
 
         # 결과 추출 (안전하게 처리)
         try:
             if not results or len(results) == 0:
                 raise HTTPException(
-                    status_code=500,
-                    detail="모델 추론 결과가 비어있습니다."
+                    status_code=500, detail="모델 추론 결과가 비어있습니다."
                 )
-            
+
             result = results[0]
             if not isinstance(result, dict):
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"예상치 못한 결과 형식: {type(result)}"
+                    status_code=500, detail=f"예상치 못한 결과 형식: {type(result)}"
                 )
-            
+
             # 텐서를 안전하게 CPU로 이동
             boxes = result.get("boxes")
             scores = result.get("scores")
             labels = result.get("labels")
-            
+
             if boxes is None or scores is None or labels is None:
                 raise HTTPException(
                     status_code=500,
-                    detail="결과에 필수 필드(boxes, scores, labels)가 없습니다."
+                    detail="결과에 필수 필드(boxes, scores, labels)가 없습니다.",
                 )
-            
+
             # 텐서인 경우 CPU로 이동, 아니면 그대로 사용
             if torch.is_tensor(boxes):
                 boxes = boxes.cpu()
@@ -309,8 +381,7 @@ async def detect_damage(image_bytes: bytes) -> dict:
             raise
         except Exception as e:
             raise HTTPException(
-                status_code=500,
-                detail=f"결과 추출 중 오류가 발생했습니다: {str(e)}"
+                status_code=500, detail=f"결과 추출 중 오류가 발생했습니다: {str(e)}"
             )
 
         # 1. 클래스별 threshold 적용 (노트북과 동일)
@@ -321,7 +392,7 @@ async def detect_damage(image_bytes: bytes) -> dict:
         except Exception as e:
             raise HTTPException(
                 status_code=500,
-                detail=f"클래스별 필터링 중 오류가 발생했습니다: {str(e)}"
+                detail=f"클래스별 필터링 중 오류가 발생했습니다: {str(e)}",
             )
 
         # 2. NMS 적용 (노트북과 동일)
@@ -332,8 +403,7 @@ async def detect_damage(image_bytes: bytes) -> dict:
                 )
             except Exception as e:
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"NMS 적용 중 오류가 발생했습니다: {str(e)}"
+                    status_code=500, detail=f"NMS 적용 중 오류가 발생했습니다: {str(e)}"
                 )
 
         # 결과 파싱 (한글 레이블 사용) - 안전하게 처리
@@ -346,21 +416,21 @@ async def detect_damage(image_bytes: bytes) -> dict:
                 boxes_list = list(boxes)
             else:
                 boxes_list = []
-            
+
             if torch.is_tensor(scores):
                 scores_list = scores.tolist()
             elif isinstance(scores, (list, tuple)):
                 scores_list = list(scores)
             else:
                 scores_list = []
-            
+
             if torch.is_tensor(labels):
                 labels_list = labels.tolist()
             elif isinstance(labels, (list, tuple)):
                 labels_list = list(labels)
             else:
                 labels_list = []
-            
+
             for box, score, label in zip(boxes_list, scores_list, labels_list):
                 # label을 안전하게 정수로 변환
                 if torch.is_tensor(label):
@@ -372,7 +442,7 @@ async def detect_damage(image_bytes: bytes) -> dict:
                         label_int = int(label)
                     except (ValueError, TypeError):
                         continue  # 유효하지 않은 label은 건너뛰기
-                
+
                 # 한글 레이블 우선 사용, 없으면 영문 레이블
                 label_name = id2label_korean.get(label_int) if id2label_korean else None
                 if label_name is None:
@@ -385,7 +455,7 @@ async def detect_damage(image_bytes: bytes) -> dict:
                     bbox_list = list(box)
                 else:
                     continue  # 유효하지 않은 box는 건너뛰기
-                
+
                 # score를 안전하게 float로 변환
                 try:
                     if torch.is_tensor(score):
@@ -405,8 +475,7 @@ async def detect_damage(image_bytes: bytes) -> dict:
                 )
         except Exception as e:
             raise HTTPException(
-                status_code=500,
-                detail=f"결과 파싱 중 오류가 발생했습니다: {str(e)}"
+                status_code=500, detail=f"결과 파싱 중 오류가 발생했습니다: {str(e)}"
             )
 
         grade, explanation = _calculate_grade(detections)
@@ -423,11 +492,11 @@ async def detect_damage(image_bytes: bytes) -> dict:
     except Exception as e:
         # 예상치 못한 오류
         import traceback
+
         error_detail = str(e)
         print(f"[AI Service] 예상치 못한 오류: {error_detail}")
         print(f"[AI Service] 스택 트레이스:\n{traceback.format_exc()}")
-        
+
         raise HTTPException(
-            status_code=500,
-            detail=f"손상 탐지 중 오류가 발생했습니다: {error_detail}"
+            status_code=500, detail=f"손상 탐지 중 오류가 발생했습니다: {error_detail}"
         )

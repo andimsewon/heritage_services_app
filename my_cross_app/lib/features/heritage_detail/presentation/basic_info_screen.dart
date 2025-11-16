@@ -16,6 +16,7 @@ import 'package:my_cross_app/core/config/env.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
+import 'package:my_cross_app/core/utils/image_url_helper.dart';
 import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:my_cross_app/core/widgets/optimized_stream_builder.dart';
 import 'package:my_cross_app/core/widgets/skeleton_loader.dart';
@@ -157,14 +158,11 @@ String _numberedTitle(String key, String title) {
 }
 
 String _proxyImageUrl(String originalUrl, {int? maxWidth, int? maxHeight}) {
-  if (originalUrl.contains('firebasestorage.googleapis.com')) {
-    final proxyBase = Env.proxyBase;
-    final params = <String>['url=${Uri.encodeComponent(originalUrl)}'];
-    if (maxWidth != null) params.add('maxWidth=$maxWidth');
-    if (maxHeight != null) params.add('maxHeight=$maxHeight');
-    return '$proxyBase/image/proxy?${params.join('&')}';
-  }
-  return originalUrl;
+  return ImageUrlHelper.buildOptimizedUrl(
+    originalUrl,
+    maxWidth: maxWidth,
+    maxHeight: maxHeight,
+  );
 }
 
 bool _isValidImageUrl(String url) {

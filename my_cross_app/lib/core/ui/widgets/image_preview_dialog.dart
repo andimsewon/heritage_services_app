@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'package:my_cross_app/core/utils/image_url_helper.dart';
+
 class ImagePreviewDialog extends StatelessWidget {
   final String imageUrl;
   final String title;
@@ -25,14 +27,12 @@ class ImagePreviewDialog extends StatelessWidget {
   }
 
   String _getProxiedUrl(String originalUrl) {
-    // Firebase Storage URL인 경우 프록시 서버를 통해 로드
-    if (originalUrl.contains('firebasestorage.googleapis.com')) {
-      // Env.proxyBase를 직접 사용하지 않고 하드코딩된 값 사용
-      const proxyBase = 'http://localhost:8080';
-      return '$proxyBase/image/proxy?url=${Uri.encodeComponent(originalUrl)}';
-    }
-    // 다른 URL은 그대로 사용
-    return originalUrl;
+    return ImageUrlHelper.buildOptimizedUrl(
+      originalUrl,
+      maxWidth: 1920,
+      maxHeight: 1280,
+      quality: 80,
+    );
   }
 
   Widget _buildErrorWidget() {
@@ -162,8 +162,8 @@ class ImagePreviewDialog extends StatelessWidget {
                               ),
                             ),
                             errorWidget: (context, url, error) {
-                              print('이미지 로딩 에러: $error');
-                              print('프록시 URL: $url');
+                              debugPrint('이미지 로딩 에러: $error');
+                              debugPrint('프록시 URL: $url');
                               return _buildErrorWidget();
                             },
                           ),
@@ -178,7 +178,8 @@ class ImagePreviewDialog extends StatelessWidget {
     );
   }
 
-  static void show(BuildContext context, {
+  static void show(
+    BuildContext context, {
     required String imageUrl,
     required String title,
     required String meta,
@@ -186,11 +187,8 @@ class ImagePreviewDialog extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => ImagePreviewDialog(
-        imageUrl: imageUrl,
-        title: title,
-        meta: meta,
-      ),
+      builder: (context) =>
+          ImagePreviewDialog(imageUrl: imageUrl, title: title, meta: meta),
     );
   }
 }

@@ -189,7 +189,7 @@ class _HeroBanner extends StatelessWidget {
                 runSpacing: 8,
                 children: const [
                   _HeroPill(label: 'Smart Heritage Service'),
-                  _HeroPill(label: '정기 조사 2024'),
+                  _HeroPill(label: '정기 조사 2025'),
                 ],
               ),
               const SizedBox(height: 20),

@@ -36,10 +36,22 @@ class DamageBoundingBoxOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 모든 감지 결과를 파싱하고 유효한 것만 필터링
     final parsedDetections = detections
-        .map(_DamageDetection.fromMap)
+        .map((det) {
+          final parsed = _DamageDetection.fromMap(det);
+          if (parsed == null && det['label'] != null) {
+            // 디버깅: 파싱 실패한 감지 결과 로깅
+            debugPrint('⚠️ Failed to parse detection: label=${det['label']}, bbox=${det['bbox']}');
+          }
+          return parsed;
+        })
         .whereType<_DamageDetection>()
         .toList(growable: false);
+    
+    if (parsedDetections.length != detections.length) {
+      debugPrint('⚠️ Parsed ${parsedDetections.length} out of ${detections.length} detections');
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -163,32 +175,72 @@ class _DamageDetection {
   }
 
   static _DamageDetection? fromMap(Map<String, dynamic>? raw) {
-    if (raw == null) return null;
+    if (raw == null) {
+      debugPrint('⚠️ fromMap: raw is null');
+      return null;
+    }
+    
     final bbox = raw['bbox'];
-    if (bbox is! List || bbox.length != 4) return null;
+    if (bbox is! List || bbox.length != 4) {
+      debugPrint('⚠️ fromMap: invalid bbox format. bbox=$bbox, label=${raw['label']}');
+      return null;
+    }
 
-    double? _safeToDouble(dynamic value) {
+    double? safeToDouble(dynamic value) {
       if (value is num) return value.toDouble();
-      if (value is String) return double.tryParse(value);
+      if (value is String) {
+        final parsed = double.tryParse(value);
+        if (parsed == null) {
+          debugPrint('⚠️ Failed to parse double: $value');
+        }
+        return parsed;
+      }
       return null;
     }
 
-    final x1 = _safeToDouble(bbox[0]);
-    final y1 = _safeToDouble(bbox[1]);
-    final x2 = _safeToDouble(bbox[2]);
-    final y2 = _safeToDouble(bbox[3]);
-    if ([x1, y1, x2, y2].any((element) => element == null)) {
+    final x1 = safeToDouble(bbox[0]);
+    final y1 = safeToDouble(bbox[1]);
+    final x2 = safeToDouble(bbox[2]);
+    final y2 = safeToDouble(bbox[3]);
+    
+    if ([x1, y1, x2, y2].any((element) => element == null || !element!.isFinite)) {
+      debugPrint('⚠️ fromMap: invalid bbox values. x1=$x1, y1=$y1, x2=$x2, y2=$y2, label=${raw['label']}');
       return null;
     }
 
-    final score = _safeToDouble(raw['score']) ?? 0.0;
+    final score = safeToDouble(raw['score']) ?? 0.0;
     final label = (raw['label']?.toString() ?? '').trim();
 
+    // bbox 좌표 검증 (유효한 범위인지 확인)
+    // null 체크 후 non-null로 변환
+    final x1Value = x1!;
+    final y1Value = y1!;
+    final x2Value = x2!;
+    final y2Value = y2!;
+    
+    if (x1Value >= x2Value || y1Value >= y2Value) {
+      debugPrint('⚠️ fromMap: invalid bbox dimensions. x1=$x1Value, y1=$y1Value, x2=$x2Value, y2=$y2Value, label=$label');
+      // 좌표를 교정
+      final minX = x1Value < x2Value ? x1Value : x2Value;
+      final maxX = x1Value > x2Value ? x1Value : x2Value;
+      final minY = y1Value < y2Value ? y1Value : y2Value;
+      final maxY = y1Value > y2Value ? y1Value : y2Value;
+      
+      return _DamageDetection(
+        x1: minX,
+        y1: minY,
+        x2: maxX,
+        y2: maxY,
+        label: label.isEmpty ? 'Detection' : label,
+        score: score.clamp(0.0, 1.0),
+      );
+    }
+
     return _DamageDetection(
-      x1: x1!,
-      y1: y1!,
-      x2: x2!,
-      y2: y2!,
+      x1: x1Value,
+      y1: y1Value,
+      x2: x2Value,
+      y2: y2Value,
       label: label.isEmpty ? 'Detection' : label,
       score: score.clamp(0.0, 1.0),
     );
