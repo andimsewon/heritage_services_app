@@ -19,7 +19,7 @@ class GradeClassificationCard extends StatelessWidget {
   String _getGradeTooltip(String grade) {
     switch (grade) {
       case 'A':
-        return 'A등급: 양호 - 문화재 보존 상태가 매우 양호하여 별도의 조치가 필요하지 않음';
+        return 'A등급: 양호 - 문화유산 보존 상태가 매우 양호하여 별도의 조치가 필요하지 않음';
       case 'B':
         return 'B등급: 양호 - 경미한 손상이 있으나 정기적인 관찰만 필요';
       case 'C1':
@@ -33,7 +33,7 @@ class GradeClassificationCard extends StatelessWidget {
       case 'F':
         return 'F등급: 매우 심각 - 안전상 위험이 있어 즉시 안전 조치 및 긴급 보수 필요';
       default:
-        return '문화재 보존 상태 등급을 선택해주세요';
+        return '문화유산 보존 상태 등급을 선택해주세요';
     }
   }
 
@@ -45,7 +45,7 @@ class GradeClassificationCard extends StatelessWidget {
     return SectionCard(
       sectionNumber: sectionNumber,
       title: '등급 분류',
-      sectionDescription: '문화재 보존 상태 등급을 분류합니다',
+      sectionDescription: '문화유산 보존 상태 등급을 분류합니다',
       action: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

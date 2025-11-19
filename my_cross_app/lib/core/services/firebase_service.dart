@@ -990,6 +990,73 @@ class FirebaseService {
     }
   }
 
+  /// 손상 평가 요약 저장
+  Future<void> saveDamageAssessmentSummary({
+    required String heritageId,
+    required Map<String, dynamic> damageSummary,
+  }) async {
+    try {
+      debugPrint('💾 손상 평가 요약 저장 시작: $heritageId');
+      
+      final docRef = _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('detail_surveys')
+          .doc('damage_assessment_summary');
+      
+      await docRef.set({
+        ...damageSummary,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      debugPrint('✅ 손상 평가 요약 저장 완료');
+    } catch (e) {
+      debugPrint('❌ 손상 평가 요약 저장 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 손상 평가 요약 조회
+  Future<Map<String, dynamic>?> getDamageAssessmentSummary({
+    required String heritageId,
+  }) async {
+    try {
+      debugPrint('📖 손상 평가 요약 조회 시작: $heritageId');
+      
+      final doc = await _fs
+          .collection('heritages')
+          .doc(heritageId)
+          .collection('detail_surveys')
+          .doc('damage_assessment_summary')
+          .get();
+      
+      if (!doc.exists) {
+        debugPrint('⚠️ 손상 평가 요약 데이터 없음');
+        return null;
+      }
+      
+      final data = doc.data();
+      debugPrint('✅ 손상 평가 요약 조회 완료');
+      return data;
+    } catch (e) {
+      debugPrint('❌ 손상 평가 요약 조회 실패: $e');
+      rethrow;
+    }
+  }
+
+  /// 손상 평가 요약 스트림 (실시간 업데이트)
+  Stream<DocumentSnapshot<Map<String, dynamic>>> damageAssessmentSummaryStream(
+    String heritageId,
+  ) {
+    return _fs
+        .collection('heritages')
+        .doc(heritageId)
+        .collection('detail_surveys')
+        .doc('damage_assessment_summary')
+        .snapshots();
+  }
+
   /// 조사자 의견 섹션 데이터 조회
   Future<Map<String, dynamic>?> getInvestigatorOpinionSection({
     required String heritageId,

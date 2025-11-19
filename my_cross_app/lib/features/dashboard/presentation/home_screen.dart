@@ -154,7 +154,7 @@ class _HeroBanner extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              '문화재 현황을 빠르게 검색하고 조사 결과를 체계적으로 정리합니다. 필드 데이터 업로드부터 보고서 발행까지 한 화면에서 진행하세요.',
+              '문화유산 현황을 빠르게 검색하고 조사 결과를 체계적으로 정리합니다. 필드 데이터 업로드부터 보고서 발행까지 한 화면에서 진행하세요.',
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: Colors.white.withOpacity(0.9),
               ),

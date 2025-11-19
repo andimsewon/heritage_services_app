@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
@@ -46,7 +47,10 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
   final _fb = FirebaseService();
   bool _isSaving = false;
-  final ScrollController _scrollController = ScrollController();
+  bool _hasUnsavedChanges = false;
+  String? _saveStatusMessage;
+  Timer? _autoSaveTimer;
+  final ScrollController _horizontalScrollController = ScrollController();
 
   @override
   void initState() {
@@ -71,68 +75,265 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     for (final controller in _labelControllers) {
       controller.dispose();
     }
     _labelControllers.clear();
-    _scrollController.dispose();
+    _horizontalScrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final columns = _buildColumns();
+    final rows = _buildRows(columns);
+    final textTheme = Theme.of(context).textTheme;
 
     return SectionCard(
       sectionNumber: widget.sectionNumber,
       title: '손상부 종합',
       sectionDescription: '구조적, 물리적, 생물·화학적 손상을 종합적으로 분석합니다',
-      action: SectionButtonGroup(
-        spacing: 8,
-        buttons: [
-          SectionButton.outlined(
-            label: '행 삭제',
-            onPressed: widget.value.rows.isEmpty
-                ? () {} // Disabled state
-                : () {
+      action: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_saveStatusMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: _saveStatusMessage!.contains('✅') 
+                    ? Colors.green.shade50 
+                    : _saveStatusMessage!.contains('❌')
+                        ? Colors.red.shade50
+                        : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _saveStatusMessage!.contains('✅')
+                      ? Colors.green.shade300
+                      : _saveStatusMessage!.contains('❌')
+                          ? Colors.red.shade300
+                          : Colors.blue.shade300,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isSaving)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else if (_saveStatusMessage!.contains('✅'))
+                    const Icon(Icons.check_circle, size: 16, color: Colors.green)
+                  else if (_saveStatusMessage!.contains('❌'))
+                    const Icon(Icons.error, size: 16, color: Colors.red)
+                  else
+                    const Icon(Icons.info, size: 16, color: Colors.blue),
+                  const SizedBox(width: 6),
+                  Text(
+                    _saveStatusMessage!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _saveStatusMessage!.contains('✅')
+                          ? Colors.green.shade700
+                          : _saveStatusMessage!.contains('❌')
+                              ? Colors.red.shade700
+                              : Colors.blue.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          SectionButtonGroup(
+            spacing: 8,
+            buttons: [
+              if (!widget.value.rows.isEmpty)
+                SectionButton.outlined(
+                  label: '행 삭제',
+                  onPressed: () {
                     final rows = List<DamageRow>.from(widget.value.rows)
                       ..removeLast();
                     widget.onChanged(widget.value.copyWith(rows: rows));
+                    _markAsChanged();
                   },
-            icon: Icons.delete_forever_outlined,
-            color: widget.value.rows.isEmpty ? Colors.grey : null,
-          ),
-          SectionButton.filled(
-            label: '행 추가',
-            onPressed: _addRow,
-            icon: Icons.add,
-          ),
-          SectionButton.filled(
-            label: _isSaving ? '저장 중...' : '저장',
-            onPressed: _isSaving ? () {} : () => _saveDamageSummary(),
-            icon: Icons.save,
+                  icon: Icons.delete_forever_outlined,
+                  color: Colors.red,
+                ),
+              SectionButton.filled(
+                label: '행 추가',
+                onPressed: () {
+                  _addRow();
+                  _markAsChanged();
+                },
+                icon: Icons.add,
+              ),
+              SectionButton.filled(
+                label: _isSaving ? '저장 중...' : '저장',
+                onPressed: _isSaving
+                    ? () {}
+                    : () => _saveDamageSummary(showMessage: true),
+                icon: _isSaving ? Icons.hourglass_empty : Icons.save,
+                backgroundColor: _hasUnsavedChanges ? Colors.orange : null,
+              ),
+            ],
           ),
         ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 1200;
+          final editorPanel = _buildPanel(
+            title: '① 손상부 기록표',
+            description: '구조·물리·생물·화학 손상 입력을 모두 한 번에 관리합니다.',
+            child: _buildEditableTable(columns, rows),
+          );
+          final previewPanel = _buildPanel(
+            title: '② 보고서 미리보기',
+            description: '입력된 데이터를 보고서 레이아웃으로 즉시 확인하세요.',
+            child: DamageSummaryTableV2(value: widget.value),
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isWide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: editorPanel),
+                    const SizedBox(width: 24),
+                    Expanded(child: previewPanel),
+                  ],
+                )
+              else ...[
+                editorPanel,
+                const SizedBox(height: 24),
+                previewPanel,
+              ],
+              const SizedBox(height: 16),
+              if (widget.heritageId.isNotEmpty)
+                SectionDataList(
+                  heritageId: widget.heritageId,
+                  sectionType: SectionType.damage,
+                  sectionTitle: '손상부 종합',
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPanel({
+    required String title,
+    String? description,
+    required Widget child,
+  }) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final borderColor = theme.dividerColor.withOpacity(0.4);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 새로운 UI 시안 기반 테이블 (V2)
-          DamageSummaryTableV2(
-            value: widget.value,
-            onChanged: widget.onChanged,
+          Text(
+            title,
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 16),
-          // 저장된 데이터 리스트 표시
-          if (widget.heritageId.isNotEmpty)
-            SectionDataList(
-              heritageId: widget.heritageId,
-              sectionType: SectionType.damage,
-              sectionTitle: '손상부 종합',
+          if (description != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              description!,
+              style: textTheme.bodySmall?.copyWith(
+                color: AppTheme.secondaryText,
+              ),
             ),
+          ],
+          const SizedBox(height: 12),
+          child,
         ],
       ),
     );
+  }
+
+  Widget _buildEditableTable(List<DataColumn> columns, List<DataRow> rows) {
+    final borderColor = Theme.of(context).dividerColor.withOpacity(0.6);
+    final dataTable = DataTable(
+      columns: columns,
+      rows: rows,
+      dataRowMinHeight: 140, // 행 높이 증가
+      headingRowHeight: 80, // 헤더 높이 증가
+      horizontalMargin: 12,
+      columnSpacing: 16, // 컬럼 간격 증가
+      headingTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: AppTheme.primaryText,
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 화면 높이에 따라 테이블 최소 높이 설정
+        final screenHeight = MediaQuery.of(context).size.height;
+        final minTableHeight = screenHeight * 0.5; // 화면 높이의 50%
+        final maxTableHeight = screenHeight * 0.75; // 화면 높이의 75%
+        
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: borderColor),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: minTableHeight.clamp(400.0, 600.0),
+                maxHeight: maxTableHeight.clamp(500.0, 800.0),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.vertical,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: minTableHeight.clamp(400.0, 600.0),
+                  ),
+                  child: ResponsiveTable(
+                    controller: _horizontalScrollController,
+                    minWidth: _editorTableMinWidth(),
+                    child: dataTable,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  double _editorTableMinWidth() {
+    final toggleColumnCount =
+        widget.value.columnsStructural.length +
+        widget.value.columnsPhysical.length +
+        widget.value.columnsBioChemical.length;
+    const labelWidth = 220.0;
+    const toggleWidth = 120.0;
+    const gradeWidth = 110.0;
+    final width =
+        labelWidth + (toggleColumnCount * toggleWidth) + (3 * gradeWidth);
+    return width.clamp(720.0, 2000.0).toDouble();
   }
 
   List<DataColumn> _buildColumns() {
@@ -203,13 +404,30 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             width: 180,
             child: TextFormField(
               controller: _labelControllers[index],
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                border: OutlineInputBorder(),
-                hintText: '손상 위치를 입력하세요',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF1E2A44), width: 2),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                hintText: '구성 요소 이름 입력 (예: 기둥 01번)',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               onChanged: (value) {
                 _replaceRow(index, row.copyWith(label: value));
+                _markAsChanged();
               },
             ),
           ),
@@ -227,36 +445,72 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
         cells.add(
           DataCell(
-            Center(
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              width: double.infinity,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Main toggle for present/absent
-                  OxToggle(
-                    value: present,
-                    onChanged: (value) {
-                      final updated = _updateMap(
-                        map,
-                        label,
-                        cell.copyWith(present: value),
-                      );
-                      if (map == row.structural) {
-                        _replaceRow(index, row.copyWith(structural: updated));
-                      } else if (map == row.physical) {
-                        _replaceRow(index, row.copyWith(physical: updated));
-                      } else {
-                        _replaceRow(index, row.copyWith(bioChemical: updated));
-                      }
-                    },
-                    label: '$semantics • ${row.label}',
+                  // Main toggle for present/absent - 더 큰 클릭 영역
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        final updated = _updateMap(
+                          map,
+                          label,
+                          cell.copyWith(present: !present),
+                        );
+                        if (map == row.structural) {
+                          _replaceRow(index, row.copyWith(structural: updated));
+                        } else if (map == row.physical) {
+                          _replaceRow(index, row.copyWith(physical: updated));
+                        } else {
+                          _replaceRow(index, row.copyWith(bioChemical: updated));
+                        }
+                        _markAsChanged();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        width: 56,
+                        height: 36,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: present 
+                              ? groupColor.withOpacity(0.15)
+                              : Colors.grey.shade100,
+                          border: Border.all(
+                            color: present 
+                                ? groupColor
+                                : Colors.grey.shade400,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            present ? 'O' : 'X',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: present 
+                                  ? groupColor
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  // Position indicators (상/중/하)
+                  const SizedBox(height: 6),
+                  // Position indicators (상/중/하) - 더 큰 클릭 영역
                   if (present) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _buildPositionIndicator(
+                        _buildPositionButton(
                           '상',
                           cell.positionTop,
                           (value) => _updatePosition(
@@ -269,7 +523,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                           ),
                           groupColor,
                         ),
-                        _buildPositionIndicator(
+                        _buildPositionButton(
                           '중',
                           cell.positionMiddle,
                           (value) => _updatePosition(
@@ -282,7 +536,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                           ),
                           groupColor,
                         ),
-                        _buildPositionIndicator(
+                        _buildPositionButton(
                           '하',
                           cell.positionBottom,
                           (value) => _updatePosition(
@@ -297,7 +551,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                         ),
                       ],
                     ),
-                  ],
+                  ] else
+                    // 빈 공간 유지
+                    const SizedBox(height: 28),
                 ],
               ),
             ),
@@ -324,6 +580,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
               onChanged: (value) {
                 if (value == null) return;
                 _replaceRow(index, row.copyWith(visualGrade: value));
+                _markAsChanged();
               },
             ),
           ),
@@ -336,6 +593,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
               onChanged: (value) {
                 if (value == null) return;
                 _replaceRow(index, row.copyWith(labGrade: value));
+                _markAsChanged();
               },
             ),
           ),
@@ -348,6 +606,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
               onChanged: (value) {
                 if (value == null) return;
                 _replaceRow(index, row.copyWith(finalGrade: value));
+                _markAsChanged();
               },
             ),
           ),
@@ -364,16 +623,79 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      value: value.isEmpty ? null : value,
       items: _gradeOptions
-          .map((grade) => DropdownMenuItem(value: grade, child: Text(grade)))
+          .map((grade) => DropdownMenuItem(
+                value: grade,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: _getGradeColor(grade),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          grade,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(grade),
+                  ],
+                ),
+              ))
           .toList(),
       onChanged: onChanged,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         isDense: true,
-        border: OutlineInputBorder(),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF1E2A44), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
     );
+  }
+
+  Color _getGradeColor(String grade) {
+    switch (grade) {
+      case 'A':
+        return const Color(0xFF4CAF50);
+      case 'B':
+        return const Color(0xFF8BC34A);
+      case 'C1':
+        return const Color(0xFFFFC107);
+      case 'C2':
+        return const Color(0xFFFF9800);
+      case 'D':
+        return const Color(0xFFFF5722);
+      case 'E':
+        return const Color(0xFF9C27B0);
+      case 'F':
+        return const Color(0xFFF44336);
+      default:
+        return Colors.grey;
+    }
   }
 
   Map<String, DamageCell> _updateMap(
@@ -408,27 +730,17 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       for (final key in keys) key: const DamageCell(),
     };
     final row = DamageRow(
-      label: '', // Empty label instead of hardcoded text
+      label: '구성 요소 ${widget.value.rows.length + 1}',
       structural: makeMap(widget.value.columnsStructural),
       physical: makeMap(widget.value.columnsPhysical),
       bioChemical: makeMap(widget.value.columnsBioChemical),
-      visualGrade: 'E',
-      labGrade: 'E',
-      finalGrade: 'E',
+      visualGrade: '',
+      labGrade: '',
+      finalGrade: '',
     );
     final rows = List<DamageRow>.from(widget.value.rows)..add(row);
     widget.onChanged(widget.value.copyWith(rows: rows));
-
-    // Smooth scroll to the newly added row
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
+    _syncControllers();
   }
 
   void _syncControllers() {
@@ -444,45 +756,69 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       );
   }
 
-  Widget _buildPositionIndicator(
+  Widget _buildPositionButton(
     String positionLabel,
     String currentValue,
     ValueChanged<String> onChanged,
     Color groupColor,
   ) {
-    return Container(
-      width: 40,
-      height: 32,
-      decoration: BoxDecoration(
-        border: Border.all(color: groupColor.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: currentValue,
-          isDense: true,
-          items: _positionOptions.map((option) {
-            return DropdownMenuItem<String>(
-              value: option,
-              child: Center(
-                child: Text(
-                  option,
-                  style: TextStyle(
-                    color: option == 'O'
-                        ? Colors.green
-                        : option == 'X'
-                        ? Colors.red
-                        : Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
+    final options = ['-', 'X', 'O'];
+    final currentIndex = options.indexOf(currentValue);
+    final nextIndex = (currentIndex + 1) % options.length;
+    final nextValue = options[nextIndex];
+    
+    Color getColor(String value) {
+      switch (value) {
+        case 'O':
+          return Colors.green;
+        case 'X':
+          return Colors.red;
+        default:
+          return Colors.grey;
+      }
+    }
+    
+    Color getBgColor(String value) {
+      switch (value) {
+        case 'O':
+          return Colors.green.shade50;
+        case 'X':
+          return Colors.red.shade50;
+        default:
+          return Colors.grey.shade100;
+      }
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          onChanged(nextValue);
+          _markAsChanged();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: getBgColor(currentValue),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: getColor(currentValue),
+              width: 2,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              currentValue,
+              style: TextStyle(
+                color: getColor(currentValue),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
-            );
-          }).toList(),
-          onChanged: (value) {
-            if (value != null) onChanged(value);
-          },
+            ),
+          ),
         ),
       ),
     );
@@ -513,18 +849,49 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     }
   }
 
-  Future<void> _saveDamageSummary() async {
+  /// 변경 사항 표시
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+        _saveStatusMessage = '💾 변경 사항이 있습니다';
+      });
+    }
+    
+    // 자동 저장 타이머 시작 (2초 후 자동 저장)
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+      if (widget.heritageId.isNotEmpty && _hasUnsavedChanges) {
+        _saveDamageSummary(showMessage: false);
+      }
+    });
+  }
+
+  Future<void> _saveDamageSummary({bool showMessage = true}) async {
     if (widget.heritageId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('문화유산 정보가 없습니다.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      if (showMessage && mounted) {
+        setState(() {
+          _saveStatusMessage = '❌ 문화유산 정보가 없습니다';
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _saveStatusMessage = null;
+            });
+          }
+        });
+      }
       return;
     }
 
-    setState(() => _isSaving = true);
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+      if (showMessage) {
+        _saveStatusMessage = '💾 저장 중...';
+      }
+    });
 
     try {
       // 손상부 종합 데이터를 하나의 제목과 내용으로 결합
@@ -636,22 +1003,56 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ 손상부 종합이 저장되었습니다'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        setState(() {
+          _isSaving = false;
+          _hasUnsavedChanges = false;
+          _saveStatusMessage = showMessage ? '✅ 저장되었습니다' : '✅ 자동 저장됨';
+        });
+        
+        if (showMessage) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ 손상부 종합이 저장되었습니다'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        
+        // 상태 메시지 자동 제거
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _saveStatusMessage = null;
+            });
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
+        setState(() {
+          _isSaving = false;
+          _saveStatusMessage = '❌ 저장 실패: ${e.toString().length > 30 ? e.toString().substring(0, 30) + "..." : e.toString()}';
+        });
+        
+        if (showMessage) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('저장 실패: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        
+        // 오류 메시지 자동 제거
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() {
+              _saveStatusMessage = null;
+            });
+          }
+        });
       }
     }
   }

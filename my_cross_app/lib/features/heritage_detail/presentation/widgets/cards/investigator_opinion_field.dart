@@ -100,54 +100,59 @@ class _InvestigatorOpinionFieldState extends State<InvestigatorOpinionField> {
             icon: Icons.save_outlined,
           ),
           child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 920;
-          final content = [
-            Expanded(
-              flex: 3,
-              child: _TotalOpinionSection(
-                structuralController: _structuralController,
-                othersController: _othersController,
-                notesController: _notesController,
-                opinionController: _opinionController,
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              flex: 2,
-              child: _MetaPanel(
-                dateController: _dateController,
-                organizationController: _organizationController,
-                authorController: _authorController,
-              ),
-            ),
-          ];
+            builder: (context, constraints) {
+              // 제약 조건이 무한대인 경우 MediaQuery 사용
+              final availableWidth = constraints.maxWidth.isFinite 
+                  ? constraints.maxWidth 
+                  : MediaQuery.of(context).size.width;
+              final isWide = availableWidth >= 920;
+              
+              final content = [
+                Expanded(
+                  flex: 3,
+                  child: _TotalOpinionSection(
+                    structuralController: _structuralController,
+                    othersController: _othersController,
+                    notesController: _notesController,
+                    opinionController: _opinionController,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  flex: 2,
+                  child: _MetaPanel(
+                    dateController: _dateController,
+                    organizationController: _organizationController,
+                    authorController: _authorController,
+                  ),
+                ),
+              ];
 
-          if (isWide) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: content,
-            );
-          }
+              if (isWide && constraints.maxWidth.isFinite) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: content,
+                );
+              }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _TotalOpinionSection(
-                structuralController: _structuralController,
-                othersController: _othersController,
-                notesController: _notesController,
-                opinionController: _opinionController,
-              ),
-              const SizedBox(height: 16),
-              _MetaPanel(
-                dateController: _dateController,
-                organizationController: _organizationController,
-                authorController: _authorController,
-              ),
-            ],
-          );
-        },
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _TotalOpinionSection(
+                    structuralController: _structuralController,
+                    othersController: _othersController,
+                    notesController: _notesController,
+                    opinionController: _opinionController,
+                  ),
+                  const SizedBox(height: 16),
+                  _MetaPanel(
+                    dateController: _dateController,
+                    organizationController: _organizationController,
+                    authorController: _authorController,
+                  ),
+                ],
+              );
+            },
           ),
         ),
         // 저장된 데이터 리스트 표시 추가

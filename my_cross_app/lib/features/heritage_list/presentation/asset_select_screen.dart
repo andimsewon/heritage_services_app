@@ -76,7 +76,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     super.dispose();
   }
 
-  // 커스텀 문화재 클릭 시 상세 화면으로 이동
+  // 커스텀 문화유산 클릭 시 상세 화면으로 이동
   void _openCustomHeritageDialog(Map<String, dynamic> m) {
     Navigator.push(
       context,
@@ -93,7 +93,7 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
     );
   }
 
-  // API 문화재 클릭 시 상세 화면으로 이동
+  // API 문화유산 클릭 시 상세 화면으로 이동
   void _openApiHeritageDialog(HeritageRow r) {
     Navigator.push(
       context,

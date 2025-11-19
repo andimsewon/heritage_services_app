@@ -1369,8 +1369,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
             _buildInvestigatorOpinionSections(context: context);
         break;
       case 2: // 종합진단
-        currentSections = _cachedComprehensiveDiagnosisSections ??=
-            _buildComprehensiveDiagnosisSections(context: context);
+        // 캐싱 제거: AnimatedBuilder로 인한 재빌드 문제 방지
+        currentSections = _buildComprehensiveDiagnosisSections(context: context);
         break;
       default:
         currentSections = [];
@@ -2603,203 +2603,128 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
   List<Widget> _buildComprehensiveDiagnosisSections({
     required BuildContext context,
   }) {
-    final sections = <Widget>[];
+    // 화면 너비를 한 번만 계산 (반복 계산 방지)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final sectionSpacing = isMobile ? 16.0 : 24.0;
 
-    if (_detailViewModel != null) {
-      sections.add(
-        AnimatedBuilder(
-          animation: _detailViewModel!,
-          builder: (context, _) {
-            final vm = _detailViewModel!;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. 손상부 종합
-                Container(
-                  key: _sectionKeys['damageSummary'],
-                  child: DamageSummaryTable(
+    // _detailViewModel이 null이어도 기본값으로 표시
+    final vm = _detailViewModel;
+    final damageSummary = vm?.damageSummary ?? DamageSummary.initial();
+    final investigatorOpinion = vm?.investigatorOpinion ?? InvestigatorOpinion.empty();
+    final gradeClassification = vm?.gradeClassification ?? GradeClassification.initial();
+    final aiPredictionState = vm?.aiPredictionState ?? AIPredictionState.initial();
+
+    return [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 1. 손상부 종합
+          Container(
+            key: _sectionKeys['damageSummary'],
+            child: vm != null
+                ? AnimatedBuilder(
+                    animation: vm,
+                    builder: (context, _) {
+                      return DamageSummaryTable(
+                        sectionNumber: _sectionNumberFor('damageSummary'),
+                        value: vm.damageSummary,
+                        onChanged: vm.updateDamageSummary,
+                        heritageId: heritageId,
+                        heritageName: _name.isEmpty ? '미상' : _name,
+                      );
+                    },
+                  )
+                : DamageSummaryTable(
                     sectionNumber: _sectionNumberFor('damageSummary'),
-                    value: vm.damageSummary,
-                    onChanged: vm.updateDamageSummary,
+                    value: damageSummary,
+                    onChanged: (_) {},
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
-                ),
-                const SizedBox(height: 24),
-                // 2. 조사자 의견 (읽기 전용)
-                Container(
-                  key: _sectionKeys['investigatorOpinion'],
-                  child: InvestigatorOpinionField(
+          ),
+          SizedBox(height: sectionSpacing),
+          // 2. 조사자 의견
+          Container(
+            key: _sectionKeys['investigatorOpinion'],
+            child: vm != null
+                ? AnimatedBuilder(
+                    animation: vm,
+                    builder: (context, _) {
+                      return InvestigatorOpinionField(
+                        sectionNumber: _sectionNumberFor('investigatorOpinion'),
+                        value: vm.investigatorOpinion,
+                        onChanged: vm.updateInvestigatorOpinion,
+                        heritageId: heritageId,
+                        heritageName: _name.isEmpty ? '미상' : _name,
+                      );
+                    },
+                  )
+                : InvestigatorOpinionField(
                     sectionNumber: _sectionNumberFor('investigatorOpinion'),
-                    value: vm.investigatorOpinion,
-                    onChanged: vm.updateInvestigatorOpinion,
+                    value: investigatorOpinion,
+                    onChanged: (_) {},
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
                   ),
-                ),
-                const SizedBox(height: 24),
-                // 3. 등급 분류
-                Container(
-                  key: _sectionKeys['gradeClassification'],
-                  child: GradeClassificationCard(
+          ),
+          SizedBox(height: sectionSpacing),
+          // 3. 등급 분류
+          Container(
+            key: _sectionKeys['gradeClassification'],
+            child: vm != null
+                ? AnimatedBuilder(
+                    animation: vm,
+                    builder: (context, _) {
+                      return GradeClassificationCard(
+                        sectionNumber: _sectionNumberFor('gradeClassification'),
+                        value: vm.gradeClassification,
+                        onChanged: vm.updateGradeClassification,
+                      );
+                    },
+                  )
+                : GradeClassificationCard(
                     sectionNumber: _sectionNumberFor('gradeClassification'),
-                    value: vm.gradeClassification,
-                    onChanged: vm.updateGradeClassification,
+                    value: gradeClassification,
+                    onChanged: (_) {},
                   ),
-                ),
-                const SizedBox(height: 24),
-                // 4. AI 예측 기능
-                Container(
-                  key: _sectionKeys['aiPrediction'],
-                  child: AIPredictionSection(
+          ),
+          SizedBox(height: sectionSpacing),
+          // 4. AI 예측 기능
+          Container(
+            key: _sectionKeys['aiPrediction'],
+            child: vm != null
+                ? AnimatedBuilder(
+                    animation: vm,
+                    builder: (context, _) {
+                      return AIPredictionSection(
+                        sectionNumber: _sectionNumberFor('aiPrediction'),
+                        state: vm.aiPredictionState,
+                        actions: AIPredictionActions(
+                          onPredictGrade: vm.predictGrade,
+                          onGenerateMap: vm.generateMap,
+                          onSuggest: vm.suggestMitigation,
+                        ),
+                      );
+                    },
+                  )
+                : AIPredictionSection(
                     sectionNumber: _sectionNumberFor('aiPrediction'),
-                    state: vm.aiPredictionState,
+                    state: aiPredictionState,
                     actions: AIPredictionActions(
-                      onPredictGrade: vm.predictGrade,
-                      onGenerateMap: vm.generateMap,
-                      onSuggest: vm.suggestMitigation,
+                      onPredictGrade: () {},
+                      onGenerateMap: () {},
+                      onSuggest: () {},
                     ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-    } else {
-      // _detailViewModel이 null일 때도 모든 섹션 표시
-      // 1. 손상부 종합
-      sections.add(
-        Container(
-          key: _sectionKeys['damageSummary'],
-          child: DamageSummaryTable(
-            sectionNumber: _sectionNumberFor('damageSummary'),
-            value: DamageSummary.initial(),
-            onChanged: (_) {},
-            heritageId: heritageId,
-            heritageName: _name.isEmpty ? '미상' : _name,
           ),
-        ),
-      );
-      sections.add(const SizedBox(height: 24));
-
-      // 2. 조사자 의견
-      sections.add(
-        Container(
-          key: _sectionKeys['investigatorOpinion'],
-          child: InvestigatorOpinionField(
-            sectionNumber: _sectionNumberFor('investigatorOpinion'),
-            value: InvestigatorOpinion.empty(),
-            onChanged: (_) {},
-            heritageId: heritageId,
-            heritageName: _name.isEmpty ? '미상' : _name,
-          ),
-        ),
-      );
-      sections.add(const SizedBox(height: 24));
-
-      // 3. 등급 분류
-      sections.add(
-        Container(
-          key: _sectionKeys['gradeClassification'],
-          child: GradeClassificationCard(
-            sectionNumber: _sectionNumberFor('gradeClassification'),
-            value: GradeClassification.initial(),
-            onChanged: (_) {},
-          ),
-        ),
-      );
-      sections.add(const SizedBox(height: 24));
-
-      // 4. AI 예측 기능
-      sections.add(
-        Container(
-          key: _sectionKeys['aiPrediction'],
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _numberedTitle('aiPrediction', 'AI 예측 및 보고서 생성'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('AI 등급 예측 기능을 준비 중입니다')),
-                        );
-                      },
-                      icon: const Icon(Icons.psychology),
-                      label: const Text('AI 등급 예측'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF7C3AED),
-                        foregroundColor: Colors.white,
-                        elevation: 2,
-                        shadowColor: const Color(0xFF7C3AED).withOpacity(0.3),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('AI 지도 생성 기능을 준비 중입니다')),
-                        );
-                      },
-                      icon: const Icon(Icons.map),
-                      label: const Text('AI 지도 생성'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                        elevation: 2,
-                        shadowColor: const Color(0xFF2563EB).withOpacity(0.3),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('AI 보고서 생성 기능을 준비 중입니다')),
-                    );
-                  },
-                  icon: const Icon(Icons.description),
-                  label: const Text('AI 보고서 생성'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    foregroundColor: Colors.white,
-                    elevation: 2,
-                    shadowColor: const Color(0xFF059669).withOpacity(0.3),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    sections.add(const SizedBox(height: 48));
-    return sections;
+        ],
+      ),
+      const SizedBox(height: 48),
+    ];
   }
+
 
   // 상단 네비게이션 바 (모바일/태블릿용)
   Widget _buildTopNavigationBar() {

@@ -112,7 +112,7 @@ class _ImprovedDamageSurveyDialogState
   String _severityGrade = 'C';
   final Set<String> _selectedDamageTypes = {};
 
-  // 표준 손상 용어 전체 리스트 (문화재청 기준)
+  // 표준 손상 용어 전체 리스트 (문화유산청 기준)
   final List<String> _standardDamageTerms = [
     // 구조적 손상
     '이격/이완', '기움', '들림', '축 변형', '침하', '유실',
