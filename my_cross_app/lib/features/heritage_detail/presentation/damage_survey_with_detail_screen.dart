@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/ui/widgets/ambient_background.dart';
 
 /// 손상부 조사 + 심화조사 통합 화면 (탭 연동형)
 class DamageSurveyWithDetailScreen extends StatefulWidget {
@@ -47,13 +48,17 @@ class _DamageSurveyWithDetailScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Colors.transparent,
+      extendBody: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: Colors.black87, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.black87,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -76,15 +81,21 @@ class _DamageSurveyWithDetailScreenState
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        physics: const NeverScrollableScrollPhysics(), // 스와이프로 탭 전환 방지
-        children: [
-          // ① 손상부 조사 탭
-          _buildDamageSurveyTab(),
-          // ② 심화조사 탭
-          _buildDetailSurveyTab(),
-        ],
+      body: AmbientBackground(
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: TabBarView(
+            controller: _tabController,
+            physics: const NeverScrollableScrollPhysics(), // 스와이프로 탭 전환 방지
+            children: [
+              // ① 손상부 조사 탭
+              _buildDamageSurveyTab(),
+              // ② 심화조사 탭
+              _buildDetailSurveyTab(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -198,19 +209,12 @@ class _DamageSurveyWithDetailScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(
-              Icons.info_outline,
-              size: 64,
-              color: Color(0xFF9CA3AF),
-            ),
+            Icon(Icons.info_outline, size: 64, color: Color(0xFF9CA3AF)),
             SizedBox(height: 16),
             Text(
               '이전 탭에서 부재를 선택하고\n"심화조사로 이동" 버튼을 클릭하세요',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xFF6B7280),
-              ),
+              style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
             ),
           ],
         ),
@@ -262,14 +266,17 @@ class _DamageSurveyWithDetailScreenState
                 TextFormField(
                   maxLines: 6,
                   decoration: InputDecoration(
-                    hintText: '심화조사 결과를 자세히 입력하세요...\n\n예: 균열 깊이 측정, 손상 원인 분석, 보수 권장사항 등',
+                    hintText:
+                        '심화조사 결과를 자세히 입력하세요...\n\n예: 균열 깊이 측정, 손상 원인 분석, 보수 권장사항 등',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          const BorderSide(color: Color(0xFF1E2A44), width: 1.5),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1E2A44),
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),

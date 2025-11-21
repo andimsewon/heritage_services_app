@@ -16,6 +16,7 @@ import 'package:my_cross_app/core/config/env.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
+import 'package:my_cross_app/core/ui/widgets/ambient_background.dart';
 import 'package:my_cross_app/core/utils/image_url_helper.dart';
 import 'package:my_cross_app/core/widgets/optimized_image.dart';
 import 'package:my_cross_app/core/widgets/optimized_stream_builder.dart';
@@ -1310,25 +1311,32 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF5F6FA),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+        backgroundColor: Colors.transparent,
+        extendBody: true,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const AmbientBackground(),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    '데이터를 불러오는 중...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              Text(
-                '데이터를 불러오는 중...',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -1391,7 +1399,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: Colors.transparent,
+      extendBody: true,
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E2A44),
         elevation: 2,
@@ -1550,14 +1559,18 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
               )
             : null,
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 1040.0),
-                child: CustomScrollView(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AmbientBackground(),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 1040.0),
+                    child: CustomScrollView(
                   controller: _mainScrollController,
                   slivers: [
                     // 고정된 섹션 네비게이션 바 (상단 고정)
@@ -1605,6 +1618,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
             );
           },
         ),
+      ),
+        ],
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:my_cross_app/core/services/firebase_service.dart';
+import 'package:my_cross_app/core/ui/widgets/ambient_background.dart';
 import 'package:my_cross_app/core/ui/widgets/attach_tile.dart';
 import 'package:my_cross_app/core/ui/widgets/section.dart';
 import 'package:my_cross_app/core/ui/widgets/yellow_nav_button.dart';
@@ -21,12 +22,8 @@ class DetailSurveyScreen extends StatefulWidget {
   static const route = '/detail-survey';
   final String? heritageId;
   final String? heritageName;
-  
-  const DetailSurveyScreen({
-    super.key,
-    this.heritageId,
-    this.heritageName,
-  });
+
+  const DetailSurveyScreen({super.key, this.heritageId, this.heritageName});
 
   @override
   State<DetailSurveyScreen> createState() => _DetailSurveyScreenState();
@@ -98,22 +95,22 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
       debugPrint('⚠️ HeritageId가 null입니다. 데이터를 로드할 수 없습니다.');
       return;
     }
-    
+
     debugPrint('🔄 데이터 로드 시작 - HeritageId: ${widget.heritageId}');
     setState(() => _isLoading = true);
-    
+
     try {
       // 병렬로 여러 데이터 소스 로드
       final futures = <Future>[];
-      
+
       // 1. 상세 조사 데이터
       futures.add(_firebaseService.getDetailSurveys(widget.heritageId!));
-      
+
       // 2. 추가 데이터가 있다면 여기에 추가
       // futures.add(_loadAdditionalData());
-      
+
       final results = await Future.wait(futures);
-      
+
       if (results.isNotEmpty) {
         final snapshot = results[0] as QuerySnapshot;
         debugPrint('📊 Firestore에서 ${snapshot.docs.length}개의 문서를 찾았습니다.');
@@ -150,15 +147,21 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     // 보존이력
     if (data['conservationHistory'] != null) {
       _history.clear();
-      _history.addAll((data['conservationHistory'] as List)
-          .map((item) => Map<String, String>.from(item)));
+      _history.addAll(
+        (data['conservationHistory'] as List).map(
+          (item) => Map<String, String>.from(item),
+        ),
+      );
     }
 
     // 손상요소
     if (data['damageItems'] != null) {
       _damages.clear();
-      _damages.addAll((data['damageItems'] as List)
-          .map((item) => Map<String, dynamic>.from(item)));
+      _damages.addAll(
+        (data['damageItems'] as List).map(
+          (item) => Map<String, dynamic>.from(item),
+        ),
+      );
     }
 
     // 기타 필드들
@@ -168,7 +171,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     _investigatorOpinion.text = data['investigatorOpinion'] ?? '';
     _gradeClassification.text = data['gradeClassification'] ?? '';
     _existingHistory.text = data['existingHistory'] ?? '';
-    
+
     debugPrint('📝 로드된 기본 필드들:');
     debugPrint('  - 주요 점검 결과: "${_inspectionResult.text}"');
     debugPrint('  - 관리사항: "${_managementItems.text}"');
@@ -188,7 +191,8 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
       _section11Pest.text = section11['pest'] ?? '';
       _section11Etc.text = section11['etc'] ?? '';
       _section11SafetyNotes.text = section11['safetyNotes'] ?? '';
-      _section11InvestigatorOpinion.text = section11['investigatorOpinion'] ?? '';
+      _section11InvestigatorOpinion.text =
+          section11['investigatorOpinion'] ?? '';
       _section11Grade.text = section11['grade'] ?? '';
       debugPrint('📝 로드된 Section11 값들:');
       debugPrint('  - 기단부: "${_section11Foundation.text}"');
@@ -230,7 +234,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
   Future<void> _handleSave() async {
     print('🚨 _handleSave 함수가 호출되었습니다!');
     debugPrint('🚨 _handleSave 함수가 호출되었습니다!');
-    
+
     if (_isSaving) {
       print('⚠️ 이미 저장 중입니다. 중복 호출 방지됨.');
       return;
@@ -243,9 +247,11 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
       // heritageId와 heritageName 확인
       final heritageId = widget.heritageId ?? "UNKNOWN_HERITAGE";
       final heritageName = widget.heritageName ?? "알 수 없는 문화유산";
-      
+
       print('🔍 저장 시작 - HeritageId: $heritageId, HeritageName: $heritageName');
-      debugPrint('🔍 저장 시작 - HeritageId: $heritageId, HeritageName: $heritageName');
+      debugPrint(
+        '🔍 저장 시작 - HeritageId: $heritageId, HeritageName: $heritageName',
+      );
 
       // Firebase 연결 테스트
       debugPrint('🧪 Firebase 연결 테스트 중...');
@@ -271,7 +277,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
         'investigatorOpinion': _investigatorOpinion.text.trim(),
         'gradeClassification': _gradeClassification.text.trim(),
         'existingHistory': _existingHistory.text.trim(),
-        
+
         // 새로운 섹션들 (1.1, 1.2, 1.3)
         'section11': {
           'foundation': _section11Foundation.text.trim(),
@@ -284,9 +290,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           'investigatorOpinion': _section11InvestigatorOpinion.text.trim(),
           'grade': _section11Grade.text.trim(),
         },
-        'section12': {
-          'conservation': _section12Conservation.text.trim(),
-        },
+        'section12': {'conservation': _section12Conservation.text.trim()},
         'section13': {
           'safety': _section13Safety.text.trim(),
           'electric': _section13Electric.text.trim(),
@@ -297,7 +301,7 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           'surroundings': _section13Surroundings.text.trim(),
           'usage': _section13Usage.text.trim(),
         },
-        
+
         'timestamp': DateTime.now().toIso8601String(),
       };
 
@@ -323,13 +327,13 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
       // Firebase에 저장 (사진과 동일한 방식)
       print('🔥 Firebase 저장 시작 - HeritageId: $heritageId');
       debugPrint('🔥 Firebase 저장 시작 - HeritageId: $heritageId');
-      
+
       await _firebaseService.addDetailSurvey(
         heritageId: heritageId,
         heritageName: heritageName,
         surveyData: surveyData,
       );
-      
+
       print('✅ Firebase 저장 완료 - HeritageId: $heritageId');
       debugPrint('✅ Firebase 저장 완료 - HeritageId: $heritageId');
 
@@ -379,22 +383,21 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
             ],
           ),
         );
-        
+
         debugPrint('🎉 저장 성공 다이얼로그 표시됨');
-        
+
         // 저장 후 데이터 다시 로드하여 확인 (실제 저장 검증)
         debugPrint('🔄 저장 검증을 위해 데이터 다시 로드 중...');
-        await Future.delayed(const Duration(milliseconds: 2000)); // Firebase 동기화 대기
+        await Future.delayed(
+          const Duration(milliseconds: 2000),
+        ); // Firebase 동기화 대기
         await _loadSavedData();
         debugPrint('✅ 저장 검증 완료');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('저장 실패: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -653,303 +656,344 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     final horizontalPadding = isMobile ? 12.0 : 24.0;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBody: true,
       appBar: AppBar(title: const Text('상세 조사')),
-      body: _isLoading 
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SkeletonCard(width: 300, height: 200),
-                  SizedBox(height: 16),
-                  SkeletonText(width: 200, height: 20),
-                  SizedBox(height: 8),
-                  SkeletonText(width: 150, height: 16),
-                ],
-              ),
-            )
-          : ResponsivePage(
-              maxWidth: 1100.0,
-              padding: EdgeInsets.all(horizontalPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                // (1) 기록개요
-                Section(
-                  title: '기록개요',
-                  child: GridView.count(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    shrinkWrap: true,
-                    childAspectRatio: isMobile ? 4.0 : 3.5,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      TextField(
-                        controller: _section,
-                        decoration: const InputDecoration(labelText: '구/부/세부명'),
-                      ),
-                      TextField(
-                        controller: _period,
-                        decoration: const InputDecoration(labelText: '시정/지정일(예시)'),
-                      ),
-                      TextField(
-                        controller: _writer,
-                        decoration: const InputDecoration(labelText: '작성인'),
-                      ),
-                      TextField(
-                        controller: _note,
-                        decoration: const InputDecoration(labelText: '메모/비고'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (2) 보존이력
-                Section(
-                  title: '보존이력',
-                  action: OutlinedButton.icon(
-                    onPressed: () async {
-                      final item = await _showAddHistoryDialog(context);
-                      if (item != null) setState(() => _history.add(item));
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('추가'),
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columnSpacing: isMobile ? 12 : 24,
-                      headingRowHeight: 40,
-                      dataRowHeight: 48,
-                      columns: const [
-                        DataColumn(label: Text('일자')),
-                        DataColumn(label: Text('내용')),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AmbientBackground(),
+          SafeArea(
+            child: _isLoading
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SkeletonCard(width: 300, height: 200),
+                        SizedBox(height: 16),
+                        SkeletonText(width: 200, height: 20),
+                        SizedBox(height: 8),
+                        SkeletonText(width: 150, height: 16),
                       ],
-                      rows: _history
-                          .map(
-                            (h) => DataRow(
-                          cells: [
-                            DataCell(Text(h['date']!)),
-                            DataCell(Text(h['desc']!)),
-                          ],
-                        ),
-                      )
-                          .toList(),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (3) 첨부 (목업 상태 그대로)
-                Section(
-                  title: '첨부',
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: const [
-                      AttachTile(icon: Icons.photo_camera, label: '사진촬영(목업)'),
-                      AttachTile(icon: Icons.image_outlined, label: '사진선택'),
-                      AttachTile(icon: Icons.info_outline, label: '메타데이터'),
-                      AttachTile(icon: Icons.mic_none, label: '음성기록'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (4) 손상요소
-                Section(
-                  title: '손상요소',
-                  action: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: () => _pickAndUploadDamage(ImageSource.camera),
-                        icon: const Icon(Icons.photo_camera),
-                        label: const Text('도면+촬영'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xff003B7A),
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: () => _pickAndUploadDamage(ImageSource.gallery),
-                        icon: const Icon(Icons.image_outlined),
-                        label: const Text('도면+갤러리'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xff003B7A),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _addDamageManually,
-                        icon: const Icon(Icons.add),
-                        label: const Text('수동 등록'),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      for (final d in _damages)
-                        Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.report_problem_outlined),
-                            title: Text('${d['type']} · 심각도 ${d['severity']}'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (d['partName'] != null && d['partName'].toString().isNotEmpty)
-                                  Text('부재: ${d['partName']} #${d['partNumber']} (${d['direction']})'),
-                                Text('${d['memo']}'),
-                              ],
-                            ),
-                            isThreeLine: true,
+                  )
+                : ResponsivePage(
+                    maxWidth: 1100.0,
+                    padding: EdgeInsets.all(horizontalPadding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // (1) 기록개요
+                        Section(
+                          title: '기록개요',
+                          child: GridView.count(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            shrinkWrap: true,
+                            childAspectRatio: isMobile ? 4.0 : 3.5,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              TextField(
+                                controller: _section,
+                                decoration: const InputDecoration(
+                                  labelText: '구/부/세부명',
+                                ),
+                              ),
+                              TextField(
+                                controller: _period,
+                                decoration: const InputDecoration(
+                                  labelText: '시정/지정일(예시)',
+                                ),
+                              ),
+                              TextField(
+                                controller: _writer,
+                                decoration: const InputDecoration(
+                                  labelText: '작성인',
+                                ),
+                              ),
+                              TextField(
+                                controller: _note,
+                                decoration: const InputDecoration(
+                                  labelText: '메모/비고',
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
+                        const SizedBox(height: 12),
 
-                // New Survey Sections (1.1, 1.2, 1.3) - Integrated with main save
-                if (widget.heritageId != null)
-                  _buildSurveySections(),
-                const SizedBox(height: 20),
-
-                // (5) 1.1 조사 결과
-                Section(
-                  title: '1.1 조사 결과',
-                  child: TextField(
-                    controller: _inspectionResult,
-                    decoration: const InputDecoration(
-                      labelText: '1.1 조사 결과를 입력하세요',
-                      hintText: '조사 결과를 상세히 기록하세요',
-                    ),
-                    maxLines: 4,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (6) 관리사항
-                Section(
-                  title: '관리사항',
-                  child: TextField(
-                    controller: _managementItems,
-                    decoration: const InputDecoration(
-                      labelText: '관리사항을 입력하세요',
-                      hintText: '관리해야 할 사항들을 기록하세요',
-                    ),
-                    maxLines: 4,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (7) 손상부 종합
-                Section(
-                  title: '손상부 종합',
-                  child: TextField(
-                    controller: _damageSummary,
-                    decoration: const InputDecoration(
-                      labelText: '손상부 종합 내용을 입력하세요',
-                      hintText: '손상부에 대한 종합적인 분석을 기록하세요',
-                    ),
-                    maxLines: 4,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (8) 조사자 의견
-                Section(
-                  title: '조사자 의견',
-                  child: TextField(
-                    controller: _investigatorOpinion,
-                    decoration: const InputDecoration(
-                      labelText: '조사자 의견을 입력하세요',
-                      hintText: '조사자의 전문적인 의견을 기록하세요',
-                    ),
-                    maxLines: 4,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (9) 등급 분류
-                Section(
-                  title: '등급 분류',
-                  child: TextField(
-                    controller: _gradeClassification,
-                    decoration: const InputDecoration(
-                      labelText: '등급 분류를 입력하세요',
-                      hintText: 'A, B, C, D, E, F 등급 중 선택하세요',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // (10) 기존이력
-                Section(
-                  title: '기존이력',
-                  child: TextField(
-                    controller: _existingHistory,
-                    decoration: const InputDecoration(
-                      labelText: '기존이력을 입력하세요',
-                      hintText: '과거 조사 이력이나 관련 기록을 입력하세요',
-                    ),
-                    maxLines: 4,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // 저장 버튼
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: FilledButton.icon(
-                    onPressed: _isSaving ? null : _handleSave,
-                    icon: _isSaving 
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(_isSaving ? '저장 중...' : '모든 데이터 저장'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xff003B7A),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // 이전/다음 네비게이션
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back),
-                        label: const Text('기본정보로'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: YellowNavButton(
-                        label: '다음(손상 예측/모델)',
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          DamageModelScreen.route,
+                        // (2) 보존이력
+                        Section(
+                          title: '보존이력',
+                          action: OutlinedButton.icon(
+                            onPressed: () async {
+                              final item = await _showAddHistoryDialog(context);
+                              if (item != null)
+                                setState(() => _history.add(item));
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text('추가'),
+                          ),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              columnSpacing: isMobile ? 12 : 24,
+                              headingRowHeight: 40,
+                              dataRowHeight: 48,
+                              columns: const [
+                                DataColumn(label: Text('일자')),
+                                DataColumn(label: Text('내용')),
+                              ],
+                              rows: _history
+                                  .map(
+                                    (h) => DataRow(
+                                      cells: [
+                                        DataCell(Text(h['date']!)),
+                                        DataCell(Text(h['desc']!)),
+                                      ],
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 12),
+
+                        // (3) 첨부 (목업 상태 그대로)
+                        Section(
+                          title: '첨부',
+                          child: Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: const [
+                              AttachTile(
+                                icon: Icons.photo_camera,
+                                label: '사진촬영(목업)',
+                              ),
+                              AttachTile(
+                                icon: Icons.image_outlined,
+                                label: '사진선택',
+                              ),
+                              AttachTile(
+                                icon: Icons.info_outline,
+                                label: '메타데이터',
+                              ),
+                              AttachTile(icon: Icons.mic_none, label: '음성기록'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // (4) 손상요소
+                        Section(
+                          title: '손상요소',
+                          action: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: () =>
+                                    _pickAndUploadDamage(ImageSource.camera),
+                                icon: const Icon(Icons.photo_camera),
+                                label: const Text('도면+촬영'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xff003B7A),
+                                ),
+                              ),
+                              FilledButton.icon(
+                                onPressed: () =>
+                                    _pickAndUploadDamage(ImageSource.gallery),
+                                icon: const Icon(Icons.image_outlined),
+                                label: const Text('도면+갤러리'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xff003B7A),
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _addDamageManually,
+                                icon: const Icon(Icons.add),
+                                label: const Text('수동 등록'),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              for (final d in _damages)
+                                Card(
+                                  child: ListTile(
+                                    leading: const Icon(
+                                      Icons.report_problem_outlined,
+                                    ),
+                                    title: Text(
+                                      '${d['type']} · 심각도 ${d['severity']}',
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (d['partName'] != null &&
+                                            d['partName'].toString().isNotEmpty)
+                                          Text(
+                                            '부재: ${d['partName']} #${d['partNumber']} (${d['direction']})',
+                                          ),
+                                        Text('${d['memo']}'),
+                                      ],
+                                    ),
+                                    isThreeLine: true,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // New Survey Sections (1.1, 1.2, 1.3) - Integrated with main save
+                        if (widget.heritageId != null) _buildSurveySections(),
+                        const SizedBox(height: 20),
+
+                        // (5) 1.1 조사 결과
+                        Section(
+                          title: '1.1 조사 결과',
+                          child: TextField(
+                            controller: _inspectionResult,
+                            decoration: const InputDecoration(
+                              labelText: '1.1 조사 결과를 입력하세요',
+                              hintText: '조사 결과를 상세히 기록하세요',
+                            ),
+                            maxLines: 4,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // (6) 관리사항
+                        Section(
+                          title: '관리사항',
+                          child: TextField(
+                            controller: _managementItems,
+                            decoration: const InputDecoration(
+                              labelText: '관리사항을 입력하세요',
+                              hintText: '관리해야 할 사항들을 기록하세요',
+                            ),
+                            maxLines: 4,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // (7) 손상부 종합
+                        Section(
+                          title: '손상부 종합',
+                          child: TextField(
+                            controller: _damageSummary,
+                            decoration: const InputDecoration(
+                              labelText: '손상부 종합 내용을 입력하세요',
+                              hintText: '손상부에 대한 종합적인 분석을 기록하세요',
+                            ),
+                            maxLines: 4,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // (8) 조사자 의견
+                        Section(
+                          title: '조사자 의견',
+                          child: TextField(
+                            controller: _investigatorOpinion,
+                            decoration: const InputDecoration(
+                              labelText: '조사자 의견을 입력하세요',
+                              hintText: '조사자의 전문적인 의견을 기록하세요',
+                            ),
+                            maxLines: 4,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // (9) 등급 분류
+                        Section(
+                          title: '등급 분류',
+                          child: TextField(
+                            controller: _gradeClassification,
+                            decoration: const InputDecoration(
+                              labelText: '등급 분류를 입력하세요',
+                              hintText: 'A, B, C, D, E, F 등급 중 선택하세요',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // (10) 기존이력
+                        Section(
+                          title: '기존이력',
+                          child: TextField(
+                            controller: _existingHistory,
+                            decoration: const InputDecoration(
+                              labelText: '기존이력을 입력하세요',
+                              hintText: '과거 조사 이력이나 관련 기록을 입력하세요',
+                            ),
+                            maxLines: 4,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // 저장 버튼
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: FilledButton.icon(
+                            onPressed: _isSaving ? null : _handleSave,
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save),
+                            label: Text(_isSaving ? '저장 중...' : '모든 데이터 저장'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xff003B7A),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // 이전/다음 네비게이션
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.pop(context),
+                                icon: const Icon(Icons.arrow_back),
+                                label: const Text('기본정보로'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: YellowNavButton(
+                                label: '다음(손상 예측/모델)',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  DamageModelScreen.route,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                ],
-              ),
-            ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
   // 보존이력 추가 다이얼로그
-  Future<Map<String, String>?> _showAddHistoryDialog(BuildContext context) async {
+  Future<Map<String, String>?> _showAddHistoryDialog(
+    BuildContext context,
+  ) async {
     final date = TextEditingController();
     final desc = TextEditingController();
 
@@ -972,9 +1016,13 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, {'date': date.text, 'desc': desc.text}),
+            onPressed: () =>
+                Navigator.pop(context, {'date': date.text, 'desc': desc.text}),
             child: const Text('추가'),
           ),
         ],
@@ -988,8 +1036,12 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
     Map<String, dynamic>? selectedPart,
   ) async {
     final partName = TextEditingController(text: selectedPart?['name'] ?? '');
-    final partNumber = TextEditingController(text: selectedPart != null ? '${selectedPart['id']}' : '');
-    final direction = TextEditingController(text: selectedPart?['direction'] ?? '');
+    final partNumber = TextEditingController(
+      text: selectedPart != null ? '${selectedPart['id']}' : '',
+    );
+    final direction = TextEditingController(
+      text: selectedPart?['direction'] ?? '',
+    );
     final type = TextEditingController();
     final severity = ValueNotifier<String>('중');
     final memo = TextEditingController();
@@ -1016,7 +1068,11 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.check_circle, color: Color(0xff003B7A), size: 20),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xff003B7A),
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           const Text(
                             '도면에서 선택된 부재',
@@ -1053,7 +1109,9 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: type,
-                decoration: const InputDecoration(labelText: '손상유형(예: 균열/박락/오염)'),
+                decoration: const InputDecoration(
+                  labelText: '손상유형(예: 균열/박락/오염)',
+                ),
               ),
               const SizedBox(height: 8),
               ValueListenableBuilder(
@@ -1079,7 +1137,10 @@ class _DetailSurveyScreenState extends State<DetailSurveyScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, {
               'partName': partName.text,

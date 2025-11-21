@@ -3,6 +3,7 @@
 // - 선택 상태를 State로 보관(_rule/_tflite/_llm)
 
 import 'package:flutter/material.dart';
+import 'package:my_cross_app/core/ui/widgets/ambient_background.dart';
 import 'package:my_cross_app/core/ui/widgets/section.dart';
 import 'package:my_cross_app/core/ui/widgets/yellow_nav_button.dart';
 import 'package:my_cross_app/core/widgets/responsive_page.dart';
@@ -31,13 +32,17 @@ class _DamageModelScreenState extends State<DamageModelScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBody: true,
       appBar: AppBar(title: const Text('손상 예측 / 적용모델 / 작동관리 방안')),
-      body: ResponsivePage(
-        maxWidth: 900.0,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: AmbientBackground(
+        child: SafeArea(
+          child: ResponsivePage(
+            maxWidth: 900.0,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 // ────────────────────────────────────────────────
                 // (1) 손상 예측: 예상 손상등급 (A~F 선택)
                 // ────────────────────────────────────────────────
@@ -132,8 +137,10 @@ class _DamageModelScreenState extends State<DamageModelScreen> {
                       ),
                     ),
                   ],
-                )
-          ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
