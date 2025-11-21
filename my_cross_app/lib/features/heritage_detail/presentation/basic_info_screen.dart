@@ -490,11 +490,22 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
       }
       _tabController = TabController(length: 3, vsync: this);
       _tabController!.addListener(() {
-        setState(() {
-          _currentTabIndex = _tabController!.index;
-        });
-        if (!_tabController!.indexIsChanging) {
-          _scrollToTabSection(_tabController!.index);
+        final newIndex = _tabController!.index;
+        if (_currentTabIndex != newIndex) {
+          setState(() {
+            _currentTabIndex = newIndex;
+          });
+          // 탭 전환 시 즉시 스크롤 (애니메이션과 함께)
+          if (!_tabController!.indexIsChanging) {
+            _scrollToTabSection(newIndex);
+          } else {
+            // 탭 전환 중에도 미리 스크롤 준비
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _currentTabIndex == newIndex) {
+                _scrollToTabSection(newIndex);
+              }
+            });
+          }
         }
       });
       _detailViewModel ??= HeritageDetailViewModel(
@@ -1257,12 +1268,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
 
       Scrollable.ensureVisible(
         key!.currentContext!,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         alignment: 0.08,
       ).then((_) {
         // 스크롤 완료 후 잠시 대기 후 감지 재개
-        Future.delayed(const Duration(milliseconds: 400), () {
+        Future.delayed(const Duration(milliseconds: 300), () {
           _isScrollingProgrammatically = false;
           // 스크롤 완료 후 섹션 위치 재확인
           _updateActiveSection();
@@ -1286,8 +1297,11 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         break;
     }
     if (firstSectionKey != null) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _scrollToSection(firstSectionKey!);
+      // 탭 전환 시 즉시 스크롤하되, 렌더링 완료를 위해 다음 프레임에서 실행
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _scrollToSection(firstSectionKey!);
+        }
       });
     }
   }
@@ -1999,7 +2013,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
   }
 
   // 조사자 의견 섹션 편집 가능 여부
-  bool _isInvestigatorOpinionEditable = false;
+  bool _isInvestigatorOpinionEditable = true;
   bool _isInvestigatorOpinionSaved = false;
 
   // 조사자 의견 섹션 (탭 1)
@@ -2043,14 +2057,14 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                   child: _buildPreservationItemsSection(context, vm),
                 ),
                 const SizedBox(height: 24),
-                // 관리사항
+                // 관리사항 (항상 편집 가능)
                 Container(
                   key: _sectionKeys['management'],
                   child: ManagementItemsCard(
                     sectionNumber: _sectionNumberFor('management'),
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
-                    isReadOnly: !_isInvestigatorOpinionEditable,
+                    isReadOnly: false, // 관리사항은 항상 편집 가능
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -4298,10 +4312,11 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                                 final imageHeight =
                                     (data['height'] as num?)?.toDouble() ??
                                     (data['imageHeight'] as num?)?.toDouble();
+                                // 프리뷰 이미지는 적절한 크기로 최적화
                                 final previewUrl = _proxyImageUrl(
                                   url,
-                                  maxWidth: 1280,
-                                  maxHeight: 960,
+                                  maxWidth: 800,
+                                  maxHeight: 600,
                                 );
                                 final timestamp =
                                     data['timestamp']?.toString() ??
@@ -5248,7 +5263,8 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
       );
     }
 
-    final proxiedUrl = _proxyImageUrl(url, maxWidth: 200, maxHeight: 150);
+    // 테이블 썸네일은 더 작은 크기로 최적화
+    final proxiedUrl = _proxyImageUrl(url, maxWidth: 150, maxHeight: 112);
     return Container(
       width: 60,
       height: 45,
@@ -6095,7 +6111,7 @@ class _HeritageHistoryDialogState extends State<HeritageHistoryDialog> {
     if (remoteUrl == null && imageBytes == null) return;
 
     final String? optimizedUrl = remoteUrl != null
-        ? _proxyImageUrl(remoteUrl, maxWidth: 1600, maxHeight: 1200)
+        ? _proxyImageUrl(remoteUrl, maxWidth: 1200, maxHeight: 900)
         : null;
 
     showDialog(
@@ -10279,7 +10295,7 @@ class _DeepDamageInspectionDialogState
             (widget.selectedDamage['url'] as String?) ??
             damageImageUrl;
     final String optimizedDamageUrl =
-        _proxyImageUrl(rawDamageUrl, maxWidth: 1600, maxHeight: 1200);
+        _proxyImageUrl(rawDamageUrl, maxWidth: 1200, maxHeight: 900);
 
     return Dialog(
       insetPadding: const EdgeInsets.all(20),

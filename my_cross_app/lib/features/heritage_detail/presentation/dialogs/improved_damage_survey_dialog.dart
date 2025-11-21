@@ -9,6 +9,8 @@ import 'package:my_cross_app/core/utils/input_validator.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
+import 'package:my_cross_app/data/damage_taxonomy.dart';
+import 'package:my_cross_app/data/management_action_presets.dart';
 import 'package:my_cross_app/features/heritage_detail/presentation/widgets/damage_bounding_box_overlay.dart';
 import 'package:my_cross_app/utils/position_options.dart';
 
@@ -25,7 +27,6 @@ enum SurveyStep {
 /// 사용자 경험 개선 사항:
 /// - 사진 비교 (전년도 vs 이번 조사)
 /// - 감지결과 명확한 표시
-/// - 손상 분류 섹션
 /// - 손상 등급 설명
 /// - 조사자 의견
 /// - 하단 고정 버튼
@@ -111,16 +112,16 @@ class _ImprovedDamageSurveyDialogState
   // 손상 등급 및 분류
   String _severityGrade = 'C';
   final Set<String> _selectedDamageTypes = {};
+  final Set<String> _selectedManagementActions = {};
 
   // 표준 손상 용어 전체 리스트 (문화유산청 기준)
-  final List<String> _standardDamageTerms = [
-    // 구조적 손상
-    '이격/이완', '기움', '들림', '축 변형', '침하', '유실',
-    // 물리적 손상
-    '탈락', '들뜸', '부러짐', '분리', '균열', '갈래', '박리/박락',
-    '처짐/휨', '비틀림', '돌아감',
-    // 생물·화학적 손상
-    '공동화', '천공', '변색', '부후', '식물생장', '표면 오염균',
+  final List<String> _standardDamageTerms = collectDamageTaxonomyTerms();
+
+  static const List<Color> _managementActionColors = [
+    Color(0xFF2563EB),
+    Color(0xFF9333EA),
+    Color(0xFF0EA5E9),
+    Color(0xFF047857),
   ];
 
   // 사용자 정의 손상 용어 (직접 추가된 것들)
@@ -587,6 +588,7 @@ class _ImprovedDamageSurveyDialogState
         'humidity': _humidityController.text.trim(),
         'severityGrade': _severityGrade,
         'damageTypes': _selectedDamageTypes.toList(),
+        'managementActions': _selectedManagementActions.toList(),
         // AI 감지 결과
         'detections': detections,
         'selectedLabel': _selectedLabel,
@@ -667,6 +669,7 @@ class _ImprovedDamageSurveyDialogState
         'humidity': _humidityController.text.trim(),
         'severityGrade': _severityGrade,
         'damageTypes': _selectedDamageTypes.toList(),
+        'managementActions': _selectedManagementActions.toList(),
         // AI 감지 결과
         'detections': _detections,
         'selectedLabel': _selectedLabel,
@@ -721,6 +724,7 @@ class _ImprovedDamageSurveyDialogState
         'humidity': _humidityController.text.trim(),
         'severityGrade': _severityGrade,
         'damageTypes': _selectedDamageTypes.toList(),
+        'managementActions': _selectedManagementActions.toList(),
         'selectedLabel': _selectedLabel,
         'selectedConfidence': _selectedConfidence,
         'autoGrade': _autoGrade,
@@ -942,6 +946,7 @@ class _ImprovedDamageSurveyDialogState
         autoGrade: _autoGrade,
         autoExplanation: _autoExplanation,
         selectedDamageTypes: _selectedDamageTypes.toList(),
+        managementActions: _selectedManagementActions.toList(),
       );
     }
 
@@ -1541,13 +1546,17 @@ class _ImprovedDamageSurveyDialogState
         _buildInfoSection(),
         const SizedBox(height: 24),
 
-        // 5️⃣ 손상 분류
-        _buildSectionTitle('손상 분류', Icons.category, headerColor),
+        // 5️⃣ 손상 계통도
+        _buildSectionTitle(
+          '손상 계통도',
+          Icons.account_tree_outlined,
+          headerColor,
+        ),
         const SizedBox(height: 12),
-        _buildClassificationSection(),
+        _buildDamageTaxonomySection(),
         const SizedBox(height: 24),
 
-        // 5-1️⃣ 직접 추가 (표준 손상 용어 전체 선택)
+        // 5-2️⃣ 직접 추가 (표준 손상 용어 전체 선택)
         _buildSectionTitle(
           '직접 추가 (표준 손상 용어)',
           Icons.add_circle_outline,
@@ -1563,7 +1572,17 @@ class _ImprovedDamageSurveyDialogState
         _buildGradeSection(accentBlue),
         const SizedBox(height: 24),
 
-        // 7️⃣ 조사자 의견
+        // 7️⃣ 관리사항 선택
+        _buildSectionTitle(
+          '관리사항 선택',
+          Icons.checklist_rounded,
+          headerColor,
+        ),
+        const SizedBox(height: 12),
+        _buildManagementActionSection(accentBlue),
+        const SizedBox(height: 24),
+
+        // 8️⃣ 조사자 의견
         _buildSectionTitle('조사자 의견', Icons.comment, headerColor),
         const SizedBox(height: 12),
         TextFormField(
@@ -1677,6 +1696,25 @@ class _ImprovedDamageSurveyDialogState
               const SizedBox(height: 12),
               _buildDetectionResult(accentBlue),
               const SizedBox(height: 20),
+
+              if (_selectedManagementActions.isNotEmpty) ...[
+                _buildSectionTitle('선택된 관리사항', Icons.checklist_rounded, headerColor),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _selectedManagementActions
+                      .map((action) => Chip(
+                            label: Text(action),
+                            backgroundColor: accentBlue.withValues(alpha: 0.1),
+                            side: BorderSide(
+                              color: accentBlue.withValues(alpha: 0.4),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // 손상 등급
               if (_autoGrade != null) ...[
@@ -2569,62 +2607,391 @@ class _ImprovedDamageSurveyDialogState
     );
   }
 
-  Widget _buildClassificationSection() {
+
+  // 손상 계통도 기반 선택 UI
+  Widget _buildDamageTaxonomySection() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildDamageCategory('구조적 손상', ['균열', '이격', '탈락', '기울어짐', '변형']),
-          const Divider(height: 24),
-          _buildDamageCategory('물리적 손상', ['부식', '박리', '파손', '변색', '침식']),
-          const Divider(height: 24),
-          _buildDamageCategory('생물·화학적 손상', ['백화', '오염', '곰팡이', '이끼', '생물 부착']),
-          const Divider(height: 24),
-          _buildDamageCategory('재료적 손상', ['재료 분리', '표면 박락', '내부 붕괴']),
-          const Divider(height: 24),
-          _buildDamageCategory('기타 손상', ['낙서', '결손', '외부 충격']),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF2FF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.account_tree_outlined,
+                  color: Color(0xFF1E3A8A),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '계통도를 따라 손상 유형을 선택하면 표준 용어가 자동으로 반영됩니다.',
+                    style: TextStyle(
+                      color: Color(0xFF1E3A8A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...damageTaxonomyGroups
+              .map((group) => _buildTaxonomyGroupTile(group))
+              .toList(),
         ],
       ),
     );
   }
 
-  Widget _buildDamageCategory(String category, List<String> types) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          category,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+  Widget _buildTaxonomyGroupTile(DamageTaxonomyGroup group) {
+    final accent = Color(group.accentColor);
+    int selectedCount = 0;
+    int totalCount = 0;
+    for (final category in group.categories) {
+      totalCount += category.terms.length;
+      for (final term in category.terms) {
+        if (_selectedDamageTypes.contains(term)) {
+          selectedCount++;
+        }
+      }
+    }
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: accent.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(10),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: types.map((type) {
-            final isSelected = _selectedDamageTypes.contains(type);
-            return FilterChip(
-              label: Text(type),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  if (selected) {
-                    _selectedDamageTypes.add(type);
-                  } else {
-                    _selectedDamageTypes.remove(type);
-                  }
-                });
-              },
-            );
-          }).toList(),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          childrenPadding: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 12,
+          ),
+          initiallyExpanded: selectedCount > 0,
+          title: Row(
+            children: [
+              Container(
+                width: 6,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  group.name,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  selectedCount > 0
+                      ? '선택 $selectedCount/$totalCount'
+                      : '총 $totalCount종',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(left: 16, top: 4),
+            child: Text(
+              group.description,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          children: group.categories
+              .map((category) => _buildTaxonomyCategoryTile(category, accent))
+              .toList(),
         ),
-      ],
+      ),
     );
+  }
+
+  Widget _buildTaxonomyCategoryTile(
+    DamageTaxonomyCategory category,
+    Color accentColor,
+  ) {
+    final hasSelection = category.terms.any(_selectedDamageTypes.contains);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 12, right: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            category.name,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: hasSelection ? accentColor : const Color(0xFF111827),
+            ),
+          ),
+          if (category.description != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              category.description!,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: category.terms
+                .map((term) => _buildTaxonomyTermChip(term, accentColor))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaxonomyTermChip(
+    String term,
+    Color accentColor,
+  ) {
+    final isSelected = _selectedDamageTypes.contains(term);
+    return FilterChip(
+      label: Text(term),
+      selected: isSelected,
+      onSelected: (_) => setState(() => _toggleDamageType(term)),
+      selectedColor: accentColor.withOpacity(0.15),
+      checkmarkColor: accentColor,
+      side: BorderSide(
+        color: isSelected ? accentColor : const Color(0xFFE5E7EB),
+      ),
+      backgroundColor: Colors.white,
+      labelStyle: TextStyle(
+        color: isSelected ? accentColor : const Color(0xFF4B5563),
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  void _toggleDamageType(String term) {
+    if (_selectedDamageTypes.contains(term)) {
+      _selectedDamageTypes.remove(term);
+    } else {
+      _selectedDamageTypes.add(term);
+    }
+  }
+
+
+  Widget _buildManagementActionSection(Color accentBlue) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.checklist_rounded,
+                  color: Color(0xFF075985),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '필요한 관리 조치를 선택하면 조사자 의견에 참고용으로 반영됩니다.',
+                    style: TextStyle(
+                      color: const Color(0xFF075985),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...List.generate(managementActionCategories.length, (index) {
+            final category = managementActionCategories[index];
+            final accent = _managementActionColors[
+              index % _managementActionColors.length
+            ];
+            final hasSelection = category.actions
+                .any(_selectedManagementActions.contains);
+            return _buildManagementActionCategoryCard(
+              category: category,
+              accentColor: accent,
+              initiallyExpanded: hasSelection,
+            );
+          }),
+          if (_selectedManagementActions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.bookmark_added, size: 18, color: Color(0xFF1E3A8A)),
+                const SizedBox(width: 6),
+                Text(
+                  '선택된 관리사항 (${_selectedManagementActions.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedManagementActions
+                  .map((action) => Chip(
+                        label: Text(action),
+                        backgroundColor: accentBlue.withValues(alpha: 0.08),
+                        side: BorderSide(color: accentBlue.withValues(alpha: 0.4)),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _appendManagementActionsToOpinion,
+                icon: const Icon(Icons.playlist_add, size: 18),
+                label: const Text('조사자 의견에 추가'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagementActionCategoryCard({
+    required ManagementActionCategory category,
+    required Color accentColor,
+    bool initiallyExpanded = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        childrenPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        initiallyExpanded: initiallyExpanded,
+        title: Text(
+          category.title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: accentColor,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            category.description,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+        ),
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: category.actions
+                .map((action) => _buildManagementActionChip(action, accentColor))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagementActionChip(String action, Color accentColor) {
+    final isSelected = _selectedManagementActions.contains(action);
+    return FilterChip(
+      label: Text(action),
+      selected: isSelected,
+      onSelected: (_) {
+        setState(() {
+          if (isSelected) {
+            _selectedManagementActions.remove(action);
+          } else {
+            _selectedManagementActions.add(action);
+          }
+        });
+      },
+      selectedColor: accentColor.withValues(alpha: 0.15),
+      checkmarkColor: accentColor,
+      side: BorderSide(
+        color: isSelected ? accentColor : const Color(0xFFE5E7EB),
+      ),
+      backgroundColor: Colors.white,
+      labelStyle: TextStyle(
+        color: isSelected ? accentColor : const Color(0xFF4B5563),
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  void _appendManagementActionsToOpinion() {
+    if (_selectedManagementActions.isEmpty) return;
+    final actions = _selectedManagementActions.toList()..sort();
+    final addition = '관리 조치: ' + actions.join(', ');
+    final current = _opinionController.text.trim();
+    final merged = current.isEmpty ? addition : '${current}\n$addition';
+    setState(() {
+      _opinionController
+        ..text = merged
+        ..selection = TextSelection.fromPosition(
+          TextPosition(offset: merged.length),
+        );
+    });
   }
 
   // 직접 추가 섹션 - 표준 손상 용어 전체 선택
@@ -2659,7 +3026,7 @@ class _ImprovedDamageSurveyDialogState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '표준 손상 용어를 직접 선택하거나, 새로운 손상 유형을 추가할 수 있습니다.',
+                    '계통도 또는 아래 목록에서 표준 손상 용어를 선택하거나, 새로운 손상 유형을 추가할 수 있습니다.',
                     style: TextStyle(
                       color: const Color(0xFF1E2A44),
                       fontSize: 13,
@@ -2917,6 +3284,7 @@ class DamageDetectionResult {
     this.autoGrade,
     this.autoExplanation,
     this.selectedDamageTypes,
+    this.managementActions,
   });
 
   final Uint8List imageBytes;
@@ -2932,6 +3300,7 @@ class DamageDetectionResult {
   final String? autoGrade;
   final String? autoExplanation;
   final List<String>? selectedDamageTypes;
+  final List<String>? managementActions;
 
   Map<String, String?> toDetailInputs() {
     return {
@@ -2939,6 +3308,7 @@ class DamageDetectionResult {
       'humidity': humidity,
       'part': damagePart,
       'damageTypes': selectedDamageTypes?.join(', '),
+      'managementActions': managementActions?.join(', '),
     };
   }
 }

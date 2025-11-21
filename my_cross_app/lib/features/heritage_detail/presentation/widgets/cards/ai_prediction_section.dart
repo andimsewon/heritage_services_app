@@ -110,7 +110,15 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
             const SizedBox(height: 20),
           ],
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
             child: _buildContent(context),
           ),
         ],

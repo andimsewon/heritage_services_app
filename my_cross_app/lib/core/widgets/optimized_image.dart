@@ -144,19 +144,21 @@ class _OptimizedImageState extends State<OptimizedImage>
       kIsWeb ? 2.5 : 3.0,
     );
 
+    // 웹 환경에서는 더 작은 크기로 메모리 사용량 감소 및 로딩 속도 향상
     final baseCacheWidth = widget.maxWidth ?? (widget.width?.toInt() ?? 1200);
     final baseCacheHeight =
         widget.maxHeight ?? (widget.height?.toInt() ?? 1200);
 
     final memCacheWidth = kIsWeb
-        ? math.min(baseCacheWidth, 800)
+        ? math.min(baseCacheWidth, 600)  // 800 -> 600으로 감소
         : math.min(baseCacheWidth, 1200);
     final memCacheHeight = kIsWeb
-        ? math.min(baseCacheHeight, 800)
+        ? math.min(baseCacheHeight, 600)  // 800 -> 600으로 감소
         : math.min(baseCacheHeight, 1200);
 
     const minDecodedDimension = 120;
-    final diskCacheCap = kIsWeb ? 1600 : 2200;
+    // 웹 환경에서는 디스크 캐시 크기도 줄여서 로딩 속도 향상
+    final diskCacheCap = kIsWeb ? 1200 : 2200;  // 1600 -> 1200으로 감소
     final pixelAwareWidth = math.max(
       minDecodedDimension,
       math.min(diskCacheCap, (memCacheWidth * devicePixelRatio).round()),
@@ -166,12 +168,14 @@ class _OptimizedImageState extends State<OptimizedImage>
       math.min(diskCacheCap, (memCacheHeight * devicePixelRatio).round()),
     );
 
+    // 웹 환경에서는 더 낮은 품질로 빠른 로딩
+    final defaultQuality = kIsWeb ? 65 : 82;
     final optimizedUrl = widget.enableProxyOptimization
         ? ImageUrlHelper.buildOptimizedUrl(
             sanitizedUrl,
             maxWidth: pixelAwareWidth,
             maxHeight: pixelAwareHeight,
-            quality: widget.proxyImageQuality ?? (kIsWeb ? 70 : 82),
+            quality: widget.proxyImageQuality ?? defaultQuality,
           )
         : sanitizedUrl;
 
@@ -221,8 +225,12 @@ class _OptimizedImageState extends State<OptimizedImage>
           ),
         );
       },
-      httpHeaders: const {'Cache-Control': 'max-age=31536000'},
+      httpHeaders: const {
+        'Cache-Control': 'max-age=31536000, public',
+        'Accept': 'image/webp,image/avif,image/*,*/*;q=0.8',
+      },
       useOldImageOnUrlChange: true,
+      cacheKey: optimizedUrl,  // 명시적 캐시 키 설정
       errorListener: (exception) {
         debugPrint('이미지 로딩 오류: $exception');
       },

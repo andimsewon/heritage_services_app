@@ -16,8 +16,8 @@ router = APIRouter()
 
 # 간단한 메모리 캐시 (LRU 방식)
 _image_cache = {}
-_cache_max_size = 100  # 최대 캐시 항목 수
-_cache_ttl = 3600  # 1시간 (초)
+_cache_max_size = 300  # 최대 캐시 항목 수 (100 -> 300으로 증가)
+_cache_ttl = 7200  # 2시간 (초) (1시간 -> 2시간으로 증가)
 
 
 def _get_cache_key(url: str) -> str:
@@ -131,8 +131,8 @@ async def proxy_image(url: str, maxWidth: Optional[int] = None, maxHeight: Optio
                     # 이미지 처리 실패 시 원본 사용
                     print(f"[Image Proxy] 이미지 처리 실패, 원본 사용: {e}")
             
-            # 캐시에 저장
-            if len(image_data) < 5 * 1024 * 1024:  # 5MB 이하만 캐시
+            # 캐시에 저장 (크기 제한 완화)
+            if len(image_data) < 10 * 1024 * 1024:  # 10MB 이하만 캐시 (5MB -> 10MB로 증가)
                 _image_cache[cache_key] = (image_data, time.time())
             
             # 이미지 데이터를 스트리밍으로 반환
