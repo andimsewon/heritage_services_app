@@ -294,50 +294,63 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   }
 
   Widget _buildInspectionTable() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          // 테이블 헤더
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
-            ),
-            child: const Row(
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    '분류',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    '내용',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(8),
           ),
+          child: Column(
+            children: [
+              // 테이블 헤더
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                ),
+                child: isMobile
+                    ? const Text(
+                        '조사결과',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Color(0xFF111827),
+                        ),
+                      )
+                    : const Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: Text(
+                              '분류',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: Color(0xFF111827),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              '내용',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: Color(0xFF111827),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
           // 구조부 섹션
           _buildTableSection('구조부', [
             _buildTableRow('기단부', _foundationController),
@@ -358,8 +371,10 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
             _buildTableRow('조사일시', _investigationDateController),
             _buildTableRow('조사자', _investigatorController),
           ]),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -379,29 +394,42 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF9FAFB),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 600;
+            
+            return Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(8),
+                      topRight: Radius.circular(8),
+                    ),
+                  ),
+                  child: isMobile
+                      ? const Text(
+                          '보존사항',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: Color(0xFF111827),
+                          ),
+                        )
+                      : Row(
+                          children: [
+                            _buildHeaderCell('구분', _preservationCategoryWidth),
+                            SizedBox(width: gutter),
+                            _buildHeaderCell('부재', _preservationComponentWidth),
+                            SizedBox(width: gutter),
+                            _buildHeaderCell('조사내용(현상)', _preservationSurveyWidth),
+                            SizedBox(width: gutter),
+                            _buildHeaderCell('사진/위치', _preservationPhotoWidth),
+                          ],
+                        ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  _buildHeaderCell('구분', _preservationCategoryWidth),
-                  SizedBox(width: gutter),
-                  _buildHeaderCell('부재', _preservationComponentWidth),
-                  SizedBox(width: gutter),
-                  _buildHeaderCell('조사내용(현상)', _preservationSurveyWidth),
-                  SizedBox(width: gutter),
-                  _buildHeaderCell('사진/위치', _preservationPhotoWidth),
-                ],
-              ),
-            ),
             // ① 기단부 섹션
             _buildPreservationTableSection('① 기단부', [
               _buildPreservationTableRow(
@@ -495,7 +523,9 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                 _otherSpecialNotesPhotoController,
               ),
             ]),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -545,73 +575,86 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
     TextEditingController photoController, {
     String? surveyContent,
   }) {
-    const double gutter = 12;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        const double gutter = 12;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildBodyTextCell(category, _preservationCategoryWidth),
-          SizedBox(width: gutter),
-          _buildBodyTextCell(component, _preservationComponentWidth),
-          SizedBox(width: gutter),
-          SizedBox(
-            width: _preservationSurveyWidth,
-            child: TextField(
-              controller: surveyController,
-              decoration: InputDecoration(
-                hintText: surveyContent ?? '내용을 입력하세요',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFF1E2A44)),
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.all(8),
-                fillColor: Colors.white,
-                filled: true,
-              ),
-              maxLines: surveyContent != null ? 5 : 2,
-              readOnly: false,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
+        if (isMobile) {
+          // 모바일: 세로 스택
+          return Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              borderRadius: BorderRadius.circular(8),
             ),
-          ),
-          SizedBox(width: gutter),
-          SizedBox(
-            width: _preservationPhotoWidth,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (category.isNotEmpty) ...[
+                  Text(
+                    category,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Text(
+                  component,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: surveyController,
+                  decoration: InputDecoration(
+                    hintText: surveyContent ?? '내용을 입력하세요',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.all(8),
+                    fillColor: Colors.white,
+                    filled: true,
+                  ),
+                  maxLines: surveyContent != null ? 5 : 2,
+                  readOnly: false,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: widget.onChanged != null ? () => _pickImage(_getPhotoKey(photoController)) : null,
-                    icon: const Icon(Icons.camera_alt, size: 14),
+                    icon: const Icon(Icons.camera_alt, size: 16),
                     label: const Text(
                       '사진 첨부',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      style: TextStyle(fontSize: 11),
+                      style: TextStyle(fontSize: 12),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E2A44),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
-                        vertical: 6,
-                        horizontal: 8,
+                        vertical: 8,
+                        horizontal: 12,
                       ),
-                      minimumSize: const Size(0, 32),
+                      minimumSize: const Size(0, 40),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -645,15 +688,124 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      softWrap: false,
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
+          );
+        } else {
+          // 데스크톱: 가로 배치
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBodyTextCell(category, _preservationCategoryWidth),
+                SizedBox(width: gutter),
+                _buildBodyTextCell(component, _preservationComponentWidth),
+                SizedBox(width: gutter),
+                SizedBox(
+                  width: _preservationSurveyWidth,
+                  child: TextField(
+                    controller: surveyController,
+                    decoration: InputDecoration(
+                      hintText: surveyContent ?? '내용을 입력하세요',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.all(8),
+                      fillColor: Colors.white,
+                      filled: true,
+                    ),
+                    maxLines: surveyContent != null ? 5 : 2,
+                    readOnly: false,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
+                  ),
+                ),
+                SizedBox(width: gutter),
+                SizedBox(
+                  width: _preservationPhotoWidth,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: widget.onChanged != null ? () => _pickImage(_getPhotoKey(photoController)) : null,
+                          icon: const Icon(Icons.camera_alt, size: 14),
+                          label: const Text(
+                            '사진 첨부',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: TextStyle(fontSize: 11),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E2A44),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 8,
+                            ),
+                            minimumSize: const Size(0, 32),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () => _showImageDialog(_getPhotoKey(photoController)),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFD1D5DB)),
+                            borderRadius: BorderRadius.circular(6),
+                            color: photoController.text.isNotEmpty
+                                ? const Color(0xFFF0F9FF)
+                                : Colors.white,
+                          ),
+                          child: Text(
+                            photoController.text.isNotEmpty ? '사진 보기' : '사진 없음',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: photoController.text.isNotEmpty
+                                  ? const Color(0xFF1E2A44)
+                                  : Colors.grey.shade600,
+                              fontWeight: photoController.text.isNotEmpty
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 
@@ -723,63 +875,126 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
   }
 
   Widget _buildTableRow(String label, TextEditingController controller) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 1,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-                color: Color(0xFF374151),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+        
+        if (isMobile) {
+          // 모바일: 세로 스택
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 3,
-            child: TextField(
-              controller: controller,
-              enabled: widget.onChanged != null,
-              decoration: InputDecoration(
-                hintText: '내용을 입력하세요',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF374151),
+                  ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  enabled: widget.onChanged != null,
+                  decoration: InputDecoration(
+                    hintText: '내용을 입력하세요',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                    ),
+                    disabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.all(8),
+                    fillColor: widget.onChanged != null ? Colors.white : Colors.grey.shade50,
+                    filled: true,
+                  ),
+                  maxLines: label == '특기사항' || label == '조사 종합의견' ? 4 : 2,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: widget.onChanged != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+                  ),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFF1E2A44)),
-                ),
-                disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.all(8),
-                fillColor: widget.onChanged != null ? Colors.white : Colors.grey.shade50,
-                filled: true,
-              ),
-              maxLines: label == '특기사항' || label == '조사 종합의견' ? 4 : 2,
-              style: TextStyle(
-                fontSize: 13,
-                color: widget.onChanged != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
-              ),
+              ],
             ),
-          ),
-        ],
-      ),
+          );
+        } else {
+          // 데스크톱: 가로 배치
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: controller,
+                    enabled: widget.onChanged != null,
+                    decoration: InputDecoration(
+                      hintText: '내용을 입력하세요',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: const BorderSide(color: Color(0xFF1E2A44)),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.all(8),
+                      fillColor: widget.onChanged != null ? Colors.white : Colors.grey.shade50,
+                      filled: true,
+                    ),
+                    maxLines: label == '특기사항' || label == '조사 종합의견' ? 4 : 2,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: widget.onChanged != null ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 

@@ -299,58 +299,130 @@ class _SurveySectionsPanelState extends State<SurveySectionsPanel> {
               bottom: BorderSide(color: Colors.grey[300]!),
             ),
           ),
-          child: Row(
-            children: [
-              if (_isReadOnly)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[100],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    stringsKo['read_only_banner']!,
-                    style: TextStyle(
-                      color: Colors.orange[800],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 600;
+              
+              if (isCompact) {
+                // 모바일: 세로 배치
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_isReadOnly)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          stringsKo['read_only_banner']!,
+                          style: TextStyle(
+                            color: Colors.orange[800],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    if (_isReadOnly) const SizedBox(height: 8),
+                    Text(
+                      '현재 연도: $_activeYear',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ),
-              const Spacer(),
-              Text(
-                '현재 연도: $_activeYear',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 16),
-              OutlinedButton.icon(
-                onPressed: _showYearHistory,
-                icon: const Icon(Icons.history),
-                label: Text(stringsKo['history']!),
-              ),
-              const SizedBox(width: 8),
-              if (_activeYear == widget.currentYear)
-                OutlinedButton.icon(
-                  onPressed: _importFromYear,
-                  icon: const Icon(Icons.download),
-                  label: Text(stringsKo['import_prev']!),
-                ),
-              const SizedBox(width: 8),
-              if (!_isReadOnly)
-                FilledButton.icon(
-                  onPressed: _hasChanges ? _save : null,
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(stringsKo['save']!),
-                ),
-            ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _showYearHistory,
+                          icon: const Icon(Icons.history, size: 16),
+                          label: Text(stringsKo['history']!),
+                        ),
+                        if (_activeYear == widget.currentYear)
+                          OutlinedButton.icon(
+                            onPressed: _importFromYear,
+                            icon: const Icon(Icons.download, size: 16),
+                            label: Text(stringsKo['import_prev']!),
+                          ),
+                        if (!_isReadOnly)
+                          FilledButton.icon(
+                            onPressed: _hasChanges ? _save : null,
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.save, size: 16),
+                            label: Text(stringsKo['save']!),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              } else {
+                // 데스크톱: 가로 배치
+                return Row(
+                  children: [
+                    if (_isReadOnly)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          stringsKo['read_only_banner']!,
+                          style: TextStyle(
+                            color: Colors.orange[800],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    if (_isReadOnly) const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        '현재 연도: $_activeYear',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    OutlinedButton.icon(
+                      onPressed: _showYearHistory,
+                      icon: const Icon(Icons.history),
+                      label: Text(stringsKo['history']!),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_activeYear == widget.currentYear)
+                      OutlinedButton.icon(
+                        onPressed: _importFromYear,
+                        icon: const Icon(Icons.download),
+                        label: Text(stringsKo['import_prev']!),
+                      ),
+                    if (_activeYear == widget.currentYear) const SizedBox(width: 8),
+                    if (!_isReadOnly)
+                      FilledButton.icon(
+                        onPressed: _hasChanges ? _save : null,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(stringsKo['save']!),
+                      ),
+                  ],
+                );
+              }
+            },
           ),
         ),
         

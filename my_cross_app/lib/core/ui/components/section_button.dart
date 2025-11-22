@@ -114,23 +114,28 @@ class SectionButtonGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final row = Row(
-          mainAxisAlignment: alignment,
-          children: [
-            for (int i = 0; i < buttons.length; i++) ...[
-              buttons[i],
-              if (i < buttons.length - 1) SizedBox(width: spacing),
+        final isMobile = constraints.maxWidth < 600;
+        
+        if (isMobile) {
+          // 모바일: Wrap을 사용하여 자동 줄바꿈
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            alignment: WrapAlignment.start,
+            children: buttons,
+          );
+        } else {
+          // 데스크톱: 가로 배치 (스크롤 없이, 버튼 크기 유지)
+          return Row(
+            mainAxisAlignment: alignment,
+            children: [
+              for (int i = 0; i < buttons.length; i++) ...[
+                buttons[i],
+                if (i < buttons.length - 1) SizedBox(width: spacing),
+              ],
             ],
-          ],
-        );
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: row,
-          ),
-        );
+          );
+        }
       },
     );
   }

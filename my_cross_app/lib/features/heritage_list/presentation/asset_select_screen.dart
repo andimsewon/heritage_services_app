@@ -805,29 +805,67 @@ class _AssetSelectScreenState extends State<AssetSelectScreen> {
                               context,
                             ),
                             const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Text(
-                                  '총 ${_formatCount(_totalCount)}건',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  child: _showCustomOnly
-                                      ? const _InlineBadge(label: '내 추가만 보기')
-                                      : const SizedBox.shrink(),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  _totalPages == 0
-                                      ? '페이지 0 / 0'
-                                      : '페이지 $_page / $_totalPages',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isMobile = constraints.maxWidth < 600;
+                                
+                                if (isMobile) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            '총 ${_formatCount(_totalCount)}건',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          AnimatedSwitcher(
+                                            duration: const Duration(milliseconds: 200),
+                                            child: _showCustomOnly
+                                                ? const _InlineBadge(label: '내 추가만 보기')
+                                                : const SizedBox.shrink(),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _totalPages == 0
+                                            ? '페이지 0 / 0'
+                                            : '페이지 $_page / $_totalPages',
+                                        style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  );
+                                } else {
+                                  return Row(
+                                    children: [
+                                      Text(
+                                        '총 ${_formatCount(_totalCount)}건',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 200),
+                                        child: _showCustomOnly
+                                            ? const _InlineBadge(label: '내 추가만 보기')
+                                            : const SizedBox.shrink(),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        _totalPages == 0
+                                            ? '페이지 0 / 0'
+                                            : '페이지 $_page / $_totalPages',
+                                        style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  );
+                                }
+                              },
                             ),
                             const SizedBox(height: 6),
                             AnimatedSwitcher(

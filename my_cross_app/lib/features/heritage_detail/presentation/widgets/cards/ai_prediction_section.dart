@@ -59,35 +59,42 @@ class _AIPredictionSectionState extends State<AIPredictionSection> {
             ],
           ),
           const SizedBox(height: 16),
-          GridView.count(
-            shrinkWrap: true,
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 2.6,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              _aiButton(
-                'AI 손상등급 예측',
-                Icons.auto_awesome,
-                _PredictionTab.grade,
-              ),
-              _aiButton(
-                '손상지도 생성',
-                Icons.map_outlined,
-                _PredictionTab.map,
-              ),
-              _aiButton(
-                '기후변화 대응',
-                Icons.cloud_outlined,
-                _PredictionTab.mitigation,
-              ),
-              _aiButton(
-                '보고서 생성',
-                Icons.description_outlined,
-                _PredictionTab.report,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 600;
+              final crossAxisCount = isMobile ? 1 : 2;
+              
+              return GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: isMobile ? 4.0 : 2.6,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _aiButton(
+                    'AI 손상등급 예측',
+                    Icons.auto_awesome,
+                    _PredictionTab.grade,
+                  ),
+                  _aiButton(
+                    '손상지도 생성',
+                    Icons.map_outlined,
+                    _PredictionTab.map,
+                  ),
+                  _aiButton(
+                    '기후변화 대응',
+                    Icons.cloud_outlined,
+                    _PredictionTab.mitigation,
+                  ),
+                  _aiButton(
+                    '보고서 생성',
+                    Icons.description_outlined,
+                    _PredictionTab.report,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           if (widget.state.loading) ...[

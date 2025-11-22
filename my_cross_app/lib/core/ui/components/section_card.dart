@@ -52,79 +52,139 @@ class SectionCard extends StatelessWidget {
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       padding: padding ?? const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 600;
+          
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Column(
+              if (isMobile && action != null) ...[
+                // 모바일: 제목과 액션을 세로로 배치
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (sectionNumber != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E2A44).withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$sectionNumber',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: const Color(0xFF1E2A44),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: titleStyle,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ],
+                ),
+                if (sectionDescription != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    sectionDescription!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF6B7280),
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    softWrap: true,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: action!,
+                ),
+              ] else ...[
+                // 데스크톱: 가로 배치
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        if (sectionNumber != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E2A44).withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '$sectionNumber',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: const Color(0xFF1E2A44),
-                                fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              if (sectionNumber != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1E2A44).withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    '$sectionNumber',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: const Color(0xFF1E2A44),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: titleStyle,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                ),
                               ),
+                            ],
+                          ),
+                          if (sectionDescription != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              sectionDescription!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFF6B7280),
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                              softWrap: true,
                             ),
-                          ),
-                          const SizedBox(width: 10),
+                          ],
                         ],
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: titleStyle,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                            softWrap: false,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                    if (sectionDescription != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        sectionDescription!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF6B7280),
-                          fontSize: 12,
+                    if (action != null) ...[
+                      const SizedBox(width: 12),
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: action!,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                        softWrap: true,
                       ),
                     ],
                   ],
                 ),
-              ),
-              if (action != null) ...[
-                const SizedBox(width: 12),
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: action!,
-                  ),
-                ),
               ],
+              const SizedBox(height: 14),
+              child,
             ],
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
+          );
+        },
       ),
     );
   }
