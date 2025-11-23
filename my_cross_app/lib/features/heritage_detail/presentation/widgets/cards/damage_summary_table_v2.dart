@@ -259,10 +259,10 @@ class DamageSummaryTableV2 extends StatelessWidget {
       return input == 'O' ? 'O' : 'X';
     }
 
-    final top = normalize(cell.positionTop);
-    final middle = normalize(cell.positionMiddle);
-    final bottom = normalize(cell.positionBottom);
-    return '$top/$middle/$bottom';
+    final left = normalize(cell.positionLeft);
+    final center = normalize(cell.positionCenter);
+    final right = normalize(cell.positionRight);
+    return '$left/$center/$right';
   }
 
   Widget _tableCell(

@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:my_cross_app/core/services/firebase_service.dart';
-import 'damage_grade_calculator.dart';
+import 'package:my_cross_app/core/services/damage_summary_service.dart';
+import 'package:my_cross_app/models/damage_summary_models.dart';
 
-/// 손상부 종합 테이블 (O/X + 손상등급 통합)
-class DamageSummaryTable extends StatefulWidget {
+/// 기존 DamageAssessmentSection에서 사용하는 래퍼 위젯
+class DamageSummaryTable extends StatelessWidget {
   const DamageSummaryTable({
     super.key,
     required this.heritageId,
@@ -16,121 +15,134 @@ class DamageSummaryTable extends StatefulWidget {
   final int? sectionNumber;
 
   @override
-  State<DamageSummaryTable> createState() => _DamageSummaryTableState();
+  Widget build(BuildContext context) {
+    return DamageSummaryPage(
+      heritageId: heritageId,
+      sectionNumber: sectionNumber,
+    );
+  }
 }
 
-class _DamageSummaryTableState extends State<DamageSummaryTable> {
-  final FirebaseService _firebaseService = FirebaseService();
-  Timer? _debounceTimer;
-  
-  // 데이터
-  final Map<String, Map<String, String>> _oxTable = {}; // rowId -> {columnId -> "O/X/O"}
-  final Map<String, Map<String, String>> _damageGrades = {}; // rowId -> {visual: "A", advanced: "B"}
-  final List<String> _rowIds = []; // 행 순서 유지
-  
-  // 컨트롤러
-  final Map<String, TextEditingController> _oxControllers = {};
-  final Map<String, FocusNode> _oxFocusNodes = {};
-  final ScrollController _horizontalScrollController = ScrollController();
-  final ScrollController _verticalScrollController = ScrollController();
-  
-  bool _isLoading = true;
-  bool _isSaving = false;
-  String? _errorMessage;
-  bool _autoGradeEnabled = true;
+/// 손상부 종합 요약 페이지
+class DamageSummaryPage extends StatefulWidget {
+  const DamageSummaryPage({
+    super.key,
+    required this.heritageId,
+    this.sectionNumber,
+  });
 
-  // 컬럼 정의 (DamageGradeCalculator에서 가져오기)
-  List<String> get _structuralColumns => DamageGradeCalculator.getStructuralColumns();
-  List<String> get _physicalColumns => DamageGradeCalculator.getPhysicalColumns();
-  List<String> get _biochemicalColumns => DamageGradeCalculator.getBiochemicalColumns();
-  List<String> get _allColumns => DamageGradeCalculator.getAllColumns();
+  final String heritageId;
+  final int? sectionNumber;
+
+  @override
+  State<DamageSummaryPage> createState() => _DamageSummaryPageState();
+}
+
+class _DamageSummaryPageState extends State<DamageSummaryPage> {
+  final DamageSummaryService _summaryService = DamageSummaryService();
+
+  final Map<String, Map<String, String>> _summary = {};
+  final Map<String, Map<String, TextEditingController>> _controllers = {};
+  final Map<String, Map<String, bool>> _invalidCells = {};
+
+  Map<String, String> _grades = const {'visual': 'A', 'advanced': 'A'};
+
+  bool _isLoading = false;
+  bool _isSaving = false;
+  bool _isAutoFilling = false;
+  bool _hasChanges = false;
+  String? _errorMessage;
+  String? _statusMessage;
+  Color _statusColor = Colors.blueGrey;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _initializeState();
+    if (widget.heritageId.isNotEmpty) {
+      _loadInitialData();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DamageSummaryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.heritageId != widget.heritageId) {
+      _disposeControllers();
+      _initializeState();
+      if (widget.heritageId.isNotEmpty) {
+        _loadInitialData();
+      }
+    }
   }
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
     _disposeControllers();
-    _horizontalScrollController.dispose();
-    _verticalScrollController.dispose();
     super.dispose();
   }
 
-  void _disposeControllers() {
-    for (final controller in _oxControllers.values) {
-      controller.dispose();
+  void _initializeState() {
+    _summary.clear();
+    _controllers.clear();
+    _invalidCells.clear();
+
+    for (final definition in _damageCategories) {
+      _summary[definition.key] = {
+        for (final subtype in definition.subtypes) subtype: _defaultOxValue,
+      };
+      _controllers[definition.key] = {
+        for (final subtype in definition.subtypes)
+          subtype: TextEditingController(text: _defaultOxValue),
+      };
+      _invalidCells[definition.key] = {
+        for (final subtype in definition.subtypes) subtype: false,
+      };
     }
-    for (final focusNode in _oxFocusNodes.values) {
-      focusNode.dispose();
-    }
-    _oxControllers.clear();
-    _oxFocusNodes.clear();
+
+    _grades = const {'visual': 'A', 'advanced': 'A'};
+    _errorMessage = null;
+    _statusMessage = null;
+    _hasChanges = false;
   }
 
-  /// Firestore에서 데이터 로드
-  Future<void> _loadData() async {
+  void _disposeControllers() {
+    for (final group in _controllers.values) {
+      for (final controller in group.values) {
+        controller.dispose();
+      }
+    }
+  }
+
+  Future<void> _loadInitialData() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final data = await _firebaseService.getDamageAssessmentSummary(
-        heritageId: widget.heritageId,
+      final saved = await _summaryService.loadSummaryFromFirestore(
+        widget.heritageId,
       );
+      if (!mounted) return;
+      if (saved != null) {
+        _applySavedSummary(saved);
+      }
 
-      if (data != null && mounted) {
-        final oxTableData = data['oxTable'] as Map<String, dynamic>? ?? {};
-        final gradesData = data['damageGrades'] as Map<String, dynamic>? ?? {};
-        final autoGrade = data['autoGradeEnabled'] as bool? ?? true;
-
-        setState(() {
-          _oxTable.clear();
-          _damageGrades.clear();
-          _rowIds.clear();
-
-          // O/X 테이블 데이터 로드
-          for (final entry in oxTableData.entries) {
-            final rowId = entry.key;
-            final columns = entry.value as Map<String, dynamic>? ?? {};
-            _rowIds.add(rowId);
-            _oxTable[rowId] = {};
-            for (final colEntry in columns.entries) {
-              _oxTable[rowId]![colEntry.key] = colEntry.value.toString();
-            }
-          }
-
-          // 등급 데이터 로드
-          for (final entry in gradesData.entries) {
-            final rowId = entry.key;
-            final grades = entry.value as Map<String, dynamic>? ?? {};
-            _damageGrades[rowId] = {
-              'visual': grades['visual']?.toString() ?? 'A',
-              'advanced': grades['advanced']?.toString() ?? 'A',
-            };
-          }
-
-          _autoGradeEnabled = autoGrade;
-
-          // 컨트롤러 초기화
-          _initializeControllers();
-        });
-      } else {
-        // 초기 데이터 생성
-        if (mounted) {
-          _addNewRow();
-        }
+      final records = await _summaryService.loadInspectionRecords(
+        widget.heritageId,
+      );
+      if (!mounted) return;
+      if (saved == null) {
+        _applyAutoSummary(records, markDirty: false);
+        _showStatus('손상부 조사 데이터를 기반으로 자동 채워졌습니다.', Colors.blueGrey);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = '데이터 로드 실패: $e';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = '손상부 종합 데이터를 불러오지 못했습니다. ($e)';
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -140,981 +152,1122 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     }
   }
 
-  void _initializeControllers() {
-    _disposeControllers();
-    for (final rowId in _rowIds) {
-      for (final column in _allColumns) {
-        final key = '${rowId}_$column';
-        final value = _oxTable[rowId]?[column] ?? '';
-        _oxControllers[key] = TextEditingController(text: value);
-        _oxFocusNodes[key] = FocusNode();
-      }
-    }
-  }
-
-  /// 새 행 추가
-  void _addNewRow() {
-    final newRowId = 'row_${DateTime.now().millisecondsSinceEpoch}';
-    
+  Future<void> _handleAutoFill() async {
+    if (widget.heritageId.isEmpty) return;
     setState(() {
-      _rowIds.add(newRowId);
-      _oxTable[newRowId] = {};
-      _damageGrades[newRowId] = {
-        'visual': 'A',
-        'advanced': 'A',
-      };
-      
-      // 컨트롤러 초기화
-      for (final column in _allColumns) {
-        final key = '${newRowId}_$column';
-        _oxControllers[key] = TextEditingController();
-        _oxFocusNodes[key] = FocusNode();
-      }
-    });
-
-    _saveToFirestore();
-  }
-
-  /// 행 삭제
-  void _removeRow(String rowId) {
-    setState(() {
-      _rowIds.remove(rowId);
-      _oxTable.remove(rowId);
-      _damageGrades.remove(rowId);
-      
-      // 컨트롤러 정리
-      for (final column in _allColumns) {
-        final key = '${rowId}_$column';
-        _oxControllers[key]?.dispose();
-        _oxFocusNodes[key]?.dispose();
-        _oxControllers.remove(key);
-        _oxFocusNodes.remove(key);
-      }
-    });
-
-    _saveToFirestore();
-  }
-
-  /// O/X 값 변경
-  void _onOxChanged(String rowId, String columnId, String value) {
-    // 입력 검증
-    if (!DamageGradeCalculator.isValidOxValue(value)) {
-      return;
-    }
-
-    final normalized = DamageGradeCalculator.normalizeOxValue(value);
-
-    setState(() {
-      _oxTable[rowId] ??= {};
-      _oxTable[rowId]![columnId] = normalized;
-    });
-
-    // 자동 등급 계산
-    if (_autoGradeEnabled) {
-      _recalculateGrades(rowId);
-    }
-
-    // 디바운싱된 저장
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _saveToFirestore();
-    });
-  }
-
-  /// 등급 재계산
-  void _recalculateGrades(String rowId) {
-    final oxValues = _oxTable[rowId] ?? {};
-    
-    final visualGrade = DamageGradeCalculator.calculateVisualGrade(oxValues);
-    final advancedGrade = DamageGradeCalculator.calculateAdvancedGrade(oxValues);
-
-    setState(() {
-      _damageGrades[rowId] = {
-        'visual': visualGrade,
-        'advanced': advancedGrade,
-      };
-    });
-
-    // 등급 변경 시 즉시 저장
-    _saveToFirestore();
-  }
-
-  /// 등급 수동 변경
-  void _onGradeChanged(String rowId, String type, String grade) {
-    setState(() {
-      _damageGrades[rowId] ??= {'visual': 'A', 'advanced': 'A'};
-      _damageGrades[rowId]![type] = grade;
-    });
-
-    _saveToFirestore();
-  }
-
-  /// Firestore에 저장
-  Future<void> _saveToFirestore() async {
-    if (_isSaving) return;
-
-    setState(() {
-      _isSaving = true;
+      _isAutoFilling = true;
+      _errorMessage = null;
     });
 
     try {
-      final data = {
-        'oxTable': _oxTable,
-        'damageGrades': _damageGrades,
-        'autoGradeEnabled': _autoGradeEnabled,
-      };
-
-      await _firebaseService.saveDamageAssessmentSummary(
-        heritageId: widget.heritageId,
-        damageSummary: data,
+      final records = await _summaryService.loadInspectionRecords(
+        widget.heritageId,
       );
+      if (!mounted) return;
+      _applyAutoSummary(records, markDirty: true);
+      _showStatus('손상부 조사 결과를 새로 반영했습니다.', Colors.indigo);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = '저장 실패: $e';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = '손상부 조사 데이터를 불러오지 못했습니다. ($e)';
+      });
     } finally {
       if (mounted) {
         setState(() {
-          _isSaving = false;
+          _isAutoFilling = false;
         });
       }
     }
+  }
+
+  Future<void> _handleSave() async {
+    if (widget.heritageId.isEmpty) return;
+    if (!_validateBeforeSave()) return;
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _summaryService.saveSummaryToFirestore(
+        heritageId: widget.heritageId,
+        summary: _summary,
+        grade: _grades,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _hasChanges = false;
+      });
+      _showStatus('손상부 종합을 저장했습니다.', Colors.green.shade600);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _errorMessage = '저장에 실패했습니다. ($e)';
+      });
+    }
+  }
+
+  bool _validateBeforeSave() {
+    bool hasError = false;
+
+    setState(() {
+      for (final definition in _damageCategories) {
+        final key = definition.key;
+        final group = _summary[key]!;
+        final invalidGroup = _invalidCells[key]!;
+
+        for (final subtype in definition.subtypes) {
+          final current = (group[subtype] ?? _defaultOxValue).toUpperCase();
+          final isValid = _isValidValue(current);
+          invalidGroup[subtype] = !isValid;
+          if (!isValid) {
+            hasError = true;
+          }
+          final controller = _controllers[key]![subtype]!;
+          if (controller.text != current) {
+            controller.text = current;
+          }
+          group[subtype] = current;
+        }
+      }
+
+      _errorMessage = hasError ? '모든 항목을 O/X/O 형식으로 입력해 주세요.' : null;
+    });
+
+    return !hasError;
+  }
+
+  void _applySavedSummary(Map<String, dynamic> summary) {
+    setState(() {
+      for (final definition in _damageCategories) {
+        final key = definition.key;
+        final savedMap = Map<String, dynamic>.from(summary[key] as Map? ?? {});
+        final group = _summary[key]!;
+        final invalidGroup = _invalidCells[key]!;
+
+        for (final subtype in definition.subtypes) {
+          final value = _normalizeValue(savedMap[subtype]?.toString());
+          group[subtype] = value;
+          invalidGroup[subtype] = !_isValidValue(value);
+          final controller = _controllers[key]![subtype]!;
+          if (controller.text != value) {
+            controller.text = value;
+          }
+        }
+      }
+
+      final gradeMap = Map<String, dynamic>.from(
+        summary['grade'] as Map? ?? {},
+      );
+      _grades = {
+        'visual': (gradeMap['visual'] ?? 'A').toString(),
+        'advanced': (gradeMap['advanced'] ?? 'A').toString(),
+      };
+      _hasChanges = false;
+    });
+  }
+
+  void _applyAutoSummary(
+    List<DamageRecord> records, {
+    required bool markDirty,
+  }) {
+    final structural = _summaryService.summarizeDamage(
+      records
+          .where((record) => record.category == DamageCategory.structural)
+          .toList(),
+    );
+    final physical = _summaryService.summarizeDamage(
+      records
+          .where((record) => record.category == DamageCategory.physical)
+          .toList(),
+    );
+    final biochemical = _summaryService.summarizeDamage(
+      records
+          .where((record) => record.category == DamageCategory.biochemical)
+          .toList(),
+    );
+
+    setState(() {
+      for (final definition in _damageCategories) {
+        final key = definition.key;
+        final group = _summary[key]!;
+        final invalidGroup = _invalidCells[key]!;
+        final controllerGroup = _controllers[key]!;
+        final source = _mapByCategoryKey(
+          key: key,
+          structural: structural,
+          physical: physical,
+          biochemical: biochemical,
+        );
+
+        for (final subtype in definition.subtypes) {
+          final value = source[subtype] ?? _defaultOxValue;
+          group[subtype] = value;
+          invalidGroup[subtype] = !_isValidValue(value);
+          final controller = controllerGroup[subtype]!;
+          if (controller.text != value) {
+            controller.text = value;
+          }
+        }
+      }
+
+      if (markDirty) {
+        _hasChanges = true;
+      }
+    });
+  }
+
+  Map<String, String> _mapByCategoryKey({
+    required String key,
+    required Map<String, String> structural,
+    required Map<String, String> physical,
+    required Map<String, String> biochemical,
+  }) {
+    switch (key) {
+      case 'physical':
+        return physical;
+      case 'biochemical':
+        return biochemical;
+      default:
+        return structural;
+    }
+  }
+
+  void _onCellChanged(String categoryKey, String subtype, String value) {
+    final normalized = value.toUpperCase();
+    setState(() {
+      _summary[categoryKey]![subtype] = normalized;
+      _invalidCells[categoryKey]![subtype] = !_isValidValue(normalized);
+      _hasChanges = true;
+    });
+  }
+
+  void _onGradeChanged(String key, String grade) {
+    setState(() {
+      _grades = {..._grades, key: grade};
+      _hasChanges = true;
+    });
+  }
+
+  void _showStatus(String message, Color color) {
+    setState(() {
+      _statusMessage = message;
+      _statusColor = color;
+    });
+  }
+
+  bool _isValidValue(String value) {
+    return RegExp(r'^[OX]/[OX]/[OX]$').hasMatch(value);
+  }
+
+  String _normalizeValue(String? value) {
+    if (value == null) return _defaultOxValue;
+    final upper = value.toUpperCase();
+    return _isValidValue(upper) ? upper : _defaultOxValue;
+  }
+
+  Map<String, List<DamageSubtypeRow>> _buildRowMap() {
+    final result = <String, List<DamageSubtypeRow>>{};
+    for (final definition in _damageCategories) {
+      final key = definition.key;
+      final rows = <DamageSubtypeRow>[];
+      for (final subtype in definition.subtypes) {
+        rows.add(
+          DamageSubtypeRow(
+            categoryKey: key,
+            label: subtype,
+            controller: _controllers[key]![subtype]!,
+            isInvalid: _invalidCells[key]![subtype] ?? false,
+          ),
+        );
+      }
+      result[key] = rows;
+    }
+    return result;
+  }
+
+  Widget _buildToolbar() {
+    final saveDisabled = _isSaving || !_hasChanges;
+    final buttons = Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        FilledButton.icon(
+          onPressed: saveDisabled ? null : _handleSave,
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            minimumSize: const Size(0, 40),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.save_rounded),
+          label: Text(_isSaving ? '저장 중...' : '요약 저장'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _isAutoFilling ? null : _handleAutoFill,
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            minimumSize: const Size(0, 40),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          icon: _isAutoFilling
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.sync_rounded),
+          label: Text(_isAutoFilling ? '동기화 중...' : '손상부 조사 연동'),
+        ),
+      ],
+    );
+
+    final statusLabelText = _hasChanges ? '저장되지 않은 변경 사항이 있습니다.' : '최신 상태입니다.';
+    final statusLabelStyle = TextStyle(
+      color: _hasChanges ? Colors.redAccent : Colors.green.shade700,
+      fontWeight: FontWeight.w600,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 720;
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buttons,
+              const SizedBox(height: 12),
+              Text(statusLabelText, style: statusLabelStyle),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            buttons,
+            const Spacer(),
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  statusLabelText,
+                  style: statusLabelStyle,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusBanner() {
+    if (_statusMessage == null) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: _statusColor.withValues(alpha: 0.08),
+        border: Border.all(color: _statusColor.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, color: _statusColor, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _statusMessage!,
+              style: TextStyle(
+                color: _statusColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    if (_errorMessage == null) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 80),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final title = Text(
+      '손상부 종합 (Damage Summary)',
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: const Color(0xFF1D2433),
+      ),
+    );
+    final subtitle = Text(
+      '구조적 · 물리적 · 생물·화학적 손상 현황을 좌/중앙/우측 기준으로 정리합니다.',
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.sectionNumber != null)
+          Container(
+            margin: const EdgeInsets.only(right: 16, top: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              widget.sectionNumber!.toString().padLeft(2, '0'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [title, const SizedBox(height: 4), subtitle],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 화면 너비 계산 (LayoutBuilder 제거로 무한대 제약 조건 문제 해결)
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    final padding = isMobile ? 16.0 : 24.0;
+    if (widget.heritageId.isEmpty) {
+      return const Text('문화재 ID가 필요합니다.');
+    }
+
+    final rows = _buildRowMap();
 
     return Container(
-      padding: EdgeInsets.all(padding),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: _isLoading
-          ? const SizedBox(
-              height: 200,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : _errorMessage != null
-              ? Container(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadData,
-                        child: const Text('다시 시도'),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-          // 헤더
-          _buildHeader(),
-          const SizedBox(height: 16),
-          // 자동 등급 토글
-          _buildAutoGradeToggle(),
-          const SizedBox(height: 16),
-          // 주석
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              '* 손상이 탐지된 경우 O / 아닌 경우 X 로 표기',
-              style: TextStyle(
-                color: Colors.red.shade700,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 12),
+          const Text(
+            '· 손상부 조사 결과를 바탕으로 좌/중앙/우측 위치별 손상 여부를 O/X/O로 표기합니다.',
+            style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
           ),
-          // 테이블 영역
-          if (isMobile)
-            // 모바일: 세로 스택
-            Column(
-              children: [
-                _buildOxTable(isMobile),
-                const SizedBox(height: 16),
-                _buildGradeTable(isMobile),
-              ],
-            )
+          const SizedBox(height: 20),
+          _buildToolbar(),
+          if (_statusMessage != null) ...[
+            const SizedBox(height: 12),
+            _buildStatusBanner(),
+          ],
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            _buildErrorBanner(),
+          ],
+          const SizedBox(height: 20),
+          if (_isLoading)
+            _buildLoadingState()
           else
-            // 데스크톱: 가로 배치
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _buildOxTable(isMobile),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 1,
-                  child: _buildGradeTable(isMobile),
-                ),
-              ],
-            ),
-          const SizedBox(height: 16),
-          // 액션 버튼
-          _buildActionButtons(isMobile),
-          // 저장 상태
-          if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  SizedBox(width: 8),
-                  Text('저장 중...', style: TextStyle(fontSize: 12)),
-                ],
-              ),
+            ResponsiveDamageSummaryWrapper(
+              categories: _damageCategories,
+              rows: rows,
+              onValueChanged: _onCellChanged,
+              visualGrade: _grades['visual'] ?? 'A',
+              advancedGrade: _grades['advanced'] ?? 'A',
+              onVisualGradeChanged: (grade) => _onGradeChanged('visual', grade),
+              onAdvancedGradeChanged: (grade) =>
+                  _onGradeChanged('advanced', grade),
             ),
         ],
       ),
     );
-  }
-
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        if (widget.sectionNumber != null) ...[
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E2A44).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.assessment,
-              color: Color(0xFF1E2A44),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-        ],
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.sectionNumber != null
-                    ? '${widget.sectionNumber}. 손상부 종합'
-                    : '손상부 종합',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: Color(0xFF111827),
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                '구조적, 물리적, 생물·화학적 손상을 종합적으로 분석합니다',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6B7280),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAutoGradeToggle() {
-    return Row(
-      children: [
-        Switch(
-          value: _autoGradeEnabled,
-          onChanged: (value) {
-            setState(() {
-              _autoGradeEnabled = value;
-            });
-            _saveToFirestore();
-          },
-        ),
-        const SizedBox(width: 8),
-        const Text(
-          '자동 등급 계산',
-          style: TextStyle(fontSize: 14),
-        ),
-      ],
-    );
-  }
-
-  /// O/X 테이블
-  Widget _buildOxTable(bool isMobile) {
-    if (_rowIds.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(40),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Center(
-          child: Text(
-            '행을 추가해 주세요.',
-            style: TextStyle(color: Color(0xFF6B7280)),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 고정 헤더
-          _buildOxTableHeader(isMobile),
-          // 스크롤 가능한 본문
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final screenHeight = MediaQuery.of(context).size.height;
-              final maxTableHeight = isMobile 
-                  ? (screenHeight * 0.4).clamp(200.0, 400.0)
-                  : (screenHeight * 0.5).clamp(300.0, 600.0);
-              
-              return ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxTableHeight),
-                child: Scrollbar(
-                  controller: _verticalScrollController,
-                  child: SingleChildScrollView(
-                    controller: _verticalScrollController,
-                    child: Scrollbar(
-                      controller: _horizontalScrollController,
-                      child: SingleChildScrollView(
-                        controller: _horizontalScrollController,
-                        scrollDirection: Axis.horizontal,
-                        child: _buildOxTableBody(isMobile),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOxTableHeader(bool isMobile) {
-    final minHeaderWidth = 120.0 +
-        (_structuralColumns.length * 100.0) +
-        (_physicalColumns.length * 100.0) +
-        (_biochemicalColumns.length * 100.0);
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF333333),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-      ),
-      child: OverflowBox(
-        maxWidth: double.infinity,
-        minWidth: minHeaderWidth,
-        child: Row(
-          children: [
-            _buildHeaderCell('손상 유형', width: 120),
-            _buildGroupHeader('구조적 손상', _structuralColumns),
-            _buildGroupHeader('물리적 손상', _physicalColumns),
-            _buildGroupHeader('생물·화학적 손상', _biochemicalColumns),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroupHeader(String title, List<String> columns) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildHeaderCell(title, width: columns.length * 100.0),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFE5E5E5),
-              border: Border(
-                top: BorderSide(color: Colors.grey.shade300),
-              ),
-            ),
-            child: Row(
-              children: [
-                _buildHeaderCell('', width: 0, isSubHeader: true),
-                ...columns.map((col) => _buildHeaderCell(
-                      col,
-                      width: 100,
-                      isSubHeader: true,
-                    )),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeaderCell(
-    String text, {
-    required double width,
-    bool isSubHeader = false,
-  }) {
-    return Container(
-      width: width > 0 ? width : null,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: Center(
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: isSubHeader ? 12 : 14,
-            fontWeight: isSubHeader ? FontWeight.w600 : FontWeight.bold,
-            color: isSubHeader ? Colors.black87 : Colors.white,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOxTableBody(bool isMobile) {
-    final minTableWidth = 120.0 +
-        (_structuralColumns.length * 100.0) +
-        (_physicalColumns.length * 100.0) +
-        (_biochemicalColumns.length * 100.0);
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(minWidth: minTableWidth),
-      child: Table(
-        border: TableBorder.all(color: Colors.grey.shade300),
-        columnWidths: {
-          0: const FixedColumnWidth(120),
-          for (int i = 1; i <= _allColumns.length + 3; i++)
-            i: const FixedColumnWidth(100),
-        },
-        children: [
-          for (int index = 0; index < _rowIds.length; index++)
-            _buildOxDataRow(_rowIds[index], index, isMobile),
-        ],
-      ),
-    );
-  }
-
-  TableRow _buildOxDataRow(String rowId, int index, bool isMobile) {
-    return TableRow(
-      decoration: BoxDecoration(
-        color: index % 2 == 0 ? Colors.white : const Color(0xFFF9FAFB),
-      ),
-      children: [
-        // 손상 유형 (구성 요소 이름)
-        _buildLabelCell('구성 요소 ${index + 1}', isMobile),
-        // 구조적 손상 그룹 헤더 (빈 셀)
-        _buildTableCell('', isMobile),
-        // 구조적 손상 데이터
-        ..._structuralColumns.map((col) => _buildOxCell(rowId, col, isMobile)),
-        // 물리적 손상 그룹 헤더 (빈 셀)
-        _buildTableCell('', isMobile),
-        // 물리적 손상 데이터
-        ..._physicalColumns.map((col) => _buildOxCell(rowId, col, isMobile)),
-        // 생물·화학적 손상 그룹 헤더 (빈 셀)
-        _buildTableCell('', isMobile),
-        // 생물·화학적 손상 데이터
-        ..._biochemicalColumns.map((col) => _buildOxCell(rowId, col, isMobile)),
-      ],
-    );
-  }
-
-  Widget _buildLabelCell(String label, bool isMobile) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 6 : 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        border: Border(
-          right: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: isMobile ? 11 : 13,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTableCell(String text, bool isMobile, {bool isHeader = false}) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 6 : 8),
-      decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Colors.grey.shade300),
-        ),
-        color: isHeader ? const Color(0xFFE5E5E5) : Colors.transparent,
-      ),
-      child: Center(
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: isMobile ? 11 : 13,
-            fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOxCell(String rowId, String columnId, bool isMobile) {
-    final key = '${rowId}_$columnId';
-    final controller = _oxControllers[key] ?? TextEditingController();
-    final focusNode = _oxFocusNodes[key] ?? FocusNode();
-    final value = _oxTable[rowId]?[columnId] ?? '';
-    final isValid = _isValidOxValue(value);
-
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Colors.grey.shade300),
-        ),
-        color: isValid ? Colors.transparent : Colors.red.shade50,
-      ),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: isMobile ? 11 : 13,
-          fontWeight: FontWeight.w500,
-        ),
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[OX/\s]')),
-          TextInputFormatter.withFunction((oldValue, newValue) {
-            final text = newValue.text.toUpperCase();
-            return TextEditingValue(
-              text: text,
-              selection: newValue.selection,
-            );
-          }),
-        ],
-        onChanged: (value) {
-          _onOxChanged(rowId, columnId, value);
-        },
-        onSubmitted: (value) {
-          final normalized = DamageGradeCalculator.normalizeOxValue(value);
-          controller.text = normalized;
-          _onOxChanged(rowId, columnId, normalized);
-        },
-      ),
-    );
-  }
-
-  bool _isValidOxValue(String value) {
-    if (value.isEmpty) return true;
-    return DamageGradeCalculator.isValidOxValue(value);
-  }
-
-  /// 손상등급 테이블
-  Widget _buildGradeTable(bool isMobile) {
-    if (_rowIds.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(40),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Center(
-          child: Text(
-            '행을 추가해 주세요.',
-            style: TextStyle(color: Color(0xFF6B7280)),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 헤더
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFF333333),
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-            ),
-            child: const Text(
-              '손상등급',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          // 본문
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final screenHeight = MediaQuery.of(context).size.height;
-              final maxTableHeight = isMobile 
-                  ? (screenHeight * 0.3).clamp(150.0, 300.0)
-                  : (screenHeight * 0.4).clamp(200.0, 500.0);
-              
-              return ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxTableHeight),
-                child: SingleChildScrollView(
-                  child: _buildGradeTableBody(isMobile),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGradeTableBody(bool isMobile) {
-    return Table(
-      border: TableBorder.all(color: Colors.grey.shade300),
-      columnWidths: {
-        0: const FixedColumnWidth(80),
-        1: const FixedColumnWidth(60),
-        2: const FixedColumnWidth(60),
-        3: const FixedColumnWidth(60),
-        4: const FixedColumnWidth(60),
-      },
-      children: [
-        // 헤더 행
-        TableRow(
-          decoration: const BoxDecoration(
-            color: Color(0xFFE5E5E5),
-          ),
-          children: [
-            _buildTableCell('', isMobile),
-            _buildTableCell('A', isMobile, isHeader: true),
-            _buildTableCell('B', isMobile, isHeader: true),
-            _buildTableCell('C', isMobile, isHeader: true),
-            _buildTableCell('D', isMobile, isHeader: true),
-          ],
-        ),
-        // 데이터 행 (각 구성 요소마다 육안/심화 2행)
-        for (int index = 0; index < _rowIds.length; index++)
-          ..._buildGradeRowsForComponent(_rowIds[index], index, isMobile),
-      ],
-    );
-  }
-
-  List<TableRow> _buildGradeRowsForComponent(
-    String rowId,
-    int index,
-    bool isMobile,
-  ) {
-    final grades = _damageGrades[rowId] ?? {'visual': 'A', 'advanced': 'A'};
-    final visualGrade = grades['visual'] ?? 'A';
-    final advancedGrade = grades['advanced'] ?? 'A';
-    final isEditable = !_autoGradeEnabled;
-
-    return [
-      // 육안 행 (녹색)
-      TableRow(
-        decoration: BoxDecoration(
-          color: Colors.green.shade50,
-        ),
-        children: [
-          _buildTableCell('육안', isMobile),
-          _buildGradeRadioCell(
-            rowId,
-            'visual',
-            'A',
-            visualGrade == 'A',
-            Colors.green,
-            isEditable,
-            isMobile,
-          ),
-          _buildGradeRadioCell(
-            rowId,
-            'visual',
-            'B',
-            visualGrade == 'B',
-            Colors.green,
-            isEditable,
-            isMobile,
-          ),
-          _buildGradeRadioCell(
-            rowId,
-            'visual',
-            'C',
-            visualGrade == 'C',
-            Colors.green,
-            isEditable,
-            isMobile,
-          ),
-          _buildGradeRadioCell(
-            rowId,
-            'visual',
-            'D',
-            visualGrade == 'D',
-            Colors.green,
-            isEditable,
-            isMobile,
-          ),
-        ],
-      ),
-      // 심화 행 (주황)
-      TableRow(
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-        ),
-        children: [
-          _buildTableCell('심화', isMobile),
-          _buildGradeRadioCell(
-            rowId,
-            'advanced',
-            'A',
-            advancedGrade == 'A',
-            Colors.orange,
-            isEditable,
-            isMobile,
-          ),
-          _buildGradeRadioCell(
-            rowId,
-            'advanced',
-            'B',
-            advancedGrade == 'B',
-            Colors.orange,
-            isEditable,
-            isMobile,
-          ),
-          _buildGradeRadioCell(
-            rowId,
-            'advanced',
-            'C',
-            advancedGrade == 'C',
-            Colors.orange,
-            isEditable,
-            isMobile,
-          ),
-          _buildGradeRadioCell(
-            rowId,
-            'advanced',
-            'D',
-            advancedGrade == 'D',
-            Colors.orange,
-            isEditable,
-            isMobile,
-          ),
-        ],
-      ),
-    ];
-  }
-
-  Widget _buildGradeRadioCell(
-    String rowId,
-    String type,
-    String grade,
-    bool isSelected,
-    Color groupColor,
-    bool isEditable,
-    bool isMobile,
-  ) {
-    final gradeColor = _getGradeColor(grade);
-
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 4 : 6),
-      decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Colors.grey.shade300),
-        ),
-        color: isSelected ? gradeColor.withOpacity(0.2) : Colors.transparent,
-      ),
-      child: isEditable
-          ? InkWell(
-              onTap: () => _onGradeChanged(rowId, type, grade),
-              child: Center(
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isSelected ? gradeColor : Colors.grey.shade400,
-                      width: 2,
-                    ),
-                    color: isSelected ? gradeColor : Colors.transparent,
-                  ),
-                  child: isSelected
-                      ? Icon(
-                          Icons.check,
-                          size: 16,
-                          color: Colors.white,
-                        )
-                      : null,
-                ),
-              ),
-            )
-          : Center(
-              child: Text(
-                isSelected ? grade : '',
-                style: TextStyle(
-                  fontSize: isMobile ? 12 : 14,
-                  fontWeight: FontWeight.bold,
-                  color: gradeColor,
-                ),
-              ),
-            ),
-    );
-  }
-
-  Color _getGradeColor(String grade) {
-    switch (grade) {
-      case 'A':
-        return const Color(0xFF4CAF50);
-      case 'B':
-        return const Color(0xFF8BC34A);
-      case 'C':
-        return const Color(0xFFFFC107);
-      case 'D':
-        return const Color(0xFFFF5722);
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Widget _buildActionButtons(bool isMobile) {
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          OutlinedButton.icon(
-            onPressed: _rowIds.isEmpty ? null : () {
-              if (_rowIds.isNotEmpty) {
-                _removeRow(_rowIds.last);
-              }
-            },
-            icon: const Icon(Icons.delete_outline, size: 18),
-            label: const Text('행 삭제'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _rowIds.isEmpty ? Colors.grey : Colors.red,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: _addNewRow,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('행 추가'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E2A44),
-              foregroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: _isSaving ? null : _saveToFirestore,
-            icon: const Icon(Icons.save, size: 18),
-            label: const Text('저장'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4B6CB7),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      );
-    } else {
-      return Wrap(
-        alignment: WrapAlignment.end,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          OutlinedButton.icon(
-            onPressed: _rowIds.isEmpty ? null : () {
-              if (_rowIds.isNotEmpty) {
-                _removeRow(_rowIds.last);
-              }
-            },
-            icon: const Icon(Icons.delete_outline, size: 18),
-            label: const Text('행 삭제'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _rowIds.isEmpty ? Colors.grey : Colors.red,
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _addNewRow,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('행 추가'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E2A44),
-              foregroundColor: Colors.white,
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _isSaving ? null : _saveToFirestore,
-            icon: const Icon(Icons.save, size: 18),
-            label: const Text('저장'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4B6CB7),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      );
-    }
   }
 }
 
+const String _defaultOxValue = 'X/X/X';
+
+const List<DamageCategoryDefinition> _damageCategories = [
+  DamageCategoryDefinition(
+    key: 'structural',
+    title: '구조적 손상',
+    headerColor: Color(0xFFE6F1FF),
+    badgeColor: Color(0xFF1B4F72),
+    subtypes: [
+      '변위/변형',
+      '이격/이완',
+      '기울',
+      '들림',
+      '축 변형',
+      '침하',
+      '처짐/휨',
+      '비틀림',
+      '돌아감',
+      '파손/결손',
+      '유실',
+      '분리',
+      '부러짐',
+    ],
+  ),
+  DamageCategoryDefinition(
+    key: 'physical',
+    title: '물리적 손상',
+    headerColor: Color(0xFFEDE7FF),
+    badgeColor: Color(0xFF4A3BD0),
+    subtypes: ['균열/분할', '균열', '갈래', '표면 박리/박락', '탈락', '들뜸', '박리/박락'],
+  ),
+  DamageCategoryDefinition(
+    key: 'biochemical',
+    title: '생물·화학적 손상',
+    headerColor: Color(0xFFFFE6EE),
+    badgeColor: Color(0xFF9C1047),
+    subtypes: [
+      '생물/유기물 침식',
+      '부후',
+      '식물생장',
+      '표면 오염균',
+      '공극/천공',
+      '공동화',
+      '천공',
+      '재료 변질',
+      '변색',
+    ],
+  ),
+];
+
+class DamageCategoryDefinition {
+  const DamageCategoryDefinition({
+    required this.key,
+    required this.title,
+    required this.subtypes,
+    required this.headerColor,
+    required this.badgeColor,
+  });
+
+  final String key;
+  final String title;
+  final List<String> subtypes;
+  final Color headerColor;
+  final Color badgeColor;
+}
+
+class DamageSubtypeRow {
+  const DamageSubtypeRow({
+    required this.categoryKey,
+    required this.label,
+    required this.controller,
+    required this.isInvalid,
+  });
+
+  final String categoryKey;
+  final String label;
+  final TextEditingController controller;
+  final bool isInvalid;
+}
+
+typedef CategoryValueChanged =
+    void Function(String categoryKey, String subtype, String value);
+
+class ResponsiveDamageSummaryWrapper extends StatelessWidget {
+  const ResponsiveDamageSummaryWrapper({
+    super.key,
+    required this.categories,
+    required this.rows,
+    required this.onValueChanged,
+    required this.visualGrade,
+    required this.advancedGrade,
+    required this.onVisualGradeChanged,
+    required this.onAdvancedGradeChanged,
+  });
+
+  final List<DamageCategoryDefinition> categories;
+  final Map<String, List<DamageSubtypeRow>> rows;
+  final CategoryValueChanged onValueChanged;
+  final String visualGrade;
+  final String advancedGrade;
+  final ValueChanged<String> onVisualGradeChanged;
+  final ValueChanged<String> onAdvancedGradeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 1100;
+        if (isMobile) {
+          return DamageSummaryTableMobile(
+            categories: categories,
+            rows: rows,
+            onValueChanged: onValueChanged,
+            visualGrade: visualGrade,
+            advancedGrade: advancedGrade,
+            onVisualGradeChanged: onVisualGradeChanged,
+            onAdvancedGradeChanged: onAdvancedGradeChanged,
+          );
+        }
+        return DamageSummaryTableDesktop(
+          categories: categories,
+          rows: rows,
+          onValueChanged: onValueChanged,
+          visualGrade: visualGrade,
+          advancedGrade: advancedGrade,
+          onVisualGradeChanged: onVisualGradeChanged,
+          onAdvancedGradeChanged: onAdvancedGradeChanged,
+        );
+      },
+    );
+  }
+}
+
+class DamageSummaryTableDesktop extends StatelessWidget {
+  const DamageSummaryTableDesktop({
+    super.key,
+    required this.categories,
+    required this.rows,
+    required this.onValueChanged,
+    required this.visualGrade,
+    required this.advancedGrade,
+    required this.onVisualGradeChanged,
+    required this.onAdvancedGradeChanged,
+  });
+
+  final List<DamageCategoryDefinition> categories;
+  final Map<String, List<DamageSubtypeRow>> rows;
+  final CategoryValueChanged onValueChanged;
+  final String visualGrade;
+  final String advancedGrade;
+  final ValueChanged<String> onVisualGradeChanged;
+  final ValueChanged<String> onAdvancedGradeChanged;
+
+  static const double _sectionWidth = 420;
+  static const double _sectionGap = 16;
+  static const double _gradeWidth = 260;
+
+  @override
+  Widget build(BuildContext context) {
+    final double minWidth =
+        (_sectionWidth * categories.length) +
+        (_sectionGap * (categories.length - 1)) +
+        _gradeWidth +
+        24;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minWidth),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int i = 0; i < categories.length; i++)
+              Padding(
+                padding: EdgeInsets.only(
+                  right: i == categories.length - 1 ? 0 : _sectionGap,
+                ),
+                child: SizedBox(
+                  width: _sectionWidth,
+                  child: DamageCategorySection(
+                    definition: categories[i],
+                    rows: rows[categories[i].key] ?? const <DamageSubtypeRow>[],
+                    onValueChanged: onValueChanged,
+                    isCompact: false,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 24),
+            SizedBox(
+              width: _gradeWidth,
+              child: GradeTableWidget(
+                visualGrade: visualGrade,
+                advancedGrade: advancedGrade,
+                onVisualGradeChanged: onVisualGradeChanged,
+                onAdvancedGradeChanged: onAdvancedGradeChanged,
+                isCompact: false,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DamageSummaryTableMobile extends StatelessWidget {
+  const DamageSummaryTableMobile({
+    super.key,
+    required this.categories,
+    required this.rows,
+    required this.onValueChanged,
+    required this.visualGrade,
+    required this.advancedGrade,
+    required this.onVisualGradeChanged,
+    required this.onAdvancedGradeChanged,
+  });
+
+  final List<DamageCategoryDefinition> categories;
+  final Map<String, List<DamageSubtypeRow>> rows;
+  final CategoryValueChanged onValueChanged;
+  final String visualGrade;
+  final String advancedGrade;
+  final ValueChanged<String> onVisualGradeChanged;
+  final ValueChanged<String> onAdvancedGradeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final definition in categories)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 360),
+                child: DamageCategorySection(
+                  definition: definition,
+                  rows: rows[definition.key] ?? const <DamageSubtypeRow>[],
+                  onValueChanged: onValueChanged,
+                  isCompact: true,
+                ),
+              ),
+            ),
+          ),
+        GradeTableWidget(
+          visualGrade: visualGrade,
+          advancedGrade: advancedGrade,
+          onVisualGradeChanged: onVisualGradeChanged,
+          onAdvancedGradeChanged: onAdvancedGradeChanged,
+          isCompact: true,
+        ),
+      ],
+    );
+  }
+}
+
+class DamageCategorySection extends StatelessWidget {
+  const DamageCategorySection({
+    super.key,
+    required this.definition,
+    required this.rows,
+    required this.onValueChanged,
+    required this.isCompact,
+  });
+
+  final DamageCategoryDefinition definition;
+  final List<DamageSubtypeRow> rows;
+  final CategoryValueChanged onValueChanged;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: definition.badgeColor,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: definition.headerColor.withValues(alpha: 0.8),
+        ),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 14 : 18,
+              vertical: isCompact ? 10 : 14,
+            ),
+            decoration: BoxDecoration(
+              color: definition.headerColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(18),
+              ),
+            ),
+            child: Text(definition.title, style: titleStyle),
+          ),
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(2.2),
+              1: FlexColumnWidth(1.4),
+            },
+            border: TableBorder(
+              horizontalInside: BorderSide(
+                color: Colors.grey.shade200,
+                width: 1,
+              ),
+            ),
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: Colors.grey.shade100),
+                children: [
+                  _headerCell('세부 항목', isCompact),
+                  _headerCell('좌 / 중앙 / 우측', isCompact),
+                ],
+              ),
+              for (final row in rows)
+                TableRow(
+                  children: [
+                    _labelCell(row.label, isCompact),
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isCompact ? 10 : 14,
+                        vertical: isCompact ? 6 : 10,
+                      ),
+                      child: OxCellRenderer(
+                        controller: row.controller,
+                        isInvalid: row.isInvalid,
+                        isCompact: isCompact,
+                        onChanged: (value) =>
+                            onValueChanged(row.categoryKey, row.label, value),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerCell(String text, bool isCompact) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: isCompact ? 8 : 10,
+        horizontal: isCompact ? 10 : 14,
+      ),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: isCompact ? 12 : 13,
+          color: const Color(0xFF374151),
+        ),
+      ),
+    );
+  }
+
+  Widget _labelCell(String text, bool isCompact) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: isCompact ? 8 : 10,
+        horizontal: isCompact ? 10 : 14,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: isCompact ? 12 : 13,
+          color: const Color(0xFF111827),
+        ),
+      ),
+    );
+  }
+}
+
+class OxCellRenderer extends StatelessWidget {
+  const OxCellRenderer({
+    super.key,
+    required this.controller,
+    required this.isInvalid,
+    required this.onChanged,
+    required this.isCompact,
+  });
+
+  final TextEditingController controller;
+  final bool isInvalid;
+  final ValueChanged<String> onChanged;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isInvalid ? Colors.redAccent : Colors.grey.shade400;
+    return TextField(
+      controller: controller,
+      textAlign: TextAlign.center,
+      maxLength: 5,
+      style: TextStyle(
+        fontSize: isCompact ? 12 : 14,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.1,
+      ),
+      decoration: InputDecoration(
+        counterText: '',
+        isDense: true,
+        hintText: 'X/X/X',
+        fillColor: Colors.white,
+        filled: true,
+        contentPadding: EdgeInsets.symmetric(
+          vertical: isCompact ? 6 : 8,
+          horizontal: 12,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: borderColor, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isInvalid ? Colors.redAccent : const Color(0xFF111827),
+            width: 1.3,
+          ),
+        ),
+        errorStyle: const TextStyle(height: 0),
+      ),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[OXox/]')),
+        _UpperCaseOxFormatter(),
+        LengthLimitingTextInputFormatter(5),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
+class GradeTableWidget extends StatelessWidget {
+  const GradeTableWidget({
+    super.key,
+    required this.visualGrade,
+    required this.advancedGrade,
+    required this.onVisualGradeChanged,
+    required this.onAdvancedGradeChanged,
+    required this.isCompact,
+  });
+
+  final String visualGrade;
+  final String advancedGrade;
+  final ValueChanged<String> onVisualGradeChanged;
+  final ValueChanged<String> onAdvancedGradeChanged;
+  final bool isCompact;
+
+  static const List<String> _gradeOptions = ['A', 'B', 'C', 'D'];
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: const Color(0xFF111827),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('손상등급', style: titleStyle),
+          const SizedBox(height: 12),
+          Table(
+            border: TableBorder.all(color: Colors.grey.shade300, width: 1),
+            columnWidths: const {
+              0: FlexColumnWidth(1.6),
+              1: FlexColumnWidth(1),
+              2: FlexColumnWidth(1),
+              3: FlexColumnWidth(1),
+              4: FlexColumnWidth(1),
+            },
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: Colors.grey.shade100),
+                children: [
+                  const SizedBox.shrink(),
+                  for (final grade in _gradeOptions)
+                    _gradeHeaderCell(grade, isCompact),
+                ],
+              ),
+              _buildGradeRow(
+                label: '육안',
+                background: const Color(0xFFE6F9EE),
+                selected: visualGrade,
+                onTap: onVisualGradeChanged,
+                isCompact: isCompact,
+              ),
+              _buildGradeRow(
+                label: '심화',
+                background: const Color(0xFFFFF4E3),
+                selected: advancedGrade,
+                onTap: onAdvancedGradeChanged,
+                isCompact: isCompact,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  TableRow _buildGradeRow({
+    required String label,
+    required Color background,
+    required String selected,
+    required ValueChanged<String> onTap,
+    required bool isCompact,
+  }) {
+    return TableRow(
+      children: [
+        Container(
+          color: background,
+          alignment: Alignment.center,
+          padding: EdgeInsets.symmetric(vertical: isCompact ? 10 : 14),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+              fontSize: isCompact ? 12 : 13,
+            ),
+          ),
+        ),
+        for (final grade in _gradeOptions)
+          _gradeCell(
+            grade: grade,
+            selected: selected,
+            onTap: onTap,
+            isCompact: isCompact,
+          ),
+      ],
+    );
+  }
+
+  Widget _gradeHeaderCell(String text, bool isCompact) {
+    return Container(
+      alignment: Alignment.center,
+      padding: EdgeInsets.symmetric(vertical: isCompact ? 8 : 10),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: const Color(0xFF4B5563),
+          fontSize: isCompact ? 12 : 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _gradeCell({
+    required String grade,
+    required String selected,
+    required ValueChanged<String> onTap,
+    required bool isCompact,
+  }) {
+    final isSelected = grade == selected;
+    final baseColor = isSelected ? const Color(0xFF1D4ED8) : Colors.white;
+    final textColor = isSelected ? Colors.white : const Color(0xFF111827);
+
+    return InkWell(
+      onTap: () => onTap(grade),
+      child: Container(
+        alignment: Alignment.center,
+        padding: EdgeInsets.symmetric(vertical: isCompact ? 8 : 12),
+        decoration: BoxDecoration(
+          color: baseColor,
+          border: Border.all(color: const Color(0xFFCBD5F5)),
+        ),
+        child: Text(
+          grade,
+          style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpperCaseOxFormatter extends TextInputFormatter {
+  const _UpperCaseOxFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final upper = newValue.text.toUpperCase();
+    return newValue.copyWith(text: upper);
+  }
+}

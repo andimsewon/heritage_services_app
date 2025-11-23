@@ -26,33 +26,36 @@ class InspectionResult {
 class DamageCell {
   const DamageCell({
     this.present = false,
-    this.positionTop = '-',
-    this.positionMiddle = '-',
-    this.positionBottom = '-',
+    this.positionLeft = '-',
+    this.positionCenter = '-',
+    this.positionRight = '-',
   });
 
   final bool present;
-  final String positionTop;    // 상 (Top)
-  final String positionMiddle; // 중 (Middle)
-  final String positionBottom; // 하 (Bottom)
+  final String positionLeft;    // 좌측 (Left)
+  final String positionCenter;  // 중앙 (Center)
+  final String positionRight;   // 우측 (Right)
 
   DamageCell copyWith({
     bool? present,
-    String? positionTop,
-    String? positionMiddle,
-    String? positionBottom,
+    String? positionLeft,
+    String? positionCenter,
+    String? positionRight,
   }) =>
       DamageCell(
         present: present ?? this.present,
-        positionTop: positionTop ?? this.positionTop,
-        positionMiddle: positionMiddle ?? this.positionMiddle,
-        positionBottom: positionBottom ?? this.positionBottom,
+        positionLeft: positionLeft ?? this.positionLeft,
+        positionCenter: positionCenter ?? this.positionCenter,
+        positionRight: positionRight ?? this.positionRight,
       );
 }
 
 class DamageRow {
   const DamageRow({
     required this.label,
+    this.partName = '',
+    this.partNumber = '',
+    this.direction = '',
     required this.structural,
     required this.physical,
     required this.bioChemical,
@@ -62,6 +65,9 @@ class DamageRow {
   });
 
   final String label;
+  final String partName;      // 부재명
+  final String partNumber;    // 부재번호
+  final String direction;      // 향 (동향, 서향, 남향, 북향)
   final Map<String, DamageCell> structural;
   final Map<String, DamageCell> physical;
   final Map<String, DamageCell> bioChemical;
@@ -71,6 +77,9 @@ class DamageRow {
 
   DamageRow copyWith({
     String? label,
+    String? partName,
+    String? partNumber,
+    String? direction,
     Map<String, DamageCell>? structural,
     Map<String, DamageCell>? physical,
     Map<String, DamageCell>? bioChemical,
@@ -80,6 +89,9 @@ class DamageRow {
   }) {
     return DamageRow(
       label: label ?? this.label,
+      partName: partName ?? this.partName,
+      partNumber: partNumber ?? this.partNumber,
+      direction: direction ?? this.direction,
       structural: structural ?? this.structural,
       physical: physical ?? this.physical,
       bioChemical: bioChemical ?? this.bioChemical,
@@ -118,12 +130,52 @@ class DamageSummary {
   }
 
   factory DamageSummary.initial() {
-    const structuralColumns = ['이격/이완', '기울'];
-    const physicalColumns = ['탈락', '갈램'];
-    const bioChemicalColumns = ['천공', '부후'];
+    // 구조적 손상: 변위/변형 (8종) + 파손/결손 (3종) = 총 11종
+    const structuralColumns = [
+      // 변위/변형
+      '이격/이완',
+      '기움',
+      '들림',
+      '축 변형',
+      '침하',
+      '처짐/휨',
+      '비틀림',
+      '돌아감',
+      // 파손/결손
+      '유실',
+      '분리',
+      '부러짐',
+    ];
+    
+    // 물리적 손상: 균열/분할 (2종) + 표면 박리·박락 (3종) = 총 5종
+    const physicalColumns = [
+      // 균열/분할
+      '균열',
+      '갈래',
+      // 표면 박리·박락
+      '탈락',
+      '들뜸',
+      '박리/박락',
+    ];
+    
+    // 생물·화학적 손상: 생물/유기물 침식 (3종) + 공극/천공 (2종) + 재료 변질 (1종) = 총 6종
+    const bioChemicalColumns = [
+      // 생물/유기물 침식
+      '부후',
+      '식물생장',
+      '표면 오염균',
+      // 공극/천공
+      '공동화',
+      '천공',
+      // 재료 변질
+      '변색',
+    ];
 
     DamageRow makeRow(String label) => DamageRow(
       label: label,
+      partName: '',
+      partNumber: '',
+      direction: '',
       structural: {
         for (final column in structuralColumns) column: const DamageCell(),
       },
@@ -133,13 +185,13 @@ class DamageSummary {
       bioChemical: {
         for (final column in bioChemicalColumns) column: const DamageCell(),
       },
-      visualGrade: '', // 사전 예시 데이터 제거
-      labGrade: '', // 사전 예시 데이터 제거
-      finalGrade: '', // 사전 예시 데이터 제거
+      visualGrade: '',
+      labGrade: '',
+      finalGrade: '',
     );
 
     return DamageSummary(
-      rows: [], // 사전 예시 데이터 제거 - 사용자가 직접 입력
+      rows: [],
       columnsStructural: structuralColumns,
       columnsPhysical: physicalColumns,
       columnsBioChemical: bioChemicalColumns,

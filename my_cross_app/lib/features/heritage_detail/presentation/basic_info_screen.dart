@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
@@ -250,6 +251,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
   Timer? _scrollThrottleTimer;
   bool _isScrollingProgrammatically = false;
   DateTime _lastScrollUpdate = DateTime.now();
+  final Map<String, int> _scrollRetryCount = {}; // 섹션별 재시도 횟수 추적
+  String? _currentScrollingSection; // 현재 스크롤 중인 섹션 (중복 방지)
 
   @override
   void initState() {
@@ -277,94 +280,112 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     if (_isScrollingProgrammatically) return;
     if (!_mainScrollController.hasClients) return;
 
-    // Throttling: 마지막 업데이트로부터 100ms 이내면 스킵
+    // Throttling: 마지막 업데이트로부터 30ms 이내면 스킵
     final now = DateTime.now();
-    if (now.difference(_lastScrollUpdate).inMilliseconds < 100) {
+    if (now.difference(_lastScrollUpdate).inMilliseconds < 30) {
       return;
     }
 
     // 타이머가 이미 실행 중이면 취소하고 새로 시작 (debounce)
     _scrollThrottleTimer?.cancel();
-    _scrollThrottleTimer = Timer(const Duration(milliseconds: 150), () {
+    _scrollThrottleTimer = Timer(const Duration(milliseconds: 50), () {
       _updateActiveSection();
     });
   }
 
-  // 실제 섹션 업데이트 로직 (throttled)
+  // 실제 섹션 업데이트 로직 (throttled, 모바일 웹 최적화)
   void _updateActiveSection() {
+    if (!mounted) return;
     if (!_mainScrollController.hasClients) return;
     if (_isScrollingProgrammatically) return;
 
-    final currentTabSections = _getCurrentTabSections();
-    if (currentTabSections.isEmpty) return;
+    try {
+      final currentTabSections = _getCurrentTabSections();
+      if (currentTabSections.isEmpty) return;
 
-    // 스크롤 위치 기반으로 섹션 찾기 (더 효율적)
-    final scrollOffset = _mainScrollController.offset;
-    final viewportHeight = _mainScrollController.position.viewportDimension;
-    final navBarHeight = 120.0;
-    final threshold = navBarHeight + 100; // 네비게이션 바 + 여유 공간
+      final ScrollPosition scrollPosition = _mainScrollController.position;
+      if (!scrollPosition.hasContentDimensions) return;
 
-    String? newActiveSection;
-    double? minDistance;
+      // 모바일 웹에서 SafeArea와 AppBar 높이 고려
+      final MediaQueryData? mediaQuery = MediaQuery.maybeOf(context);
+      final double safeAreaTop = mediaQuery?.padding.top ?? 0.0;
+      final double appBarHeight = 56.0;
+      final double navBarHeight = 96.0;
+      final double threshold = safeAreaTop + appBarHeight + navBarHeight + 100; // 네비게이션 바 + 여유 공간
 
-    // 각 섹션의 위치를 확인
-    for (final sectionKey in currentTabSections) {
-      final key = _sectionKeys[sectionKey];
-      if (key?.currentContext == null) continue;
+      String? newActiveSection;
+      double? minDistance;
 
-      final RenderBox? renderBox =
-          key!.currentContext!.findRenderObject() as RenderBox?;
-      if (renderBox == null) continue;
+      // 각 섹션의 위치를 확인
+      for (final sectionKey in currentTabSections) {
+        final key = _sectionKeys[sectionKey];
+        if (key?.currentContext == null) continue;
 
-      // 더 효율적인 위치 계산
-      try {
-        final position = renderBox.localToGlobal(Offset.zero);
-        final sectionTop = position.dy;
-        final sectionHeight = renderBox.size.height;
-        final sectionBottom = sectionTop + sectionHeight;
-
-        // 뷰포트 상단 근처에 있는 섹션 찾기
-        if (sectionTop <= threshold && sectionBottom > threshold) {
-          final distance = (sectionTop - threshold).abs();
-          if (minDistance == null || distance < minDistance) {
-            minDistance = distance;
-            newActiveSection = sectionKey;
-          }
-        }
-      } catch (e) {
-        // 렌더링 오류 무시하고 계속 진행
-        continue;
-      }
-    }
-
-    // 첫 번째 섹션이 아직 보이지 않으면 첫 번째 섹션을 활성화
-    if (newActiveSection == null && currentTabSections.isNotEmpty) {
-      final firstSectionKey = currentTabSections.first;
-      final firstKey = _sectionKeys[firstSectionKey];
-      if (firstKey?.currentContext != null) {
         try {
-          final renderBox =
-              firstKey!.currentContext!.findRenderObject() as RenderBox?;
-          if (renderBox != null) {
-            final position = renderBox.localToGlobal(Offset.zero);
-            if (position.dy > threshold) {
-              newActiveSection = firstSectionKey;
+          final BuildContext? sectionContext = key!.currentContext;
+          if (sectionContext == null) continue;
+
+          final RenderObject? renderObject = sectionContext.findRenderObject();
+          if (renderObject == null || renderObject is! RenderBox) continue;
+
+          final RenderBox renderBox = renderObject;
+          
+          // 모바일 웹에서 안전한 위치 계산
+          final Offset? position = renderBox.localToGlobal(Offset.zero);
+          if (position == null) continue;
+
+          final double sectionTop = position.dy;
+          final double sectionHeight = renderBox.size.height;
+          final double sectionBottom = sectionTop + sectionHeight;
+
+          // 뷰포트 상단 근처에 있는 섹션 찾기
+          if (sectionTop <= threshold && sectionBottom > threshold) {
+            final double distance = (sectionTop - threshold).abs();
+            if (minDistance == null || distance < minDistance) {
+              minDistance = distance;
+              newActiveSection = sectionKey;
             }
           }
         } catch (e) {
-          // 오류 무시
+          // 렌더링 오류 무시하고 계속 진행
+          continue;
         }
       }
-    }
 
-    // 활성 섹션 업데이트 (변경된 경우에만)
-    if (newActiveSection != null && newActiveSection != _activeSectionKey) {
-      _lastScrollUpdate = DateTime.now();
-      if (mounted) {
-        setState(() {
-          _activeSectionKey = newActiveSection!;
-        });
+      // 첫 번째 섹션이 아직 보이지 않으면 첫 번째 섹션을 활성화
+      if (newActiveSection == null && currentTabSections.isNotEmpty) {
+        final firstSectionKey = currentTabSections.first;
+        final firstKey = _sectionKeys[firstSectionKey];
+        if (firstKey?.currentContext != null) {
+          try {
+            final BuildContext? firstContext = firstKey!.currentContext;
+            if (firstContext != null) {
+              final RenderObject? renderObject = firstContext.findRenderObject();
+              if (renderObject != null && renderObject is RenderBox) {
+                final Offset? position = renderObject.localToGlobal(Offset.zero);
+                if (position != null && position.dy > threshold) {
+                  newActiveSection = firstSectionKey;
+                }
+              }
+            }
+          } catch (e) {
+            // 오류 무시
+          }
+        }
       }
+
+      // 활성 섹션 업데이트 (변경된 경우에만)
+      if (newActiveSection != null && newActiveSection != _activeSectionKey) {
+        _lastScrollUpdate = DateTime.now();
+        if (mounted) {
+          setState(() {
+            _activeSectionKey = newActiveSection!;
+          });
+        }
+      }
+    } catch (e) {
+      // 전체 오류 처리 - 안전하게 종료
+      // 오류가 발생해도 앱이 크래시되지 않도록
     }
   }
 
@@ -1383,33 +1404,147 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     );
   }
 
-  // 섹션으로 스크롤 이동 (최적화된 버전)
-  void _scrollToSection(String sectionKey) {
-    // 활성 섹션 즉시 업데이트
+  // 섹션으로 스크롤 이동 (모바일 웹 최적화 개선 버전)
+  void _scrollToSection(String sectionKey, {int retryCount = 0}) {
+    if (_currentScrollingSection == sectionKey && _isScrollingProgrammatically) {
+      return;
+    }
+
+    if (retryCount > 5) {
+      _scrollRetryCount.remove(sectionKey);
+      _currentScrollingSection = null;
+      _isScrollingProgrammatically = false;
+      return;
+    }
+
     if (_activeSectionKey != sectionKey && mounted) {
       setState(() {
         _activeSectionKey = sectionKey;
       });
     }
 
-    final key = _sectionKeys[sectionKey];
-    if (key?.currentContext != null) {
-      // 프로그래밍 방식 스크롤 시작
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _currentScrollingSection = null;
+        _isScrollingProgrammatically = false;
+        return;
+      }
+
+      final key = _sectionKeys[sectionKey];
+      final sectionContext = key?.currentContext;
+
+      if (key == null) {
+        _currentScrollingSection = null;
+        _isScrollingProgrammatically = false;
+        return;
+      }
+
+      if (sectionContext == null || !_mainScrollController.hasClients) {
+        if (retryCount < 5) {
+          _scrollRetryCount[sectionKey] = retryCount + 1;
+          Future.delayed(const Duration(milliseconds: 120), () {
+            if (mounted) {
+              _scrollToSection(sectionKey, retryCount: retryCount + 1);
+            }
+          });
+        } else {
+          _currentScrollingSection = null;
+          _isScrollingProgrammatically = false;
+        }
+        return;
+      }
+
+      _scrollRetryCount.remove(sectionKey);
+      _currentScrollingSection = sectionKey;
       _isScrollingProgrammatically = true;
 
+      _ensureSectionVisible(sectionContext, sectionKey);
+    });
+  }
+
+  void _ensureSectionVisible(BuildContext sectionContext, String sectionKey) {
+    try {
       Scrollable.ensureVisible(
-        key!.currentContext!,
-        duration: const Duration(milliseconds: 250),
+        sectionContext,
+        duration: const Duration(milliseconds: 280),
         curve: Curves.easeOutCubic,
-        alignment: 0.08,
-      ).then((_) {
-        // 스크롤 완료 후 잠시 대기 후 감지 재개
-        Future.delayed(const Duration(milliseconds: 300), () {
-          _isScrollingProgrammatically = false;
-          // 스크롤 완료 후 섹션 위치 재확인
-          _updateActiveSection();
-        });
+        alignment: 0.02,
+      )
+          .whenComplete(() => _completeProgrammaticScroll(sectionKey))
+          .catchError((error) {
+        // 오류 발생 시에도 완료 처리
+        _completeProgrammaticScroll(sectionKey);
       });
+    } catch (e) {
+      // 동기 오류 처리
+      _completeProgrammaticScroll(sectionKey);
+    }
+  }
+
+  void _completeProgrammaticScroll(String? sectionKey) {
+    if (sectionKey != null) {
+      _fineTuneScrollOffset(sectionKey);
+      return;
+    }
+    _finishProgrammaticScroll();
+  }
+
+  void _fineTuneScrollOffset(String sectionKey) {
+    if (!_mainScrollController.hasClients) {
+      _finishProgrammaticScroll();
+      return;
+    }
+
+    final key = _sectionKeys[sectionKey];
+    final contextForSection = key?.currentContext;
+    if (contextForSection == null) {
+      _finishProgrammaticScroll();
+      return;
+    }
+
+    final renderObject = contextForSection.findRenderObject();
+    if (renderObject is! RenderBox) {
+      _finishProgrammaticScroll();
+      return;
+    }
+
+    final safeAreaTop = MediaQuery.of(context).padding.top;
+    const double appBarHeight = 56.0;
+    final double tabBarHeight = _tabController != null ? 48.0 : 0.0;
+    const double navBarHeight = 96.0;
+    const double extraPadding = 8.0;
+    final double desiredTop =
+        safeAreaTop + appBarHeight + tabBarHeight + navBarHeight + extraPadding;
+
+    final double currentTop = renderObject.localToGlobal(Offset.zero).dy;
+    final double difference = currentTop - desiredTop;
+
+    if (difference.abs() < 4.0) {
+      _finishProgrammaticScroll();
+      return;
+    }
+
+    final ScrollPosition position = _mainScrollController.position;
+    final double targetOffset = (position.pixels + difference).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+
+    _mainScrollController
+        .animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+        )
+        .whenComplete(_finishProgrammaticScroll)
+        .catchError((_) => _finishProgrammaticScroll());
+  }
+
+  void _finishProgrammaticScroll() {
+    _isScrollingProgrammatically = false;
+    _currentScrollingSection = null;
+    if (mounted) {
+      _updateActiveSection();
     }
   }
 
@@ -1750,11 +1885,15 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
                         horizontal: horizontalPadding,
                         vertical: 24,
                       ),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          ...currentSections,
-                          const SizedBox(height: 24),
-                        ]),
+                      sliver: SliverToBoxAdapter(
+                        // 모든 탭에서 섹션을 즉시 렌더링해 서브 네비 클릭 시 키가 항상 준비되도록 함
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ...currentSections,
+                            const SizedBox(height: 24),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1798,7 +1937,12 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
       ),
       const SizedBox(height: 24),
       // 2. 메타 정보 (조사 일자, 조사 기관, 조사자)
-      Container(key: _sectionKeys['metaInfo'], child: _buildMetaInfoSection()),
+      Container(
+        key: _sectionKeys['metaInfo'],
+        child: UnifiedSectionCard(
+          child: _buildMetaInfoSection(),
+        ),
+      ),
       const SizedBox(height: 24),
       // 3. 위치 현황
       Container(
@@ -1966,74 +2110,21 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
   }
 
   Widget _buildMetaInfoSection() {
-    final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
-    final sectionPadding = EdgeInsets.all(isMobile ? 16 : 24);
-    return Container(
-      padding: sectionPadding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0x1A000000), // Apple-style subtle border
-          width: 1,
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        UnifiedSectionHeader(
+          icon: Icons.description_outlined,
+          title: '메타 정보',
+          description: '조사 일자, 기관, 조사자 정보를 입력하세요',
+          sectionNumber: _sectionNumberFor('metaInfo'),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.description_outlined,
-                  color: Color(0xFF2563EB),
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _numberedTitle('metaInfo', '메타 정보'),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '조사 일자, 기관, 조사자 정보를 입력하세요',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          TextField(
-            controller: _metaDateController,
-            decoration: InputDecoration(
+        TextField(
+          controller: _metaDateController,
+          decoration: InputDecoration(
               labelText: '조사 일자',
               hintText: 'YYYY-MM-DD',
               prefixIcon: const Icon(Icons.calendar_today, size: 20),
@@ -2126,8 +2217,8 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
               fillColor: const Color(0xFFF5F7FA),
             ),
           ),
-          const SizedBox(height: 20),
-          SizedBox(
+        const SizedBox(height: 20),
+        SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _isSavingMetaInfo
@@ -2167,8 +2258,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -2973,118 +3063,113 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
     final gradeClassification = vm?.gradeClassification ?? GradeClassification.initial();
     final aiPredictionState = vm?.aiPredictionState ?? AIPredictionState.initial();
 
+    // 각 섹션을 개별 위젯으로 분리하여 스크롤 위치 계산이 정확하게 되도록 함
     return [
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 1. 손상부 종합
-          Container(
-            key: _sectionKeys['damageSummary'],
-            child: vm != null
-                ? AnimatedBuilder(
-                    animation: vm,
-                    builder: (context, _) {
-                      return DamageSummaryTable(
-                        sectionNumber: _sectionNumberFor('damageSummary'),
-                        value: vm.damageSummary,
-                        onChanged: vm.updateDamageSummary,
-                        heritageId: heritageId,
-                        heritageName: _name.isEmpty ? '미상' : _name,
-                      );
-                    },
-                  )
-                : DamageSummaryTable(
+      // 1. 손상부 종합
+      Container(
+        key: _sectionKeys['damageSummary'],
+        child: vm != null
+            ? AnimatedBuilder(
+                animation: vm,
+                builder: (context, _) {
+                  return DamageSummaryTable(
                     sectionNumber: _sectionNumberFor('damageSummary'),
-                    value: damageSummary,
-                    onChanged: (_) {},
+                    value: vm.damageSummary,
+                    onChanged: vm.updateDamageSummary,
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
-                  ),
-          ),
-          SizedBox(height: sectionSpacing),
-          // 2. 조사자 의견
-          Container(
-            key: _sectionKeys['investigatorOpinion'],
-            child: vm != null
-                ? AnimatedBuilder(
-                    animation: vm,
-                    builder: (context, _) {
-                      return InvestigatorOpinionField(
-                        sectionNumber: _sectionNumberFor('investigatorOpinion'),
-                        value: vm.investigatorOpinion,
-                        onChanged: vm.updateInvestigatorOpinion,
-                        heritageId: heritageId,
-                        heritageName: _name.isEmpty ? '미상' : _name,
-                      );
-                    },
-                  )
-                : InvestigatorOpinionField(
+                  );
+                },
+              )
+            : DamageSummaryTable(
+                sectionNumber: _sectionNumberFor('damageSummary'),
+                value: damageSummary,
+                onChanged: (_) {},
+                heritageId: heritageId,
+                heritageName: _name.isEmpty ? '미상' : _name,
+              ),
+      ),
+      SizedBox(height: sectionSpacing),
+      // 2. 조사자 의견
+      Container(
+        key: _sectionKeys['investigatorOpinion'],
+        child: vm != null
+            ? AnimatedBuilder(
+                animation: vm,
+                builder: (context, _) {
+                  return InvestigatorOpinionField(
                     sectionNumber: _sectionNumberFor('investigatorOpinion'),
-                    value: investigatorOpinion,
-                    onChanged: (_) {},
+                    value: vm.investigatorOpinion,
+                    onChanged: vm.updateInvestigatorOpinion,
                     heritageId: heritageId,
                     heritageName: _name.isEmpty ? '미상' : _name,
-                  ),
-          ),
-          SizedBox(height: sectionSpacing),
-          // 3. 등급 분류
-          Container(
-            key: _sectionKeys['gradeClassification'],
-            child: vm != null
-                ? AnimatedBuilder(
-                    animation: vm,
-                    builder: (context, _) {
-                      return GradeClassificationCard(
-                        sectionNumber: _sectionNumberFor('gradeClassification'),
-                        value: vm.gradeClassification,
-                        onChanged: vm.updateGradeClassification,
-                      );
-                    },
-                  )
-                : GradeClassificationCard(
+                  );
+                },
+              )
+            : InvestigatorOpinionField(
+                sectionNumber: _sectionNumberFor('investigatorOpinion'),
+                value: investigatorOpinion,
+                onChanged: (_) {},
+                heritageId: heritageId,
+                heritageName: _name.isEmpty ? '미상' : _name,
+              ),
+      ),
+      SizedBox(height: sectionSpacing),
+      // 3. 등급 분류
+      Container(
+        key: _sectionKeys['gradeClassification'],
+        child: vm != null
+            ? AnimatedBuilder(
+                animation: vm,
+                builder: (context, _) {
+                  return GradeClassificationCard(
                     sectionNumber: _sectionNumberFor('gradeClassification'),
-                    value: gradeClassification,
-                    onChanged: (_) {},
-                  ),
-          ),
-          SizedBox(height: sectionSpacing),
-          // 4. AI 예측 기능
-          Container(
-            key: _sectionKeys['aiPrediction'],
-            child: vm != null
-                ? AnimatedBuilder(
-                    animation: vm,
-                    builder: (context, _) {
-                      return AIPredictionSection(
-                        sectionNumber: _sectionNumberFor('aiPrediction'),
-                        state: vm.aiPredictionState,
-                        actions: AIPredictionActions(
-                          onPredictGrade: vm.predictGrade,
-                          onGenerateMap: vm.generateMap,
-                          onSuggest: vm.suggestMitigation,
-                        ),
-                      );
-                    },
-                  )
-                : AIPredictionSection(
+                    value: vm.gradeClassification,
+                    onChanged: vm.updateGradeClassification,
+                  );
+                },
+              )
+            : GradeClassificationCard(
+                sectionNumber: _sectionNumberFor('gradeClassification'),
+                value: gradeClassification,
+                onChanged: (_) {},
+              ),
+      ),
+      SizedBox(height: sectionSpacing),
+      // 4. AI 예측 기능
+      Container(
+        key: _sectionKeys['aiPrediction'],
+        child: vm != null
+            ? AnimatedBuilder(
+                animation: vm,
+                builder: (context, _) {
+                  return AIPredictionSection(
                     sectionNumber: _sectionNumberFor('aiPrediction'),
-                    state: aiPredictionState,
+                    state: vm.aiPredictionState,
                     actions: AIPredictionActions(
-                      onPredictGrade: () {},
-                      onGenerateMap: () {},
-                      onSuggest: () {},
+                      onPredictGrade: vm.predictGrade,
+                      onGenerateMap: vm.generateMap,
+                      onSuggest: vm.suggestMitigation,
                     ),
-                  ),
-          ),
-        ],
+                  );
+                },
+              )
+            : AIPredictionSection(
+                sectionNumber: _sectionNumberFor('aiPrediction'),
+                state: aiPredictionState,
+                actions: AIPredictionActions(
+                  onPredictGrade: () {},
+                  onGenerateMap: () {},
+                  onSuggest: () {},
+                ),
+              ),
       ),
       const SizedBox(height: 48),
     ];
   }
 
 
-  // 상단 네비게이션 바 (모바일/태블릿용)
+  // 상단 네비게이션 바 (모바일/태블릿용) - 개선된 버전
   Widget _buildTopNavigationBar() {
     // 현재 탭에 맞는 섹션만 필터링
     final currentTabSections = <String>[];
@@ -3122,11 +3207,13 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1024;
 
     return Container(
       constraints: BoxConstraints(minHeight: isMobile ? 64 : 72),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 12 : 16,
           vertical: isMobile ? 10 : 12,
@@ -3138,89 +3225,238 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
             final isActive = item.key == _activeSectionKey;
             return Padding(
               padding: EdgeInsets.only(right: isMobile ? 8 : 10),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _scrollToSection(item.key),
-                    borderRadius: BorderRadius.circular(12),
-                    splashColor: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                    highlightColor: const Color(
-                      0xFF2563EB,
-                    ).withValues(alpha: 0.05),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 12 : 16,
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? const Color(0xFF2563EB) // Professional Blue 활성 색상
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isActive
-                              ? const Color(0xFF2563EB)
-                              : const Color(0xFFE5E7EB),
-                          width: isActive ? 2 : 1,
-                        ),
-                        boxShadow: isActive
-                            ? [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF2563EB,
-                                  ).withValues(alpha: 0.25),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 3),
-                                  spreadRadius: 0,
-                                ),
-                              ]
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            item.icon,
-                            size: isMobile ? 16 : 18,
-                            color: isActive
-                                ? Colors.white
-                                : const Color(0xFF6E6E73),
-                          ),
-                          SizedBox(width: isMobile ? 6 : 8),
-                          Flexible(
-                            child: Text(
-                              '${index + 1}. ${item.shortTitle}',
-                              style: TextStyle(
-                                fontSize: isMobile ? 12 : 14,
-                                fontWeight: isActive
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: isActive
-                                    ? Colors.white
-                                    : const Color(0xFF1D1D1F),
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+              child: _NavigationButton(
+                index: index,
+                item: item,
+                isActive: isActive,
+                isMobile: isMobile,
+                isTablet: isTablet,
+                onTap: () {
+                  // 즉시 활성 상태 업데이트 (반응 속도 개선)
+                  if (mounted && item.key != _activeSectionKey) {
+                    setState(() {
+                      _activeSectionKey = item.key;
+                    });
+                  }
+                  
+                  // 모바일 웹에서 안전한 클릭 처리
+                  try {
+                    if (mounted && !_isScrollingProgrammatically) {
+                      // 햅틱 피드백 (모바일)
+                      if (Theme.of(context).platform == TargetPlatform.iOS ||
+                          Theme.of(context).platform == TargetPlatform.android) {
+                        HapticFeedback.selectionClick();
+                      }
+                      _scrollToSection(item.key);
+                    }
+                  } catch (e) {
+                    // 오류 발생 시 무시 (앱 크래시 방지)
+                  }
+                },
               ),
             );
           }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+/// 개선된 네비게이션 버튼 위젯
+class _NavigationButton extends StatefulWidget {
+  const _NavigationButton({
+    required this.index,
+    required this.item,
+    required this.isActive,
+    required this.isMobile,
+    required this.isTablet,
+    required this.onTap,
+  });
+
+  final int index;
+  final _SectionNavigationItem item;
+  final bool isActive;
+  final bool isMobile;
+  final bool isTablet;
+  final VoidCallback onTap;
+
+  @override
+  State<_NavigationButton> createState() => _NavigationButtonState();
+}
+
+class _NavigationButtonState extends State<_NavigationButton>
+    with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 120),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = widget.isActive;
+    final isMobile = widget.isMobile;
+    final isTablet = widget.isTablet;
+
+    return MouseRegion(
+      onEnter: (_) {
+        if (!isMobile) {
+          setState(() => _isHovered = true);
+          _animationController.forward();
+        }
+      },
+      onExit: (_) {
+        if (!isMobile) {
+          setState(() => _isHovered = false);
+          _animationController.reverse();
+        }
+      },
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(14),
+              splashColor: const Color(0xFF2563EB).withValues(alpha: 0.15),
+              highlightColor: const Color(0xFF2563EB).withValues(alpha: 0.08),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 14 : (isTablet ? 16 : 18),
+                  vertical: isMobile ? 11 : (isTablet ? 12 : 13),
+                ),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFF2563EB)
+                      : (_isHovered && !isMobile)
+                          ? const Color(0xFFF5F7FA)
+                          : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isActive
+                        ? const Color(0xFF2563EB)
+                        : (_isHovered && !isMobile)
+                            ? const Color(0xFF2563EB).withValues(alpha: 0.3)
+                            : const Color(0xFFE5E7EB),
+                    width: isActive ? 2.5 : 1.5,
+                  ),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                            spreadRadius: 0,
+                          ),
+                        ]
+                      : (_isHovered && !isMobile)
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 활성 상태 인디케이터
+                    if (isActive)
+                      Container(
+                        width: 4,
+                        height: 4,
+                        margin: EdgeInsets.only(right: isMobile ? 6 : 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    // 아이콘
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                      child: Icon(
+                        widget.item.icon,
+                        size: isMobile ? 17 : (isTablet ? 18 : 19),
+                        color: isActive
+                            ? Colors.white
+                            : (_isHovered && !isMobile)
+                                ? const Color(0xFF2563EB)
+                                : const Color(0xFF6E6E73),
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 7 : (isTablet ? 8 : 9)),
+                    // 텍스트
+                    Flexible(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 150),
+                        curve: Curves.easeOut,
+                        style: TextStyle(
+                          fontSize: isMobile ? 13 : (isTablet ? 14 : 15),
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : (_isHovered && !isMobile)
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                          color: isActive
+                              ? Colors.white
+                              : (_isHovered && !isMobile)
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF1D1D1F),
+                          letterSpacing: isActive ? -0.1 : -0.2,
+                          height: 1.2,
+                        ),
+                        child: Text(
+                          '${widget.index + 1}. ${widget.item.shortTitle}',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -3305,6 +3541,125 @@ class SectionHeader extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Divider(height: 16, thickness: 1, color: dividerColor),
+      ],
+    );
+  }
+}
+
+/// 통일된 섹션 카드 래퍼 (모든 섹션에 일관된 스타일 적용)
+class UnifiedSectionCard extends StatelessWidget {
+  const UnifiedSectionCard({
+    super.key,
+    required this.child,
+    this.padding,
+  });
+
+  final Widget child;
+  final EdgeInsets? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final cardPadding = padding ?? EdgeInsets.all(isMobile ? 16 : 24);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0x1A000000), // Apple-style subtle border
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      padding: cardPadding,
+      child: child,
+    );
+  }
+}
+
+/// 통일된 섹션 헤더 (모든 섹션에 일관된 헤더 스타일)
+class UnifiedSectionHeader extends StatelessWidget {
+  const UnifiedSectionHeader({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.description,
+    this.sectionNumber,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? description;
+  final int? sectionNumber;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 640;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 아이콘
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: const Color(0xFF2563EB),
+                size: isMobile ? 20 : 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 제목
+            Expanded(
+              child: Text(
+                sectionNumber != null ? '$sectionNumber. $title' : title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: isMobile ? 18 : 20,
+                  color: const Color(0xFF1D1D1F),
+                  letterSpacing: -0.2,
+                  height: 1.2,
+                ),
+              ),
+            ),
+            // Trailing 위젯
+            if (trailing != null) ...[
+              const SizedBox(width: 12),
+              trailing!,
+            ],
+          ],
+        ),
+        // 설명
+        if (description != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            description!,
+            style: TextStyle(
+              color: const Color(0xFF6B7280),
+              fontSize: isMobile ? 13 : 14,
+              letterSpacing: -0.2,
+              height: 1.3,
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
       ],
     );
   }

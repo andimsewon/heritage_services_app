@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
 import 'package:my_cross_app/core/theme/app_theme.dart';
 import 'package:my_cross_app/core/ui/components/section_button.dart';
 import 'package:my_cross_app/core/ui/components/section_card.dart';
 import 'package:my_cross_app/core/ui/section_form/section_data_list.dart';
-import 'package:my_cross_app/core/ui/widgets/ox_toggle.dart';
 import 'package:my_cross_app/core/ui/widgets/responsive_table.dart';
 import 'package:my_cross_app/models/heritage_detail_models.dart';
 import 'package:my_cross_app/models/section_form_models.dart';
@@ -43,13 +41,11 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     'E',
     'F',
   ];
-  static const List<String> _positionOptions = ['-', 'X', 'O'];
 
   final _fb = FirebaseService();
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
   String? _saveStatusMessage;
-  Timer? _autoSaveTimer;
   final ScrollController _horizontalScrollController = ScrollController();
 
   @override
@@ -75,7 +71,6 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
   @override
   void dispose() {
-    _autoSaveTimer?.cancel();
     for (final controller in _labelControllers) {
       controller.dispose();
     }
@@ -88,110 +83,208 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   Widget build(BuildContext context) {
     final columns = _buildColumns();
     final rows = _buildRows(columns);
-    final textTheme = Theme.of(context).textTheme;
 
     return SectionCard(
       sectionNumber: widget.sectionNumber,
       title: '손상부 종합',
       sectionDescription: '구조적, 물리적, 생물·화학적 손상을 종합적으로 분석합니다',
-      action: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_saveStatusMessage != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: _saveStatusMessage!.contains('✅') 
-                    ? Colors.green.shade50 
-                    : _saveStatusMessage!.contains('❌')
-                        ? Colors.red.shade50
-                        : Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _saveStatusMessage!.contains('✅')
-                      ? Colors.green.shade300
-                      : _saveStatusMessage!.contains('❌')
-                          ? Colors.red.shade300
-                          : Colors.blue.shade300,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_isSaving)
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else if (_saveStatusMessage!.contains('✅'))
-                    const Icon(Icons.check_circle, size: 16, color: Colors.green)
-                  else if (_saveStatusMessage!.contains('❌'))
-                    const Icon(Icons.error, size: 16, color: Colors.red)
-                  else
-                    const Icon(Icons.info, size: 16, color: Colors.blue),
-                  const SizedBox(width: 6),
-                  Text(
-                    _saveStatusMessage!,
-                    style: TextStyle(
-                      fontSize: 12,
+      action: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobileAction = constraints.maxWidth < 600;
+          return Column(
+            crossAxisAlignment: isMobileAction
+                ? CrossAxisAlignment.stretch
+                : CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 상태 메시지 - 겹침 방지를 위한 명확한 마진
+              if (_saveStatusMessage != null) ...[
+                Container(
+                  margin: EdgeInsets.only(bottom: isMobileAction ? 10 : 12),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobileAction ? 12 : 14,
+                      vertical: isMobileAction ? 8 : 10,
+                    ),
+                    decoration: BoxDecoration(
                       color: _saveStatusMessage!.contains('✅')
-                          ? Colors.green.shade700
+                          ? Colors.green.shade50
                           : _saveStatusMessage!.contains('❌')
-                              ? Colors.red.shade700
-                              : Colors.blue.shade700,
-                      fontWeight: FontWeight.w500,
+                          ? Colors.red.shade50
+                          : Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _saveStatusMessage!.contains('✅')
+                            ? Colors.green.shade300
+                            : _saveStatusMessage!.contains('❌')
+                            ? Colors.red.shade300
+                            : Colors.blue.shade300,
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              (_saveStatusMessage!.contains('✅')
+                                      ? Colors.green
+                                      : _saveStatusMessage!.contains('❌')
+                                      ? Colors.red
+                                      : Colors.blue)
+                                  .withValues(alpha: 0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isSaving)
+                          SizedBox(
+                            width: isMobileAction ? 14 : 16,
+                            height: isMobileAction ? 14 : 16,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.blue,
+                              ),
+                            ),
+                          )
+                        else if (_saveStatusMessage!.contains('✅'))
+                          Icon(
+                            Icons.check_circle,
+                            size: isMobileAction ? 16 : 18,
+                            color: Colors.green,
+                          )
+                        else if (_saveStatusMessage!.contains('❌'))
+                          Icon(
+                            Icons.error,
+                            size: isMobileAction ? 16 : 18,
+                            color: Colors.red,
+                          )
+                        else
+                          Icon(
+                            Icons.info_outline,
+                            size: isMobileAction ? 16 : 18,
+                            color: Colors.blue,
+                          ),
+                        SizedBox(width: isMobileAction ? 6 : 8),
+                        Flexible(
+                          child: Text(
+                            _saveStatusMessage!,
+                            style: TextStyle(
+                              fontSize: isMobileAction ? 11 : 13,
+                              color: _saveStatusMessage!.contains('✅')
+                                  ? Colors.green.shade700
+                                  : _saveStatusMessage!.contains('❌')
+                                  ? Colors.red.shade700
+                                  : Colors.blue.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
-          SectionButtonGroup(
-            spacing: 8,
-            buttons: [
-              if (!widget.value.rows.isEmpty)
-                SectionButton.outlined(
-                  label: '행 삭제',
-                  onPressed: () {
-                    final rows = List<DamageRow>.from(widget.value.rows)
-                      ..removeLast();
-                    widget.onChanged(widget.value.copyWith(rows: rows));
-                    _markAsChanged();
-                  },
-                  icon: Icons.delete_forever_outlined,
-                  color: Colors.red,
                 ),
-              SectionButton.filled(
-                label: '행 추가',
-                onPressed: () {
-                  _addRow();
-                  _markAsChanged();
-                },
-                icon: Icons.add,
-              ),
-              SectionButton.filled(
-                label: _isSaving ? '저장 중...' : '저장',
-                onPressed: _isSaving
-                    ? () {}
-                    : () => _saveDamageSummary(showMessage: true),
-                icon: _isSaving ? Icons.hourglass_empty : Icons.save,
-                backgroundColor: _hasUnsavedChanges ? Colors.orange : null,
-              ),
+              ],
+              // 버튼 그룹 - 겹침 방지를 위한 명확한 레이아웃
+              if (isMobileAction)
+                // Mobile: 세로 배치, 전체 너비 사용
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.value.rows.isNotEmpty) ...[
+                      SectionButton.outlined(
+                        label: '행 삭제',
+                        onPressed: () {
+                          final rows = List<DamageRow>.from(widget.value.rows)
+                            ..removeLast();
+                          widget.onChanged(widget.value.copyWith(rows: rows));
+                          _markAsChanged();
+                        },
+                        icon: Icons.delete_forever_outlined,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    SectionButton.filled(
+                      label: '행 추가',
+                      onPressed: () {
+                        _addRow();
+                        _markAsChanged();
+                      },
+                      icon: Icons.add,
+                    ),
+                    const SizedBox(height: 10),
+                    SectionButton.filled(
+                      label: _isSaving ? '저장 중...' : '저장',
+                      onPressed: _isSaving
+                          ? () {}
+                          : () => _saveDamageSummary(showMessage: true),
+                      icon: _isSaving ? Icons.hourglass_empty : Icons.save,
+                      backgroundColor: _hasUnsavedChanges
+                          ? Colors.orange
+                          : null,
+                    ),
+                  ],
+                )
+              else
+                // Desktop: 가로 배치, 버튼 크기 자동 조정
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    if (widget.value.rows.isNotEmpty)
+                      SectionButton.outlined(
+                        label: '행 삭제',
+                        onPressed: () {
+                          final rows = List<DamageRow>.from(widget.value.rows)
+                            ..removeLast();
+                          widget.onChanged(widget.value.copyWith(rows: rows));
+                          _markAsChanged();
+                        },
+                        icon: Icons.delete_forever_outlined,
+                        color: Colors.red,
+                      ),
+                    SectionButton.filled(
+                      label: '행 추가',
+                      onPressed: () {
+                        _addRow();
+                        _markAsChanged();
+                      },
+                      icon: Icons.add,
+                    ),
+                    SectionButton.filled(
+                      label: _isSaving ? '저장 중...' : '저장',
+                      onPressed: _isSaving
+                          ? () {}
+                          : () => _saveDamageSummary(showMessage: true),
+                      icon: _isSaving ? Icons.hourglass_empty : Icons.save,
+                      backgroundColor: _hasUnsavedChanges
+                          ? Colors.orange
+                          : null,
+                    ),
+                  ],
+                ),
             ],
-          ),
-        ],
+          );
+        },
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 1200;
+          final isMobile = constraints.maxWidth < 600;
           final editorPanel = _buildPanel(
             title: '① 손상부 기록표',
             description: '구조·물리·생물·화학 손상 입력을 모두 한 번에 관리합니다.',
-            child: _buildEditableTable(columns, rows),
+            child: _buildEditableTable(columns, rows, isMobile: isMobile),
           );
           final previewPanel = _buildPanel(
             title: '② 보고서 미리보기',
@@ -207,16 +300,16 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(child: editorPanel),
-                    const SizedBox(width: 24),
+                    SizedBox(width: isMobile ? 12 : 24),
                     Expanded(child: previewPanel),
                   ],
                 )
               else ...[
                 editorPanel,
-                const SizedBox(height: 24),
+                SizedBox(height: isMobile ? 16 : 24),
                 previewPanel,
               ],
-              const SizedBox(height: 16),
+              SizedBox(height: isMobile ? 12 : 16),
               if (widget.heritageId.isNotEmpty)
                 SectionDataList(
                   heritageId: widget.heritageId,
@@ -237,430 +330,175 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   }) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
-    final borderColor = theme.dividerColor.withOpacity(0.4);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: isMobile ? 6 : 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            title,
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Flexible(
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 10 : 12,
+                    vertical: isMobile ? 5 : 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    title,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.accentBlue,
+                      fontSize: isMobile ? 14 : null,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
           ),
           if (description != null) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: isMobile ? 6 : 8),
             Text(
-              description!,
+              description,
               style: textTheme.bodySmall?.copyWith(
                 color: AppTheme.secondaryText,
+                height: 1.4,
+                fontSize: isMobile ? 11 : null,
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: isMobile ? 12 : 16),
           child,
         ],
       ),
     );
   }
 
-  Widget _buildEditableTable(List<DataColumn> columns, List<DataRow> rows) {
+  Widget _buildEditableTable(
+    List<DataColumn> columns,
+    List<DataRow> rows, {
+    bool isMobile = false,
+  }) {
+    final theme = Theme.of(context);
+    final headingColor = const Color(0xFFF4F5F7);
+    final tableCardRadius = isMobile ? 16.0 : 20.0;
+
+    final dataTable = DataTable(
+      columns: columns,
+      rows: rows,
+      dataRowMinHeight: isMobile ? 96 : 112,
+      headingRowHeight: isMobile ? 64 : 74,
+      horizontalMargin: isMobile ? 8 : 12,
+      columnSpacing: isMobile ? 8 : 12,
+      headingRowColor: WidgetStateProperty.all(headingColor),
+      headingTextStyle: theme.textTheme.labelLarge?.copyWith(
+        letterSpacing: 0.1,
+        fontWeight: FontWeight.w700,
+        color: const Color(0xFF111827),
+        fontSize: isMobile ? 12 : 13,
+      ),
+      dividerThickness: 0,
+      border: TableBorder.symmetric(
+        inside: BorderSide(color: Colors.transparent, width: 0),
+        outside: BorderSide.none,
+      ),
+      dataTextStyle: theme.textTheme.bodyMedium?.copyWith(
+        fontSize: 13,
+        color: const Color(0xFF1C1C1E),
+      ),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 900;
-        
-        if (isMobile) {
-          // 모바일: 카드 형태로 표시
-          return _buildMobileTable(rows);
-        }
-        
-        // 데스크톱: 기존 테이블 레이아웃
-        final borderColor = Theme.of(context).dividerColor.withOpacity(0.6);
-        final dataTable = DataTable(
-          columns: columns,
-          rows: rows,
-          dataRowMinHeight: 140,
-          headingRowHeight: 80,
-          horizontalMargin: 12,
-          columnSpacing: 16,
-          headingTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppTheme.primaryText,
-          ),
-        );
-
         final screenHeight = MediaQuery.of(context).size.height;
         final minTableHeight = screenHeight * 0.5;
         final maxTableHeight = screenHeight * 0.75;
-        
-        return DecoratedBox(
+        final minHeight = isMobile
+            ? minTableHeight.clamp(280.0, 480.0)
+            : minTableHeight.clamp(360.0, 620.0);
+        final maxHeight = isMobile
+            ? maxTableHeight.clamp(360.0, 560.0)
+            : maxTableHeight.clamp(480.0, 780.0);
+
+        final minWidth = _editorTableMinWidth();
+        Widget tableContent;
+        if (isMobile) {
+          tableContent = Scrollbar(
+            controller: _horizontalScrollController,
+            thumbVisibility: true,
+            thickness: 6,
+            radius: const Radius.circular(999),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              controller: _horizontalScrollController,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: minWidth),
+                child: dataTable,
+              ),
+            ),
+          );
+        } else {
+          tableContent = ResponsiveTable(
+            controller: _horizontalScrollController,
+            minWidth: minWidth,
+            child: dataTable,
+          );
+        }
+
+        return Container(
           decoration: BoxDecoration(
-            border: Border.all(color: borderColor),
-            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFF9FAFB), Color(0xFFF2F4F7)],
+            ),
+            borderRadius: BorderRadius.circular(tableCardRadius),
+            border: Border.all(color: const Color(0xFFE3E5E9)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: minTableHeight.clamp(400.0, 600.0),
-                maxHeight: maxTableHeight.clamp(500.0, 800.0),
-              ),
+            borderRadius: BorderRadius.circular(tableCardRadius),
+            child: Container(
+              color: Colors.white,
               child: SingleChildScrollView(
-                scrollDirection: Axis.vertical,
+                padding: EdgeInsets.all(isMobile ? 8 : 12),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: minTableHeight.clamp(400.0, 600.0),
+                    minHeight: minHeight,
+                    maxHeight: maxHeight,
                   ),
-                  child: ResponsiveTable(
-                    controller: _horizontalScrollController,
-                    minWidth: _editorTableMinWidth(),
-                    child: dataTable,
-                  ),
+                  child: tableContent,
                 ),
               ),
             ),
           ),
         );
       },
-    );
-  }
-
-  Widget _buildMobileTable(List<DataRow> rows) {
-    if (widget.value.rows.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        child: const Center(
-          child: Text(
-            '행을 추가해 주세요.',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: widget.value.rows.length,
-      itemBuilder: (context, index) {
-        final row = widget.value.rows[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: _buildMobileRow(row, index),
-        );
-      },
-    );
-  }
-
-  Widget _buildMobileRow(DamageRow row, int index) {
-    final theme = Theme.of(context);
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 구성 요소 이름
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: TextFormField(
-            controller: _labelControllers[index],
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              hintText: '구성 요소 이름 입력',
-              hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-              contentPadding: EdgeInsets.zero,
-            ),
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            onChanged: (value) {
-              _replaceRow(index, row.copyWith(label: value));
-              _markAsChanged();
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // 구조적 손상
-        _buildMobileDamageGroup(
-          '구조적 손상',
-          Colors.red,
-          row.structural,
-          widget.value.columnsStructural,
-          (updated) => _replaceRow(index, row.copyWith(structural: updated)),
-          index,
-          row,
-        ),
-        const SizedBox(height: 12),
-        
-        // 물리적 손상
-        _buildMobileDamageGroup(
-          '물리적 손상',
-          Colors.blue,
-          row.physical,
-          widget.value.columnsPhysical,
-          (updated) => _replaceRow(index, row.copyWith(physical: updated)),
-          index,
-          row,
-        ),
-        const SizedBox(height: 12),
-        
-        // 생물·화학적 손상
-        _buildMobileDamageGroup(
-          '생물·화학적 손상',
-          Colors.green,
-          row.bioChemical,
-          widget.value.columnsBioChemical,
-          (updated) => _replaceRow(index, row.copyWith(bioChemical: updated)),
-          index,
-          row,
-        ),
-        const SizedBox(height: 16),
-        
-        // 등급 선택
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '육안 등급',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 4),
-                  _gradeDropdown(
-                    value: row.visualGrade,
-                    onChanged: (value) {
-                      if (value == null) return;
-                      _replaceRow(index, row.copyWith(visualGrade: value));
-                      _markAsChanged();
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '실험실 등급',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 4),
-                  _gradeDropdown(
-                    value: row.labGrade,
-                    onChanged: (value) {
-                      if (value == null) return;
-                      _replaceRow(index, row.copyWith(labGrade: value));
-                      _markAsChanged();
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '최종 등급',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 4),
-                  _gradeDropdown(
-                    value: row.finalGrade,
-                    onChanged: (value) {
-                      if (value == null) return;
-                      _replaceRow(index, row.copyWith(finalGrade: value));
-                      _markAsChanged();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileDamageGroup(
-    String groupName,
-    Color groupColor,
-    Map<String, DamageCell> map,
-    List<String> columns,
-    ValueChanged<Map<String, DamageCell>> onUpdated,
-    int rowIndex,
-    DamageRow row,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: groupColor.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: groupColor.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            groupName,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: groupColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...columns.map((label) {
-            final cell = map[label] ?? const DamageCell();
-            final present = cell.present;
-            
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: present ? groupColor : Colors.grey.shade300,
-                  width: present ? 2 : 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 라벨과 O/X 토글
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: present ? groupColor : Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            final updated = _updateMap(
-                              map,
-                              label,
-                              cell.copyWith(present: !present),
-                            );
-                            onUpdated(updated);
-                            _markAsChanged();
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            width: 48,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: present 
-                                  ? groupColor.withOpacity(0.15)
-                                  : Colors.grey.shade100,
-                              border: Border.all(
-                                color: present 
-                                    ? groupColor
-                                    : Colors.grey.shade400,
-                                width: 2,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                present ? 'O' : 'X',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: present 
-                                      ? groupColor
-                                      : Colors.grey.shade600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  // 위치 버튼 (O일 때만 표시)
-                  if (present) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildPositionButton(
-                          '상',
-                          cell.positionTop,
-                          (value) => _updatePosition(
-                            map,
-                            label,
-                            'top',
-                            value,
-                            rowIndex,
-                            row,
-                          ),
-                          groupColor,
-                        ),
-                        _buildPositionButton(
-                          '중',
-                          cell.positionMiddle,
-                          (value) => _updatePosition(
-                            map,
-                            label,
-                            'middle',
-                            value,
-                            rowIndex,
-                            row,
-                          ),
-                          groupColor,
-                        ),
-                        _buildPositionButton(
-                          '하',
-                          cell.positionBottom,
-                          (value) => _updatePosition(
-                            map,
-                            label,
-                            'bottom',
-                            value,
-                            rowIndex,
-                            row,
-                          ),
-                          groupColor,
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }).toList(),
-        ],
-      ),
     );
   }
 
@@ -679,8 +517,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
   List<DataColumn> _buildColumns() {
     return [
-      const DataColumn(
-        label: _ColumnHeader(group: '구성 요소', column: '위치'),
+      DataColumn(
+        label: const _ColumnHeader(group: '구성 요소', column: '위치'),
+        numeric: false,
       ),
       ...widget.value.columnsStructural.map(
         (label) => DataColumn(
@@ -689,6 +528,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             column: label,
             groupColor: Colors.red,
           ),
+          numeric: false,
         ),
       ),
       ...widget.value.columnsPhysical.map(
@@ -698,6 +538,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             column: label,
             groupColor: Colors.blue,
           ),
+          numeric: false,
         ),
       ),
       ...widget.value.columnsBioChemical.map(
@@ -707,16 +548,20 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             column: label,
             groupColor: Colors.green,
           ),
+          numeric: false,
         ),
       ),
       const DataColumn(
         label: _ColumnHeader(group: '육안 등급', column: '육안'),
+        numeric: false,
       ),
       const DataColumn(
         label: _ColumnHeader(group: '실험실 등급', column: '실험실'),
+        numeric: false,
       ),
       const DataColumn(
         label: _ColumnHeader(group: '최종 등급', column: '최종'),
+        numeric: false,
       ),
     ];
   }
@@ -724,7 +569,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   List<DataRow> _buildRows(List<DataColumn> columns) {
     if (widget.value.rows.isEmpty) {
       return [
-        DataRow(
+        DataRow.byIndex(
+          index: 0,
+          color: WidgetStateProperty.resolveWith((_) => Colors.white),
           cells: [
             const DataCell(Text('행을 추가해 주세요.')),
             ...List.generate(
@@ -742,7 +589,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       final cells = <DataCell>[
         DataCell(
           SizedBox(
-            width: 180,
+            width: MediaQuery.of(context).size.width < 600
+                ? 150
+                : 200, // Smaller on mobile
             child: TextFormField(
               controller: _labelControllers[index],
               decoration: InputDecoration(
@@ -757,13 +606,19 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF1E2A44), width: 2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF1E2A44),
+                    width: 2,
+                  ),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 hintText: '구성 요소 이름 입력 (예: 기둥 01번)',
                 hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               onChanged: (value) {
@@ -786,117 +641,30 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
 
         cells.add(
           DataCell(
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              width: double.infinity,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Main toggle for present/absent - 더 큰 클릭 영역
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        final updated = _updateMap(
-                          map,
-                          label,
-                          cell.copyWith(present: !present),
-                        );
-                        if (map == row.structural) {
-                          _replaceRow(index, row.copyWith(structural: updated));
-                        } else if (map == row.physical) {
-                          _replaceRow(index, row.copyWith(physical: updated));
-                        } else {
-                          _replaceRow(index, row.copyWith(bioChemical: updated));
-                        }
-                        _markAsChanged();
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: 56,
-                        height: 36,
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: present 
-                              ? groupColor.withOpacity(0.15)
-                              : Colors.grey.shade100,
-                          border: Border.all(
-                            color: present 
-                                ? groupColor
-                                : Colors.grey.shade400,
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            present ? 'O' : 'X',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: present 
-                                  ? groupColor
-                                  : Colors.grey.shade600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Position indicators (상/중/하) - 더 큰 클릭 영역
-                  if (present) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildPositionButton(
-                          '상',
-                          cell.positionTop,
-                          (value) => _updatePosition(
-                            map,
-                            label,
-                            'top',
-                            value,
-                            index,
-                            row,
-                          ),
-                          groupColor,
-                        ),
-                        _buildPositionButton(
-                          '중',
-                          cell.positionMiddle,
-                          (value) => _updatePosition(
-                            map,
-                            label,
-                            'middle',
-                            value,
-                            index,
-                            row,
-                          ),
-                          groupColor,
-                        ),
-                        _buildPositionButton(
-                          '하',
-                          cell.positionBottom,
-                          (value) => _updatePosition(
-                            map,
-                            label,
-                            'bottom',
-                            value,
-                            index,
-                            row,
-                          ),
-                          groupColor,
-                        ),
-                      ],
-                    ),
-                  ] else
-                    // 빈 공간 유지
-                    const SizedBox(height: 28),
-                ],
-              ),
+            // DamageCell: A dedicated component that ensures all content stays inside the cell
+            // This prevents circular position buttons from overflowing below the table cell border
+            _DamageCellContent(
+              present: present,
+              cell: cell,
+              groupColor: groupColor,
+              onTogglePresent: () {
+                final updated = _updateMap(
+                  map,
+                  label,
+                  cell.copyWith(present: !present),
+                );
+                if (map == row.structural) {
+                  _replaceRow(index, row.copyWith(structural: updated));
+                } else if (map == row.physical) {
+                  _replaceRow(index, row.copyWith(physical: updated));
+                } else {
+                  _replaceRow(index, row.copyWith(bioChemical: updated));
+                }
+                _markAsChanged();
+              },
+              onUpdatePosition: (position, value) {
+                _updatePosition(map, label, position, value, index, row);
+              },
             ),
           ),
         );
@@ -915,11 +683,13 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       cells.addAll([
         DataCell(
           SizedBox(
-            width: 120,
+            width: 100, // Fixed width for consistent column alignment
             child: _gradeDropdown(
               value: row.visualGrade,
               onChanged: (value) {
-                if (value == null) return;
+                if (value == null) {
+                  return;
+                }
                 _replaceRow(index, row.copyWith(visualGrade: value));
                 _markAsChanged();
               },
@@ -928,11 +698,13 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         ),
         DataCell(
           SizedBox(
-            width: 120,
+            width: 100, // Fixed width for consistent column alignment
             child: _gradeDropdown(
               value: row.labGrade,
               onChanged: (value) {
-                if (value == null) return;
+                if (value == null) {
+                  return;
+                }
                 _replaceRow(index, row.copyWith(labGrade: value));
                 _markAsChanged();
               },
@@ -941,11 +713,13 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         ),
         DataCell(
           SizedBox(
-            width: 120,
+            width: 100, // Fixed width for consistent column alignment
             child: _gradeDropdown(
               value: row.finalGrade,
               onChanged: (value) {
-                if (value == null) return;
+                if (value == null) {
+                  return;
+                }
                 _replaceRow(index, row.copyWith(finalGrade: value));
                 _markAsChanged();
               },
@@ -954,7 +728,18 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         ),
       ]);
 
-      rows.add(DataRow(cells: cells));
+      rows.add(
+        DataRow.byIndex(
+          index: index,
+          color: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const Color(0xFFE0E7FF);
+            }
+            return index.isEven ? Colors.white : const Color(0xFFF7F8FA);
+          }),
+          cells: cells,
+        ),
+      );
     }
     return rows;
   }
@@ -964,36 +749,38 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value.isEmpty ? null : value,
+      initialValue: value.isEmpty ? null : value,
       items: _gradeOptions
-          .map((grade) => DropdownMenuItem(
-                value: grade,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: _getGradeColor(grade),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          grade,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
+          .map(
+            (grade) => DropdownMenuItem(
+              value: grade,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: _getGradeColor(grade),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        grade,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(grade),
-                  ],
-                ),
-              ))
+                  ),
+                  const SizedBox(width: 8),
+                  Text(grade),
+                ],
+              ),
+            ),
+          )
           .toList(),
       onChanged: onChanged,
       decoration: InputDecoration(
@@ -1067,11 +854,12 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   }
 
   void _addRow() {
-    final makeMap = (List<String> keys) => {
-      for (final key in keys) key: const DamageCell(),
-    };
+    Map<String, DamageCell> makeMap(List<String> keys) {
+      return {for (final key in keys) key: const DamageCell()};
+    }
+
     final row = DamageRow(
-      label: '구성 요소 ${widget.value.rows.length + 1}',
+      label: '', // 빈 문자열로 시작하여 사용자가 직접 입력
       structural: makeMap(widget.value.columnsStructural),
       physical: makeMap(widget.value.columnsPhysical),
       bioChemical: makeMap(widget.value.columnsBioChemical),
@@ -1097,74 +885,6 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
       );
   }
 
-  Widget _buildPositionButton(
-    String positionLabel,
-    String currentValue,
-    ValueChanged<String> onChanged,
-    Color groupColor,
-  ) {
-    final options = ['-', 'X', 'O'];
-    final currentIndex = options.indexOf(currentValue);
-    final nextIndex = (currentIndex + 1) % options.length;
-    final nextValue = options[nextIndex];
-    
-    Color getColor(String value) {
-      switch (value) {
-        case 'O':
-          return Colors.green;
-        case 'X':
-          return Colors.red;
-        default:
-          return Colors.grey;
-      }
-    }
-    
-    Color getBgColor(String value) {
-      switch (value) {
-        case 'O':
-          return Colors.green.shade50;
-        case 'X':
-          return Colors.red.shade50;
-        default:
-          return Colors.grey.shade100;
-      }
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          onChanged(nextValue);
-          _markAsChanged();
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: 40,
-          height: 40,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: getBgColor(currentValue),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: getColor(currentValue),
-              width: 2,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              currentValue,
-              style: TextStyle(
-                color: getColor(currentValue),
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _updatePosition(
     Map<String, DamageCell> map,
     String label,
@@ -1175,9 +895,9 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
   ) {
     final cell = map[label] ?? const DamageCell();
     final updatedCell = cell.copyWith(
-      positionTop: position == 'top' ? value : cell.positionTop,
-      positionMiddle: position == 'middle' ? value : cell.positionMiddle,
-      positionBottom: position == 'bottom' ? value : cell.positionBottom,
+      positionLeft: position == 'left' ? value : cell.positionLeft,
+      positionCenter: position == 'center' ? value : cell.positionCenter,
+      positionRight: position == 'right' ? value : cell.positionRight,
     );
 
     final updated = _updateMap(map, label, updatedCell);
@@ -1198,14 +918,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         _saveStatusMessage = '💾 변경 사항이 있습니다';
       });
     }
-    
-    // 자동 저장 타이머 시작 (2초 후 자동 저장)
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
-      if (widget.heritageId.isNotEmpty && _hasUnsavedChanges) {
-        _saveDamageSummary(showMessage: false);
-      }
-    });
+    // 자동 저장 기능 제거됨
   }
 
   Future<void> _saveDamageSummary({bool showMessage = true}) async {
@@ -1251,12 +964,15 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         for (final entry in row.structural.entries) {
           if (entry.value.present) {
             final positions = <String>[];
-            if (entry.value.positionTop != '-')
-              positions.add('상:${entry.value.positionTop}');
-            if (entry.value.positionMiddle != '-')
-              positions.add('중:${entry.value.positionMiddle}');
-            if (entry.value.positionBottom != '-')
-              positions.add('하:${entry.value.positionBottom}');
+            if (entry.value.positionLeft != '-') {
+              positions.add('좌:${entry.value.positionLeft}');
+            }
+            if (entry.value.positionCenter != '-') {
+              positions.add('중:${entry.value.positionCenter}');
+            }
+            if (entry.value.positionRight != '-') {
+              positions.add('우:${entry.value.positionRight}');
+            }
 
             if (positions.isNotEmpty) {
               structuralDamages.add('${entry.key}(${positions.join(', ')})');
@@ -1274,12 +990,15 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         for (final entry in row.physical.entries) {
           if (entry.value.present) {
             final positions = <String>[];
-            if (entry.value.positionTop != '-')
-              positions.add('상:${entry.value.positionTop}');
-            if (entry.value.positionMiddle != '-')
-              positions.add('중:${entry.value.positionMiddle}');
-            if (entry.value.positionBottom != '-')
-              positions.add('하:${entry.value.positionBottom}');
+            if (entry.value.positionLeft != '-') {
+              positions.add('좌:${entry.value.positionLeft}');
+            }
+            if (entry.value.positionCenter != '-') {
+              positions.add('중:${entry.value.positionCenter}');
+            }
+            if (entry.value.positionRight != '-') {
+              positions.add('우:${entry.value.positionRight}');
+            }
 
             if (positions.isNotEmpty) {
               physicalDamages.add('${entry.key}(${positions.join(', ')})');
@@ -1297,12 +1016,15 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         for (final entry in row.bioChemical.entries) {
           if (entry.value.present) {
             final positions = <String>[];
-            if (entry.value.positionTop != '-')
-              positions.add('상:${entry.value.positionTop}');
-            if (entry.value.positionMiddle != '-')
-              positions.add('중:${entry.value.positionMiddle}');
-            if (entry.value.positionBottom != '-')
-              positions.add('하:${entry.value.positionBottom}');
+            if (entry.value.positionLeft != '-') {
+              positions.add('좌:${entry.value.positionLeft}');
+            }
+            if (entry.value.positionCenter != '-') {
+              positions.add('중:${entry.value.positionCenter}');
+            }
+            if (entry.value.positionRight != '-') {
+              positions.add('우:${entry.value.positionRight}');
+            }
 
             if (positions.isNotEmpty) {
               bioChemicalDamages.add('${entry.key}(${positions.join(', ')})');
@@ -1349,7 +1071,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
           _hasUnsavedChanges = false;
           _saveStatusMessage = showMessage ? '✅ 저장되었습니다' : '✅ 자동 저장됨';
         });
-        
+
         if (showMessage) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1359,7 +1081,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             ),
           );
         }
-        
+
         // 상태 메시지 자동 제거
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
@@ -1370,12 +1092,17 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         });
       }
     } catch (e) {
+      final rawError = e.toString();
+      final shortError = rawError.length > 30
+          ? '${rawError.substring(0, 30)}...'
+          : rawError;
+
       if (mounted) {
         setState(() {
           _isSaving = false;
-          _saveStatusMessage = '❌ 저장 실패: ${e.toString().length > 30 ? e.toString().substring(0, 30) + "..." : e.toString()}';
+          _saveStatusMessage = '❌ 저장 실패: $shortError';
         });
-        
+
         if (showMessage) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1385,7 +1112,7 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
             ),
           );
         }
-        
+
         // 오류 메시지 자동 제거
         Future.delayed(const Duration(seconds: 5), () {
           if (mounted) {
@@ -1396,6 +1123,225 @@ class _DamageSummaryTableState extends State<DamageSummaryTable> {
         });
       }
     }
+  }
+}
+
+/// Dedicated widget for damage cell content that ensures all buttons stay inside the table cell.
+///
+/// This widget prevents circular position buttons from overflowing below the table cell border
+/// by using strict constraints and clipping:
+/// - Fixed vertical padding (8px top/bottom) ensures consistent spacing
+/// - Column with mainAxisSize.min wraps content without forcing expansion
+/// - ClipRect with Clip.hardEdge prevents any overflow from being visible
+/// - Explicit height constraints ensure buttons never exceed cell boundaries
+class _DamageCellContent extends StatelessWidget {
+  const _DamageCellContent({
+    required this.present,
+    required this.cell,
+    required this.groupColor,
+    required this.onTogglePresent,
+    required this.onUpdatePosition,
+  });
+
+  final bool present;
+  final DamageCell cell;
+  final Color groupColor;
+  final VoidCallback onTogglePresent;
+  final void Function(String position, String value) onUpdatePosition;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      // Strict constraints: maximum height ensures buttons never overflow
+      constraints: const BoxConstraints(
+        maxHeight: 120, // Maximum cell height - buttons must fit within this
+        minHeight: 100,
+        maxWidth: 100,
+        minWidth: 100,
+      ),
+      child: SizedBox(
+        width: 100, // Fixed width for consistent column alignment
+        child: ClipRect(
+          clipBehavior: Clip
+              .hardEdge, // Hard clip prevents any overflow from being visible
+          child: Padding(
+            // Reduced vertical padding to ensure buttons fit inside cell
+            padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize:
+                  MainAxisSize.min, // Wrap content, don't force expansion
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Main toggle for present/absent - reduced size to prevent overlap
+                SizedBox(
+                  width: 40,
+                  height: 24,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onTogglePresent,
+                      borderRadius: BorderRadius.circular(6),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 40,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: present
+                              ? groupColor.withValues(alpha: 0.15)
+                              : Colors.grey.shade100,
+                          border: Border.all(
+                            color: present ? groupColor : Colors.grey.shade400,
+                            width: 1.5,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: present
+                              ? [
+                                  BoxShadow(
+                                    color: groupColor.withValues(alpha: 0.2),
+                                    blurRadius: 3,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            present ? 'O' : 'X',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: present
+                                  ? groupColor
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                // Position indicators (좌/중앙/우측) - always visible, clickable to toggle O/X
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildPositionButton(
+                      '좌',
+                      cell.positionLeft,
+                      (value) => onUpdatePosition('left', value),
+                      groupColor,
+                    ),
+                    const SizedBox(width: 3),
+                    _buildPositionButton(
+                      '중',
+                      cell.positionCenter,
+                      (value) => onUpdatePosition('center', value),
+                      groupColor,
+                    ),
+                    const SizedBox(width: 3),
+                    _buildPositionButton(
+                      '우',
+                      cell.positionRight,
+                      (value) => onUpdatePosition('right', value),
+                      groupColor,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPositionButton(
+    String positionLabel,
+    String currentValue,
+    ValueChanged<String> onChanged,
+    Color groupColor,
+  ) {
+    // O/X 직접 토글: '-' → 'O', 'O' → 'X', 'X' → 'O' (순환)
+    // 사용자가 클릭하여 직접 O/X를 변경할 수 있음
+    String getNextValue(String current) {
+      if (current == '-') return 'O';
+      if (current == 'O') return 'X';
+      if (current == 'X') return 'O';
+      return 'O'; // 기본값
+    }
+
+    Color getColor(String value) {
+      switch (value) {
+        case 'O':
+          return Colors.green;
+        case 'X':
+          return Colors.red;
+        default:
+          return Colors.grey.shade400;
+      }
+    }
+
+    Color getBgColor(String value) {
+      switch (value) {
+        case 'O':
+          return Colors.green.shade50;
+        case 'X':
+          return Colors.red.shade50;
+        default:
+          return Colors.grey.shade100;
+      }
+    }
+
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            onChanged(getNextValue(currentValue));
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 24,
+            height: 24,
+            constraints: const BoxConstraints(
+              maxWidth: 24,
+              maxHeight: 24,
+              minWidth: 24,
+              minHeight: 24,
+            ),
+            decoration: BoxDecoration(
+              color: getBgColor(currentValue),
+              shape: BoxShape.circle,
+              border: Border.all(color: getColor(currentValue), width: 2),
+              boxShadow: currentValue != '-'
+                  ? [
+                      BoxShadow(
+                        color: getColor(currentValue).withValues(alpha: 0.3),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                currentValue == '-' ? '-' : currentValue,
+                style: TextStyle(
+                  color: getColor(currentValue),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1418,12 +1364,15 @@ class _ColumnHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: groupColor?.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(4),
+            color: groupColor?.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
             border: groupColor != null
-                ? Border.all(color: groupColor!.withOpacity(0.3))
+                ? Border.all(
+                    color: groupColor!.withValues(alpha: 0.4),
+                    width: 1.5,
+                  )
                 : null,
           ),
           child: Text(
@@ -1434,6 +1383,7 @@ class _ColumnHeader extends StatelessWidget {
             style: textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w700,
               color: groupColor ?? Colors.black87,
+              fontSize: 12,
             ),
           ),
         ),
@@ -1447,7 +1397,7 @@ class _ColumnHeader extends StatelessWidget {
             textWidthBasis: TextWidthBasis.longestLine,
             style: textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: groupColor?.withOpacity(0.8) ?? Colors.black87,
+              color: groupColor?.withValues(alpha: 0.8) ?? Colors.black87,
             ),
           ),
         ),

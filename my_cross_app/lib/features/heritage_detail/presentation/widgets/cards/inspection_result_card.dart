@@ -213,23 +213,49 @@ class _InspectionResultCardState extends State<InspectionResultCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                sectionTitle,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: Color(0xFF111827),
+              // 아이콘
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.assignment,
+                  color: Color(0xFF2563EB),
+                  size: 22,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                '조사 결과 및 보존 사항을 기록합니다',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
+              const SizedBox(width: 12),
+              // 제목 및 설명
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sectionTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 20,
+                        color: Color(0xFF1D1D1F),
+                        letterSpacing: -0.2,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '조사 결과 및 보존 사항을 기록합니다',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: const Color(0xFF6B7280),
+                        letterSpacing: -0.2,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
