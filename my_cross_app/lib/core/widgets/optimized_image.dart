@@ -150,15 +150,15 @@ class _OptimizedImageState extends State<OptimizedImage>
         widget.maxHeight ?? (widget.height?.toInt() ?? 1200);
 
     final memCacheWidth = kIsWeb
-        ? math.min(baseCacheWidth, 600)  // 800 -> 600으로 감소
+        ? math.min(baseCacheWidth, 800)  // 600 -> 800으로 증가 (더 나은 품질)
         : math.min(baseCacheWidth, 1200);
     final memCacheHeight = kIsWeb
-        ? math.min(baseCacheHeight, 600)  // 800 -> 600으로 감소
+        ? math.min(baseCacheHeight, 800)  // 600 -> 800으로 증가
         : math.min(baseCacheHeight, 1200);
 
     const minDecodedDimension = 120;
-    // 웹 환경에서는 디스크 캐시 크기도 줄여서 로딩 속도 향상
-    final diskCacheCap = kIsWeb ? 1200 : 2200;  // 1600 -> 1200으로 감소
+    // 웹 환경에서는 디스크 캐시 크기 최적화
+    final diskCacheCap = kIsWeb ? 1600 : 2200;  // 1200 -> 1600으로 증가
     final pixelAwareWidth = math.max(
       minDecodedDimension,
       math.min(diskCacheCap, (memCacheWidth * devicePixelRatio).round()),
@@ -168,8 +168,8 @@ class _OptimizedImageState extends State<OptimizedImage>
       math.min(diskCacheCap, (memCacheHeight * devicePixelRatio).round()),
     );
 
-    // 웹 환경에서는 더 낮은 품질로 빠른 로딩
-    final defaultQuality = kIsWeb ? 65 : 82;
+    // 웹 환경에서는 더 낮은 품질로 빠른 로딩 (60으로 낮춰서 더 빠른 로딩)
+    final defaultQuality = kIsWeb ? 60 : 82;
     final optimizedUrl = widget.enableProxyOptimization
         ? ImageUrlHelper.buildOptimizedUrl(
             sanitizedUrl,
@@ -193,7 +193,7 @@ class _OptimizedImageState extends State<OptimizedImage>
       maxWidthDiskCache: pixelAwareWidth,
       maxHeightDiskCache: pixelAwareHeight,
       fadeInDuration: resolvedFadeDuration,
-      fadeOutDuration: const Duration(milliseconds: 80),
+      fadeOutDuration: const Duration(milliseconds: 50),  // 80 -> 50으로 감소 (더 빠른 전환)
       placeholder: (context, url) =>
           widget.placeholder ?? _buildSkeletonPlaceholder(),
       errorWidget: (context, url, error) =>
@@ -208,7 +208,7 @@ class _OptimizedImageState extends State<OptimizedImage>
             fit: widget.fit,
             gaplessPlayback: true,
             alignment: Alignment.center,
-            filterQuality: FilterQuality.medium,
+            filterQuality: kIsWeb ? FilterQuality.low : FilterQuality.medium,  // 웹에서는 낮은 필터 품질로 빠른 렌더링
             frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
               if (wasSynchronouslyLoaded) return child;
               return AnimatedOpacity(
@@ -226,7 +226,7 @@ class _OptimizedImageState extends State<OptimizedImage>
         );
       },
       httpHeaders: const {
-        'Cache-Control': 'max-age=31536000, public',
+        'Cache-Control': 'max-age=31536000, public, immutable',
         'Accept': 'image/webp,image/avif,image/*,*/*;q=0.8',
       },
       useOldImageOnUrlChange: true,

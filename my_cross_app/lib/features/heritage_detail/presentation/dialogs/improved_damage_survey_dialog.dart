@@ -272,9 +272,18 @@ class _ImprovedDamageSurveyDialogState
       });
     } catch (e) {
       if (!mounted) return;
+      // 에러 메시지 정리
+      String errorMessage = e.toString();
+      if (errorMessage.contains('ClientException') || 
+          errorMessage.contains('Load failed')) {
+        errorMessage = 'AI 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.';
+      } else if (errorMessage.length > 200) {
+        // 너무 긴 에러 메시지는 축약
+        errorMessage = '${errorMessage.substring(0, 200)}...';
+      }
       setState(() {
         _aiStatus = null;
-        _aiStatusError = e.toString();
+        _aiStatusError = errorMessage;
       });
     } finally {
       if (mounted) {

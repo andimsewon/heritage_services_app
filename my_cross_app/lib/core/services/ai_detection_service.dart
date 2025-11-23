@@ -129,27 +129,65 @@ class AiDetectionService {
     throw lastException ?? Exception('알 수 없는 오류가 발생했습니다.');
   }
 
-  /// AI 모델 상태 조회
+  /// AI 모델 상태 조회 (재시도 로직 포함)
   Future<AiModelStatus> fetchModelStatus() async {
     final baseUri = _validateUri();
     final uri = _buildEndpointUri(baseUri, 'ai/model/status');
 
-    try {
-      final response = await http.get(uri).timeout(timeout);
-      return _parseModelStatusResponse(response);
-    } on TimeoutException {
-      throw AiTimeoutException(
-        'AI 모델 상태 조회 시간이 초과되었습니다. (${timeout.inSeconds}초) 잠시 후 다시 시도해주세요.',
-      );
-    } catch (e) {
-      final errorStr = e.toString();
-      if (_looksLikeNetworkError(errorStr)) {
-        throw AiConnectionException(
-          'AI 모델 상태를 확인할 수 없습니다. 서버 연결을 확인해주세요.',
+    Exception? lastException;
+    const statusRetries = 3; // 상태 조회는 더 자주 재시도
+    const statusTimeout = Duration(seconds: 10); // 상태 조회는 더 짧은 타임아웃
+
+    for (int attempt = 0; attempt <= statusRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          // 재시도 전 대기 (지수 백오프)
+          await Future.delayed(Duration(seconds: attempt));
+        }
+
+        final response = await http.get(uri).timeout(statusTimeout);
+        return _parseModelStatusResponse(response);
+      } on TimeoutException {
+        lastException = AiTimeoutException(
+          'AI 모델 상태 조회 시간이 초과되었습니다. (${statusTimeout.inSeconds}초) 잠시 후 다시 시도해주세요.',
         );
+        if (attempt < statusRetries) {
+          continue; // 재시도
+        }
+        rethrow;
+      } catch (e) {
+        final errorStr = e.toString();
+        
+        // 네트워크 오류 감지 (ClientException 포함)
+        if (_looksLikeNetworkError(errorStr) || 
+            errorStr.contains('ClientException') ||
+            errorStr.contains('Load failed') ||
+            errorStr.contains('SocketException') ||
+            errorStr.contains('Failed host lookup') ||
+            errorStr.contains('Connection refused') ||
+            errorStr.contains('Network is unreachable')) {
+          lastException = AiConnectionException(
+            'AI 모델 상태를 확인할 수 없습니다. 서버 연결을 확인해주세요.',
+          );
+          if (attempt < statusRetries) {
+            continue; // 재시도
+          }
+          throw lastException;
+        }
+        
+        // 기타 오류는 첫 시도에서만 재시도
+        if (attempt == 0) {
+          lastException = e is Exception ? e : Exception(e.toString());
+          continue;
+        }
+        rethrow;
       }
-      rethrow;
     }
+
+    // 모든 재시도 실패
+    throw lastException ?? AiConnectionException(
+      'AI 모델 상태를 확인할 수 없습니다. 서버 연결을 확인해주세요.',
+    );
   }
 
   /// 타임아웃이 적용된 실제 감지 요청
@@ -197,10 +235,17 @@ class AiDetectionService {
   }
 
   bool _looksLikeNetworkError(String message) {
-    return message.contains('SocketException') ||
-        message.contains('Failed host lookup') ||
-        message.contains('Connection refused') ||
-        message.contains('Network is unreachable');
+    final lowerMessage = message.toLowerCase();
+    return lowerMessage.contains('socketexception') ||
+        lowerMessage.contains('failed host lookup') ||
+        lowerMessage.contains('connection refused') ||
+        lowerMessage.contains('network is unreachable') ||
+        lowerMessage.contains('clientexception') ||
+        lowerMessage.contains('load failed') ||
+        lowerMessage.contains('connection error') ||
+        lowerMessage.contains('network error') ||
+        lowerMessage.contains('connection timeout') ||
+        lowerMessage.contains('no internet connection');
   }
 
   /// 응답 파싱 및 검증

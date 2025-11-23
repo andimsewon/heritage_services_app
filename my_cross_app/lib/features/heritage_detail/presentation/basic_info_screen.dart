@@ -15,6 +15,7 @@ import 'package:uuid/uuid.dart';
 import 'package:my_cross_app/core/config/env.dart';
 import 'package:my_cross_app/core/services/ai_detection_service.dart';
 import 'package:my_cross_app/core/services/firebase_service.dart';
+import 'package:my_cross_app/core/services/image_prefetch_service.dart';
 import 'package:my_cross_app/core/services/image_acquire.dart';
 import 'package:my_cross_app/core/ui/widgets/ambient_background.dart';
 import 'package:my_cross_app/core/utils/image_url_helper.dart';
@@ -1534,7 +1535,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
         backgroundColor: const Color(0xFF1E2A44),
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.1),
-        centerTitle: true,
+        centerTitle: !isMobile,  // 모바일에서는 좌측 정렬
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
@@ -1543,16 +1544,30 @@ class _BasicInfoScreenState extends State<BasicInfoScreen>
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          _name.isEmpty ? '기본개요' : _name,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        title: isMobile
+            ? Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _name.isEmpty ? '기본개요' : _name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+            : Text(
+                _name.isEmpty ? '기본개요' : _name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -3806,6 +3821,12 @@ class HeritagePhotoSection extends StatelessWidget {
                 return _EmptyPhotoState(onAddPhoto: onAddPhoto);
               }
 
+              final photoUrls = docs
+                  .map((doc) => (doc.data())['url'] as String?)
+                  .where((url) => url != null && url.isNotEmpty)
+                  .cast<String>()
+                  .toList(growable: false);
+
               return LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
@@ -3814,6 +3835,14 @@ class HeritagePhotoSection extends StatelessWidget {
                   final buttonAlignment = isNarrow
                       ? WrapAlignment.start
                       : WrapAlignment.end;
+
+                  ImagePrefetchService().warmUp(
+                    photoUrls,
+                    limit: isVeryNarrow ? 4 : 8,
+                    maxWidth: isNarrow ? 1200 : 1600,
+                    maxHeight: isNarrow ? 1200 : 1400,
+                    quality: 68,
+                  );
 
                   Widget buildHorizontalList() {
                     final listHeight = isVeryNarrow ? 260.0 : 220.0;
@@ -4578,6 +4607,22 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
                             subtitle: '사진을 포함하여 조사를 등록해주세요',
                           );
                         }
+                        final previewSources = docs
+                            .map((doc) {
+                              final data = doc.data();
+                              return (data['url'] as String?) ??
+                                  (data['imageUrl'] as String?) ??
+                                  '';
+                            })
+                            .where((url) => url.isNotEmpty)
+                            .toList(growable: false);
+                        ImagePrefetchService().warmUp(
+                          previewSources,
+                          limit: 6,
+                          maxWidth: 1400,
+                          maxHeight: 1000,
+                          quality: 72,
+                        );
                         return Scrollbar(
                           controller: _damagePreviewScrollController,
                           thumbVisibility: true,
@@ -4704,6 +4749,21 @@ class _DamageSurveySectionState extends State<DamageSurveySection> {
             subtitle: '사진을 포함하여 조사를 등록해주세요',
           );
         }
+
+        final previewSources = docs
+            .map((doc) {
+              final data = doc.data();
+              return (data['url'] as String?) ?? (data['imageUrl'] as String?) ?? '';
+            })
+            .where((url) => url.isNotEmpty)
+            .toList(growable: false);
+        ImagePrefetchService().warmUp(
+          previewSources,
+          limit: 6,
+          maxWidth: 1600,
+          maxHeight: 1200,
+          quality: 75,
+        );
 
         final filteredDocs = _applyDamageFilters(docs);
 
