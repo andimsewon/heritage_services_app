@@ -1,134 +1,139 @@
-# 국가유산 모니터링 조사·등록 시스템
+# National Heritage Monitoring and Registration System
 
-국가유산청 Open API를 기반으로 한 **현장 조사·등록 업무 지원 크로스플랫폼 애플리케이션**입니다. Flutter로 개발된 프론트엔드와 FastAPI 백엔드로 구성되어 있으며, **AI 기반 손상 탐지 기능**과 **Firebase 실시간 데이터베이스**를 통합한 종합 관리 시스템입니다.
-
----
-
-## 📋 목차
-
-- [프로젝트 개요](#프로젝트-개요)
-- [주요 기능](#주요-기능)
-- [기술 스택](#기술-스택)
-- [시스템 아키텍처](#시스템-아키텍처)
-- [AI 모델 상세](#ai-모델-상세)
-- [데이터 구조](#데이터-구조)
-- [주요 화면 및 워크플로우](#주요-화면-및-워크플로우)
-- [설치 및 실행](#설치-및-실행)
-- [배포 가이드](#배포-가이드)
-- [API 문서](#api-문서)
+A cross-platform application for field survey and registration tasks based on the Korea Heritage Service Open API. Built with Flutter frontend and FastAPI backend, this comprehensive management system integrates AI-based damage detection capabilities and Firebase real-time database.
 
 ---
 
-## 🎯 프로젝트 개요
+## Table of Contents
 
-### 목적
-국가유산(문화유산)의 체계적인 모니터링과 보존 관리를 위해 현장 조사 데이터를 디지털화하고, AI 기술을 활용하여 손상 상태를 자동으로 분석·평가하는 통합 관리 시스템을 제공합니다.
-
-### 핵심 가치
-- **디지털 전환**: 종이 기반 조사 기록을 디지털 데이터베이스로 전환
-- **AI 자동화**: 이미지 기반 손상 탐지로 조사 효율성 향상
-- **실시간 협업**: Firebase를 통한 실시간 데이터 동기화 및 협업 지원
-- **크로스플랫폼**: 웹, Android, iOS에서 동일한 경험 제공
-
----
-
-## ✨ 주요 기능
-
-### 1. 국가유산 검색 및 조회
-- **다중 조건 검색**: 종목(국보, 보물, 사적 등), 지역, 키워드(유산명)로 검색
-- **국가유산청 Open API 연동**: 실시간 문화유산 정보 조회
-- **무한 스크롤 페이지네이션**: 대량 데이터 효율적 로딩
-- **수동 등록 지원**: OpenAPI에 없는 문화유산 직접 등록 가능
-
-### 2. 상세 정보 관리
-- **기본 정보 표시**: 종목, 지정일, 소유자, 관리자, 소재지, 좌표 등
-- **3단계 탭 구조**:
-  - **현장 조사**: 기본 정보, 메타 정보, 위치 현황, 현황 사진, 손상부 조사
-  - **조사자 의견**: 보존관리 이력, 조사 결과, 보존 사항, 관리사항
-  - **종합진단**: 손상부 종합, 조사자 의견 확인, 등급 분류, AI 예측
-
-### 3. 손상부 조사 (핵심 기능)
-#### 3.1 AI 기반 자동 손상 탐지
-- **4가지 손상 유형 자동 탐지**:
-  - 갈램 (갈라짐)
-  - 균열 (크랙)
-  - 부후 (부식/부패)
-  - 압괴/터짐 (파손)
-- **바운딩 박스 시각화**: 탐지된 손상 영역을 이미지에 직접 표시
-- **신뢰도 점수**: 각 탐지 결과에 대한 AI 신뢰도 표시 (0~1)
-- **자동 등급 산정**: 탐지 결과를 기반으로 A~D 등급 자동 부여
-
-#### 3.2 조사 프로세스
-1. **조사 등록**: 부재명, 부재번호, 향(방향) 선택
-2. **사진 촬영/선택**: 카메라 또는 갤러리에서 이미지 선택
-3. **AI 자동 분석**: 서버로 이미지 전송 → AI 모델 추론 → 결과 반환
-4. **결과 확인**: 바운딩 박스와 함께 탐지 결과 확인
-5. **정보 입력**: 손상 위치, 손상 현상, 조사자 의견, 등급 입력
-6. **저장**: Firebase에 이미지, 탐지 결과, 메타데이터 저장
-
-#### 3.3 손상부 조사 UI
-- **통계 대시보드**: 총 조사 수, 감지된 손상 수, 등급별 분포
-- **인터랙티브 테이블**: 조사 목록을 테이블 형식으로 표시 (선택, 사진, 위치, 손상 유형, 등급, 조사일시, 의견)
-- **썸네일 카드 뷰**: 4:3 고정 비율 썸네일, 바운딩 박스 오버레이, 클릭 시 전체화면 뷰어
-- **전체화면 뷰어**: 원본 이미지, 모든 바운딩 박스, 메타데이터 표시
-
-### 4. 현황 사진 관리
-- **사진 업로드**: Firebase Storage에 이미지 저장
-- **실시간 스트림**: Firestore 실시간 업데이트 반영
-- **이미지 최적화**: 프록시를 통한 리사이징 및 캐싱
-- **삭제 기능**: 문서 및 스토리지 파일 동시 삭제
-
-### 5. 조사자 의견 관리
-- **섹션별 편집 제어**: 저장 후 수정 모드로 전환 필요
-- **수정 이력 추적**: Firebase에 수정자, 변경 필드, 타임스탬프 저장
-- **실시간 이력 조회**: StreamBuilder를 통한 실시간 수정 이력 표시
-- **보존 사항 자동 연결**: 손상부 조사 데이터가 자동으로 보존 사항에 반영
-
-### 6. 보존관리 이력
-- **이력 불러오기**: 기존 보존관리 이력 데이터 동기화
-- **Firebase 연동**: 실시간 이력 데이터 조회 및 표시
+- [Project Overview](#project-overview)
+- [Key Features](#key-features)
+- [Technology Stack](#technology-stack)
+- [System Architecture](#system-architecture)
+- [AI Model Details](#ai-model-details)
+- [Data Structure](#data-structure)
+- [Main Screens and Workflow](#main-screens-and-workflow)
+- [Installation and Setup](#installation-and-setup)
+- [Deployment Guide](#deployment-guide)
+- [API Documentation](#api-documentation)
 
 ---
 
-## 🛠 기술 스택
+## Project Overview
+
+### Purpose
+This system provides integrated management capabilities for systematic monitoring and preservation of national heritage sites by digitizing field survey data and automatically analyzing damage conditions using AI technology.
+
+### Core Value Propositions
+- **Digital Transformation**: Converting paper-based survey records to digital database
+- **AI Automation**: Improving survey efficiency through image-based damage detection
+- **Real-time Collaboration**: Supporting real-time data synchronization and collaboration via Firebase
+- **Cross-platform**: Providing consistent experience across Web, Android, and iOS platforms
+
+### Collaborators
+This project is a collaborative effort between:
+- **Natural Language Learning Lab, Jeonbuk National University** (https://sites.google.com/view/nlllab/main)
+- **Korea Heritage Service**
+
+---
+
+## Key Features
+
+### 1. Heritage Search and Retrieval
+- **Multi-criteria Search**: Search by designation type (National Treasure, Treasure, Historic Site, etc.), region, and keyword (heritage name)
+- **Korea Heritage Service Open API Integration**: Real-time cultural heritage information retrieval
+- **Infinite Scroll Pagination**: Efficient loading of large datasets
+- **Manual Registration Support**: Direct registration of cultural heritage not available in OpenAPI
+
+### 2. Detailed Information Management
+- **Basic Information Display**: Designation type, designation date, owner, manager, location, coordinates, etc.
+- **Three-tier Tab Structure**:
+  - **Field Survey**: Basic information, metadata, location status, current photos, damage surveys
+  - **Inspector Comments**: Preservation management history, survey results, preservation items, management items
+  - **Comprehensive Diagnosis**: Damage summary, inspector comments review, grade classification, AI prediction
+
+### 3. Damage Survey (Core Feature)
+#### 3.1 AI-based Automatic Damage Detection
+- **Four Damage Type Detection**:
+  - Splitting (Gallem)
+  - Cracking (Crack)
+  - Decay (Buhu)
+  - Crushing/Bursting (Damage)
+- **Bounding Box Visualization**: Direct display of detected damage regions on images
+- **Confidence Scoring**: AI confidence display for each detection result (0-1 scale)
+- **Automatic Grade Assignment**: Automatic assignment of grades A-D based on detection results
+
+#### 3.2 Survey Process
+1. **Survey Registration**: Select component name, component number, and orientation
+2. **Photo Capture/Selection**: Select image from camera or gallery
+3. **AI Automatic Analysis**: Image transmission to server → AI model inference → Result return
+4. **Result Verification**: Verify detection results with bounding boxes
+5. **Information Input**: Enter damage location, damage phenomenon, inspector opinion, grade
+6. **Save**: Store image, detection results, and metadata in Firebase
+
+#### 3.3 Damage Survey UI
+- **Statistics Dashboard**: Total surveys, detected damages, grade distribution
+- **Interactive Table**: Display survey list in table format (selection, photo, location, damage type, grade, survey datetime, opinion)
+- **Thumbnail Card View**: 4:3 fixed ratio thumbnails, bounding box overlay, full-screen viewer on click
+- **Full-screen Viewer**: Original image, all bounding boxes, metadata display
+
+### 4. Current Photo Management
+- **Photo Upload**: Image storage in Firebase Storage
+- **Real-time Stream**: Reflect Firestore real-time updates
+- **Image Optimization**: Resizing and caching through proxy
+- **Delete Function**: Simultaneous deletion of document and storage files
+
+### 5. Inspector Comment Management
+- **Section-based Edit Control**: Requires switching to edit mode after saving
+- **Modification History Tracking**: Store modifier, changed fields, timestamp in Firebase
+- **Real-time History Viewing**: Real-time modification history display through StreamBuilder
+- **Automatic Preservation Items Connection**: Damage survey data automatically reflected in preservation items
+
+### 6. Preservation Management History
+- **History Loading**: Synchronize existing preservation management history data
+- **Firebase Integration**: Real-time history data retrieval and display
+
+---
+
+## Technology Stack
 
 ### Frontend
 - **Flutter 3.35.1** (Dart 3.9.0)
-  - 크로스플랫폼 개발 (Web, Android, iOS)
+  - Cross-platform development (Web, Android, iOS)
   - Material Design 3
-  - 반응형 레이아웃 (`ResponsivePage`, `LayoutBuilder`)
+  - Responsive layout (ResponsivePage, LayoutBuilder)
 - **Firebase**
-  - **Firestore**: 실시간 데이터베이스 (조사 데이터, 이력 관리)
-  - **Storage**: 이미지 파일 저장 및 관리
-  - **StreamBuilder**: 실시간 데이터 동기화
-- **상태 관리**: StatefulWidget, ChangeNotifier, ViewModel 패턴
-- **이미지 처리**: `OptimizedImage` (캐싱, 리사이징), `ImagePicker`
+  - **Firestore**: Real-time database (survey data, history management)
+  - **Storage**: Image file storage and management
+  - **StreamBuilder**: Real-time data synchronization
+- **State Management**: StatefulWidget, ChangeNotifier, ViewModel pattern
+- **Image Processing**: OptimizedImage (caching, resizing), ImagePicker
 
 ### Backend
 - **FastAPI** (Python 3.10+)
-  - RESTful API 서버
-  - XML → JSON 변환 (국가유산청 API)
-  - CORS 미들웨어
-  - Swagger/ReDoc 자동 문서화
+  - RESTful API server
+  - XML to JSON conversion (Korea Heritage Service API)
+  - CORS middleware
+  - Automatic Swagger/ReDoc documentation
 - **AI/ML**
-  - **PyTorch**: 딥러닝 프레임워크
-  - **DETA (Detection Transformer)**: 객체 탐지 모델
-    - 백본: ResNet-50
-    - 작업: 한옥 손상 영역 탐지
-    - 클래스 수: 4개 (갈램, 균열, 부후, 압괴/터짐)
+  - **PyTorch**: Deep learning framework
+  - **DETA (Detection Transformer)**: Object detection model
+    - Backbone: ResNet-50
+    - Task: Traditional Korean architecture damage region detection
+    - Number of classes: 4 (Splitting, Cracking, Decay, Crushing/Bursting)
   - **Transformers**: DetaImageProcessor
   - **Torchvision**: NMS (Non-Maximum Suppression)
 
 ### Infrastructure
-- **Docker**: 컨테이너화 및 배포
-- **Docker Compose**: 멀티 컨테이너 오케스트레이션
-- **Nginx**: 리버스 프록시 및 정적 파일 서빙
+- **Docker**: Containerization and deployment
+- **Docker Compose**: Multi-container orchestration
+- **Nginx**: Reverse proxy and static file serving
 
 ---
 
-## 🏗 시스템 아키텍처
+## System Architecture
 
-### 전체 구조
+### Overall Structure
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Flutter Client (Web/Android/iOS)          │
@@ -152,32 +157,34 @@
          │                              │
          │                              │
     ┌────▼────┐                    ┌────▼────┐
-    │ 국가유산청 │                    │ Firebase │
-    │ Open API │                    │ Firestore│
-    │  (XML)   │                    │ Storage  │
+    │  Korea  │                    │ Firebase │
+    │Heritage │                    │ Firestore│
+    │ Service │                    │ Storage  │
+    │Open API │                    │          │
+    │  (XML)  │                    │          │
     └──────────┘                    └──────────┘
 ```
 
-### 데이터 흐름
+### Data Flow
 
-#### 1. 국가유산 검색
+#### 1. Heritage Search
 ```
-사용자 입력 (종목/지역/키워드)
+User Input (designation type/region/keyword)
     ↓
 Flutter: HeritageApi.searchHeritage()
     ↓
 FastAPI: /heritage/list
     ↓
-국가유산청 Open API (XML)
+Korea Heritage Service Open API (XML)
     ↓
-FastAPI: XML → JSON 변환
+FastAPI: XML → JSON conversion
     ↓
-Flutter: 리스트 표시
+Flutter: List display
 ```
 
-#### 2. 손상부 조사 (AI 탐지)
+#### 2. Damage Survey (AI Detection)
 ```
-사용자: 사진 선택/촬영
+User: Photo selection/capture
     ↓
 Flutter: ImagePicker → Uint8List
     ↓
@@ -185,87 +192,87 @@ Flutter: AiDetectionService.detectDamage()
     ↓
 FastAPI: POST /ai/damage/infer (multipart/form-data)
     ↓
-AI Service: 이미지 전처리 (DetaImageProcessor)
+AI Service: Image preprocessing (DetaImageProcessor)
     ↓
-PyTorch Model: CustomDeta 추론
+PyTorch Model: CustomDeta inference
     ↓
-후처리: 클래스별 Threshold → NMS
+Post-processing: Class-wise Threshold → NMS
     ↓
-결과 반환: {detections, grade, explanation}
+Result return: {detections, grade, explanation}
     ↓
-Flutter: 바운딩 박스 시각화
+Flutter: Bounding box visualization
     ↓
-사용자: 정보 입력 (위치, 현상, 의견)
+User: Information input (location, phenomenon, opinion)
     ↓
-Firebase: Firestore + Storage 저장
+Firebase: Firestore + Storage save
 ```
 
-#### 3. 실시간 데이터 동기화
+#### 3. Real-time Data Synchronization
 ```
-Firebase Firestore 변경
+Firebase Firestore change
     ↓
-StreamBuilder 자동 업데이트
+StreamBuilder automatic update
     ↓
-UI 자동 리빌드
+UI automatic rebuild
     ↓
-사용자에게 실시간 반영
+Real-time reflection to user
 ```
 
 ---
 
-## 🤖 AI 모델 상세
+## AI Model Details
 
-### 모델 아키텍처
-- **기반 모델**: DETA (Detection Transformer)
-- **백본 네트워크**: ResNet-50
-- **작업 유형**: 객체 탐지 (Object Detection)
-- **입력**: RGB 이미지 (임의 크기)
-- **출력**: 바운딩 박스 + 클래스 + 신뢰도
+### Model Architecture
+- **Base Model**: DETA (Detection Transformer)
+- **Backbone Network**: ResNet-50
+- **Task Type**: Object Detection
+- **Input**: RGB image (arbitrary size)
+- **Output**: Bounding box + Class + Confidence score
 
-### 탐지 클래스
-| ID | 클래스명 | 한글명 | Threshold |
-|----|---------|--------|-----------|
-| 0 | LABEL_0 | 갈램 | 0.30 |
-| 1 | LABEL_1 | 균열 | 0.25 |
-| 2 | LABEL_2 | 부후 | 0.15 |
-| 3 | LABEL_3 | 압괴/터짐 | 0.25 |
+### Detection Classes
+| ID | Class Name | Korean Name | Threshold |
+|----|-----------|-------------|-----------|
+| 0 | LABEL_0 | Splitting | 0.30 |
+| 1 | LABEL_1 | Cracking | 0.25 |
+| 2 | LABEL_2 | Decay | 0.15 |
+| 3 | LABEL_3 | Crushing/Bursting | 0.25 |
 
-### 처리 파이프라인
+### Processing Pipeline
 
-#### 1. 이미지 전처리
+#### 1. Image Preprocessing
 ```python
-이미지 바이트 → PIL Image (RGB) → DetaImageProcessor
-→ pixel_values 텐서 (배치 차원 포함)
+Image bytes → PIL Image (RGB) → DetaImageProcessor
+→ pixel_values tensor (with batch dimension)
 ```
 
-#### 2. 모델 추론
+#### 2. Model Inference
 ```python
-pixel_values → CustomDeta 모델 → 객체 탐지 결과
+pixel_values → CustomDeta model → Object detection results
 ```
 
-#### 3. 후처리
-1. **초기 필터링**: 낮은 threshold (0.05)로 후보 추출
-2. **클래스별 Threshold 적용**: 각 손상 유형별 다른 기준 적용
+#### 3. Post-processing
+1. **Initial Filtering**: Extract candidates with low threshold (0.05)
+2. **Class-wise Threshold Application**: Apply different criteria for each damage type
 3. **NMS (Non-Maximum Suppression)**: 
    - IoU threshold: 0.1
-   - 클래스별 독립 적용
-   - 중복 탐지 제거
+   - Independent application per class
+   - Removal of duplicate detections
 
-#### 4. 등급 산정
-| 신뢰도 범위 | 등급 | 설명 |
-|-----------|------|------|
-| ≥ 0.85 | D | 심각한 손상, 즉시 보수 필요 |
-| 0.75 ~ 0.85 | C2 | 명확한 손상, 모니터링 및 예방 조치 필요 |
-| 0.6 ~ 0.75 | C1 | 경미한 손상, 정기적 관찰 필요 |
-| 0.5 ~ 0.6 | B | 손상 의심, 지속적 관찰 필요 |
-| < 0.5 | A | 이상 징후 거의 없음 |
+#### 4. Grade Assignment
+| Confidence Range | Grade | Description |
+|-----------------|-------|-------------|
+| ≥ 0.85 | D | Severe damage, immediate repair required |
+| 0.75 ~ 0.85 | C2 | Clear damage, monitoring and preventive measures needed |
+| 0.6 ~ 0.75 | C1 | Minor damage, regular observation required |
+| 0.5 ~ 0.6 | B | Suspected damage, continuous observation needed |
+| < 0.5 | A | Almost no abnormal signs |
 
-### 응답 형식
+### Response Format
 ```json
 {
   "detections": [
     {
-      "label": "균열",
+      "label": "Cracking",
       "label_id": 1,
       "score": 0.85,
       "bbox": [x1, y1, x2, y2]
@@ -273,27 +280,27 @@ pixel_values → CustomDeta 모델 → 객체 탐지 결과
   ],
   "count": 3,
   "grade": "C2",
-  "explanation": "균열 손상이 명확히 관찰됩니다. 모니터링 및 예방 조치가 필요합니다."
+  "explanation": "Clear cracking damage observed. Monitoring and preventive measures are required."
 }
 ```
 
-### 모델 파일
-- **위치**: `server/ai/hanok_damage_model.pth` (기본)
-- **크기**: 약 552MB
-- **형식**: PyTorch 체크포인트
-- **자동 검색**: 환경변수 `MODEL_PATH` 또는 기본 경로에서 자동 로드
+### Model Files
+- **Location**: `server/ai/hanok_damage_model.pth` (default)
+- **Size**: Approximately 552MB
+- **Format**: PyTorch checkpoint
+- **Auto-detection**: Automatic loading from environment variable `MODEL_PATH` or default path
 
 ---
 
-## 💾 데이터 구조
+## Data Structure
 
-### Firebase Firestore 구조
+### Firebase Firestore Structure
 
-#### 1. Heritage 컬렉션
+#### 1. Heritage Collection
 ```
 heritages/
   {heritageId}/
-    ├── damage_surveys/          # 손상부 조사
+    ├── damage_surveys/          # Damage surveys
     │   └── {surveyId}/
     │       ├── imageUrl: string
     │       ├── detections: array
@@ -304,17 +311,17 @@ heritages/
     │       ├── timestamp: string (ISO8601)
     │       └── ...
     │
-    ├── photos/                  # 현황 사진
+    ├── photos/                  # Current photos
     │   └── {photoId}/
     │       ├── url: string
     │       ├── timestamp: string
     │       └── ...
     │
-    ├── detail_surveys/          # 상세 조사
+    ├── detail_surveys/          # Detailed surveys
     │   └── {surveyId}/
     │       └── ...
     │
-    └── edit_history/            # 수정 이력
+    └── edit_history/            # Edit history
         └── {historyId}/
             ├── sectionType: string
             ├── editor: string
@@ -322,43 +329,43 @@ heritages/
             └── timestamp: Timestamp
 ```
 
-#### 2. 손상부 조사 문서 구조
+#### 2. Damage Survey Document Structure
 ```dart
 {
   'imageUrl': 'https://firebasestorage...',
-  'url': 'https://firebasestorage...',  // 동일 (호환성)
+  'url': 'https://firebasestorage...',  // Same (compatibility)
   'detections': [
     {
-      'label': '균열',
+      'label': 'Cracking',
       'label_id': 1,
       'score': 0.85,
-      'bbox': [x1, y1, x2, y2]  // 절대 좌표 (픽셀)
+      'bbox': [x1, y1, x2, y2]  // Absolute coordinates (pixels)
     }
   ],
-  'location': '동쪽 벽면',
-  'phenomenon': '수직 균열',
+  'location': 'East wall',
+  'phenomenon': 'Vertical crack',
   'severityGrade': 'C2',
-  'inspectorOpinion': '조사자 의견...',
+  'inspectorOpinion': 'Inspector opinion...',
   'timestamp': '2024-01-15T10:30:00Z',
-  'width': 1920,   // 원본 이미지 너비
-  'height': 1080,  // 원본 이미지 높이
-  'heritageName': '불국사',
-  'desc': '손상부 조사'
+  'width': 1920,   // Original image width
+  'height': 1080,  // Original image height
+  'heritageName': 'Bulguksa Temple',
+  'desc': 'Damage survey'
 }
 ```
 
-#### 3. 수정 이력 문서 구조
+#### 3. Edit History Document Structure
 ```dart
 {
   'sectionType': 'inspectionResult' | 'preservationItems' | 'management',
-  'editor': '관리자명',
+  'editor': 'Manager name',
   'changedFields': ['field1', 'field2'],
   'timestamp': Timestamp,
   'createdAt': '2024-01-15T10:30:00Z'
 }
 ```
 
-### Firebase Storage 구조
+### Firebase Storage Structure
 ```
 gs://{bucket}/
   heritages/
@@ -371,177 +378,177 @@ gs://{bucket}/
 
 ---
 
-## 📱 주요 화면 및 워크플로우
+## Main Screens and Workflow
 
-### 1. 로그인 화면
-- **기능**: 관리자 계정으로 접속
-- **검증**: 단순 진입 검증 (프로덕션에서는 Firebase Auth 연동 권장)
+### 1. Login Screen
+- **Function**: Access with administrator account
+- **Validation**: Simple entry validation (Firebase Auth integration recommended for production)
 
-### 2. 홈 화면
-- **기능**: "조사·등록 시스템" 버튼 제공
-- **이동**: 국가유산 검색 화면으로 이동
+### 2. Home Screen
+- **Function**: Provides "Survey and Registration System" button
+- **Navigation**: Move to heritage search screen
 
-### 3. 국가유산 검색 화면
-- **검색 조건**:
-  - 종목 (국보, 보물, 사적, 천연기념물 등)
-  - 지역 (서울, 전북, 경남 등)
-  - 키워드 (유산명)
-- **표시 정보**: 종목 | 유산명 | 소재지 | 주소
-- **기능**:
-  - 무한 스크롤 페이지네이션
-  - 항목 클릭 → 상세 화면 이동
-  - 수동 등록 (OpenAPI에 없는 문화유산)
+### 3. Heritage Search Screen
+- **Search Criteria**:
+  - Designation type (National Treasure, Treasure, Historic Site, Natural Monument, etc.)
+  - Region (Seoul, Jeonbuk, Gyeongnam, etc.)
+  - Keyword (heritage name)
+- **Display Information**: Designation type | Heritage name | Location | Address
+- **Functions**:
+  - Infinite scroll pagination
+  - Item click → Move to detail screen
+  - Manual registration (cultural heritage not in OpenAPI)
 
-### 4. 기본 정보 상세 화면 (핵심)
+### 4. Basic Information Detail Screen (Core)
 
-#### 4.1 탭 구조
-- **현장 조사** (Tab 1)
-  - 기본 정보
-  - 메타 정보 (조사 일자, 조사 기관, 조사자)
-  - 위치 현황
-  - 현황 사진 (Firebase Storage 연동)
-  - 손상부 조사 (AI 탐지 포함)
+#### 4.1 Tab Structure
+- **Field Survey** (Tab 1)
+  - Basic information
+  - Metadata (survey date, surveying organization, surveyor)
+  - Location status
+  - Current photos (Firebase Storage integration)
+  - Damage survey (including AI detection)
 
-- **조사자 의견** (Tab 2)
-  - 보존관리 이력 (불러오기 버튼)
-  - 조사 결과 (편집 가능/읽기 전용 제어)
-  - 보존 사항 (손상부 조사 자동 연결)
-  - 관리사항 (편집 가능/읽기 전용 제어)
-  - 수정 이력 (Firebase 실시간 조회)
+- **Inspector Comments** (Tab 2)
+  - Preservation management history (load button)
+  - Survey results (editable/read-only control)
+  - Preservation items (automatic damage survey connection)
+  - Management items (editable/read-only control)
+  - Edit history (Firebase real-time viewing)
 
-- **종합진단** (Tab 3)
-  - 손상부 종합
-  - 조사자 의견 확인
-  - 등급 분류
-  - AI 예측 기능
+- **Comprehensive Diagnosis** (Tab 3)
+  - Damage summary
+  - Inspector comments review
+  - Grade classification
+  - AI prediction function
 
-#### 4.2 손상부 조사 섹션
-- **통계 대시보드**:
-  - 총 조사 수
-  - 감지된 손상 수
-  - 등급별 분포 (A, B, C1, C2, D)
-- **인터랙티브 테이블**:
-  - 선택 (라디오 버튼)
-  - 사진 (썸네일)
-  - 위치
-  - 손상 유형
-  - 등급 (색상 배지)
-  - 조사일시 (YYYY-MM-DD HH:mm)
-  - 조사자 의견 (감지 개수 배지 포함)
-- **썸네일 카드 뷰**:
-  - 4:3 고정 비율
-  - 바운딩 박스 오버레이
-  - 위치, 손상 현상, 감지 개수, 날짜 표시
-  - 클릭 시 전체화면 뷰어
-- **버튼**:
-  - 조사 등록
-  - 심화조사 (선택 필요)
+#### 4.2 Damage Survey Section
+- **Statistics Dashboard**:
+  - Total surveys
+  - Detected damages
+  - Grade distribution (A, B, C1, C2, D)
+- **Interactive Table**:
+  - Selection (radio button)
+  - Photo (thumbnail)
+  - Location
+  - Damage type
+  - Grade (color badge)
+  - Survey datetime (YYYY-MM-DD HH:mm)
+  - Inspector opinion (with detection count badge)
+- **Thumbnail Card View**:
+  - 4:3 fixed ratio
+  - Bounding box overlay
+  - Display location, damage phenomenon, detection count, date
+  - Full-screen viewer on click
+- **Buttons**:
+  - Register survey
+  - Advanced survey (selection required)
 
-#### 4.3 손상부 조사 다이얼로그
-1. **조사 등록 단계**:
-   - 부재명 선택
-   - 부재번호 입력
-   - 향(방향) 선택
-2. **손상부 조사 단계**:
-   - 전년도 조사 사진 표시 (있는 경우)
-   - 이번 조사 사진 등록 (카메라/갤러리)
-   - AI 자동 분석 (로딩 표시)
-   - 바운딩 박스 시각화
-3. **감지 결과 확인**:
-   - 탐지된 손상 목록
-   - 신뢰도 점수
-   - 자동 등급 산정
-4. **정보 입력**:
-   - 손상 위치
-   - 손상 현상
-   - 손상 분류 (표준 용어 선택)
-   - 손상 등급 (A~F)
-   - 조사자 의견
-5. **저장**: Firebase에 모든 데이터 저장
+#### 4.3 Damage Survey Dialog
+1. **Survey Registration Step**:
+   - Select component name
+   - Enter component number
+   - Select orientation
+2. **Damage Survey Step**:
+   - Display previous year survey photo (if available)
+   - Register current survey photo (camera/gallery)
+   - AI automatic analysis (loading display)
+   - Bounding box visualization
+3. **Detection Result Verification**:
+   - List of detected damages
+   - Confidence scores
+   - Automatic grade assignment
+4. **Information Input**:
+   - Damage location
+   - Damage phenomenon
+   - Damage classification (standard terminology selection)
+   - Damage grade (A~F)
+   - Inspector opinion
+5. **Save**: Store all data in Firebase
 
 ---
 
-## 🚀 설치 및 실행
+## Installation and Setup
 
-### 사전 요구사항
-- **Flutter**: 3.35.1 이상
-- **Dart**: 3.9.0 이상
-- **Python**: 3.10 이상
-- **Firebase 프로젝트**: Firestore 및 Storage 설정 완료
+### Prerequisites
+- **Flutter**: 3.35.1 or higher
+- **Dart**: 3.9.0 or higher
+- **Python**: 3.10 or higher
+- **Firebase Project**: Firestore and Storage setup complete
 
-### 1. 저장소 클론
+### 1. Clone Repository
 ```bash
 git clone <repository-url>
 cd heritage_services_app
 ```
 
-### 2. 백엔드 서버 설정
+### 2. Backend Server Setup
 
-#### 2.1 의존성 설치
+#### 2.1 Install Dependencies
 ```bash
 cd server
 python3 -m pip install -r requirements.txt
 ```
 
-#### 2.2 AI 모델 파일 배치
+#### 2.2 Place AI Model File
 ```bash
-# 모델 파일을 server/ai/ 디렉토리에 복사
+# Copy model file to server/ai/ directory
 cp /path/to/model.pth server/ai/hanok_damage_model.pth
 ```
 
-#### 2.3 환경변수 설정 (선택)
+#### 2.3 Environment Variable Setup (Optional)
 ```bash
-export MODEL_PATH="/path/to/model.pth"  # 모델 경로 지정
-export API_BASE="http://localhost:8080"  # API 기본 주소
+export MODEL_PATH="/path/to/model.pth"  # Specify model path
+export API_BASE="http://localhost:8080"  # API base address
 ```
 
-#### 2.4 서버 실행
+#### 2.4 Run Server
 ```bash
-# 방법 1: 스크립트 사용 (권장)
+# Method 1: Using script (recommended)
 ./run_server.sh
 
-# 방법 2: 직접 실행
+# Method 2: Direct execution
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 
-# 방법 3: Python으로 실행
+# Method 3: Python execution
 python3 main.py
 ```
 
-#### 2.5 서버 상태 확인
+#### 2.5 Verify Server Status
 ```bash
 curl http://localhost:8080/health
-# 응답: {"ok": true}
+# Response: {"ok": true}
 ```
 
-### 3. Flutter 앱 설정
+### 3. Flutter App Setup
 
-#### 3.1 의존성 설치
+#### 3.1 Install Dependencies
 ```bash
 cd my_cross_app
 flutter pub get
 ```
 
-#### 3.2 Firebase 설정
-1. `google-services.json` (Android) 및 `GoogleService-Info.plist` (iOS) 파일 배치
-2. `lib/firebase_options.dart` 파일 확인 (자동 생성됨)
+#### 3.2 Firebase Setup
+1. Place `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) files
+2. Verify `lib/firebase_options.dart` file (automatically generated)
 
-#### 3.3 환경변수 설정
-`lib/core/config/env.dart` 파일에서 API 주소 설정:
+#### 3.3 Environment Variable Setup
+Set API address in `lib/core/config/env.dart` file:
 ```dart
 static const String proxyBase = 'http://localhost:8080';
 static const String aiBase = 'http://localhost:8080';
 ```
 
-또는 빌드 시 지정:
+Or specify during build:
 ```bash
 flutter run -d chrome \
   --dart-define=API_BASE=http://localhost:8080 \
   --dart-define=AI_BASE=http://localhost:8080
 ```
 
-#### 3.4 앱 실행
+#### 3.4 Run App
 ```bash
-# 웹
+# Web
 flutter run -d chrome
 
 # Android
@@ -551,106 +558,106 @@ flutter run -d android
 flutter run -d ios
 ```
 
-### 4. 개발 모드
-- **Hot Reload**: 코드 변경 시 자동 반영 (`r` 키)
-- **Hot Restart**: 전체 재시작 (`R` 키)
-- **서버 자동 재시작**: `--reload` 옵션 사용
+### 4. Development Mode
+- **Hot Reload**: Automatic reflection on code changes (press 'r')
+- **Hot Restart**: Full restart (press 'R')
+- **Server Auto-restart**: Use `--reload` option
 
 ---
 
-## 🐳 배포 가이드
+## Deployment Guide
 
-### Docker Compose 사용 (권장)
+### Using Docker Compose (Recommended)
 
-#### 1. 빌드 및 실행
+#### 1. Build and Run
 ```bash
-# Flutter 웹 빌드
+# Flutter web build
 cd my_cross_app
 flutter build web --release
 
-# Docker Compose로 전체 스택 실행
+# Run entire stack with Docker Compose
 cd ..
 docker-compose up -d --build
 ```
 
-#### 2. 서비스 확인
-- **웹 앱**: http://localhost:80
-- **API 서버**: http://localhost:8080
-- **API 문서**: http://localhost:8080/docs
+#### 2. Verify Services
+- **Web App**: http://localhost:80
+- **API Server**: http://localhost:8080
+- **API Documentation**: http://localhost:8080/docs
 
-#### 3. 로그 확인
+#### 3. View Logs
 ```bash
 docker-compose logs -f heritage-web
 docker-compose logs -f heritage-api
 ```
 
-#### 4. 재배포
+#### 4. Redeploy
 ```bash
-# 웹 앱만 재빌드
+# Rebuild web app only
 cd my_cross_app
 flutter build web --release
 cd ..
 docker-compose restart heritage-web
 
-# 전체 재빌드
+# Full rebuild
 docker-compose up -d --build
 ```
 
-### 수동 배포
+### Manual Deployment
 
-#### 1. 백엔드 배포
+#### 1. Backend Deployment
 ```bash
 cd server
-# 프로덕션 모드 (워커 4개)
+# Production mode (4 workers)
 uvicorn main:app --host 0.0.0.0 --port 8080 --workers 4
 ```
 
-#### 2. 프론트엔드 배포
+#### 2. Frontend Deployment
 ```bash
 cd my_cross_app
 flutter build web --release
-# build/web 디렉토리를 웹 서버에 배치
+# Deploy build/web directory to web server
 ```
 
 ---
 
-## 📡 API 문서
+## API Documentation
 
-### 기본 정보
-- **서버 주소**: `http://localhost:8080`
+### Basic Information
+- **Server Address**: `http://localhost:8080`
 - **Swagger UI**: `http://localhost:8080/docs`
 - **ReDoc**: `http://localhost:8080/redoc`
 
-### 주요 엔드포인트
+### Main Endpoints
 
 #### 1. Health Check
 ```http
 GET /health
 ```
-**응답**:
+**Response**:
 ```json
 {"ok": true}
 ```
 
-#### 2. 국가유산 목록 조회
+#### 2. Heritage List Retrieval
 ```http
-GET /heritage/list?keyword={유산명}&kind={종목코드}&region={지역코드}&page=1&size=20
+GET /heritage/list?keyword={heritage_name}&kind={designation_code}&region={region_code}&page=1&size=20
 ```
-**예시**:
+**Example**:
 ```bash
-curl "http://localhost:8080/heritage/list?keyword=불국사&page=1&size=10"
+curl "http://localhost:8080/heritage/list?keyword=bulguksa&page=1&size=10"
 ```
 
-#### 3. 국가유산 상세 정보
+#### 3. Heritage Detail Information
 ```http
-GET /heritage/detail?ccbaKdcd={종목코드}&ccbaAsno={지정번호}&ccbaCtcd={시도코드}
+GET /heritage/detail?ccbaKdcd={designation_code}&ccbaAsno={designation_number}&ccbaCtcd={city_code}
 ```
 
-#### 4. AI 모델 상태 확인
+#### 4. AI Model Status Check
 ```http
 GET /ai/model/status
 ```
-**응답**:
+**Response**:
 ```json
 {
   "loaded": true,
@@ -660,19 +667,19 @@ GET /ai/model/status
 }
 ```
 
-#### 5. AI 손상 탐지
+#### 5. AI Damage Detection
 ```http
 POST /ai/damage/infer
 Content-Type: multipart/form-data
 
-file: <이미지 파일>
+file: <image file>
 ```
-**응답**:
+**Response**:
 ```json
 {
   "detections": [
     {
-      "label": "균열",
+      "label": "Cracking",
       "label_id": 1,
       "score": 0.85,
       "bbox": [100, 200, 300, 400]
@@ -680,90 +687,90 @@ file: <이미지 파일>
   ],
   "count": 1,
   "grade": "C2",
-  "explanation": "균열 손상이 명확히 관찰됩니다..."
+  "explanation": "Clear cracking damage observed..."
 }
 ```
 
 ---
 
-## 🔧 문제 해결
+## Troubleshooting
 
-### 1. 모델 로드 실패
-**증상**: `[AI] ❌ 모델 파일을 찾을 수 없습니다!`
+### 1. Model Load Failure
+**Symptom**: `[AI] Model file not found!`
 
-**해결**:
-1. 모델 파일이 `server/ai/` 디렉토리에 있는지 확인
-2. 파일 확장자가 `.pth` 또는 `.pt`인지 확인
-3. 환경변수 `MODEL_PATH` 확인
+**Solution**:
+1. Verify model file exists in `server/ai/` directory
+2. Check if file extension is `.pth` or `.pt`
+3. Verify `MODEL_PATH` environment variable
 
-### 2. CORS 에러
-**증상**: 브라우저 콘솔에 CORS 관련 오류
+### 2. CORS Error
+**Symptom**: CORS-related error in browser console
 
-**해결**:
-- FastAPI 서버의 CORS 설정 확인 (`common/middleware.py`)
-- 프록시 주소 사용 확인
+**Solution**:
+- Verify FastAPI server CORS configuration (`common/middleware.py`)
+- Confirm proxy address usage
 
-### 3. Firebase 연결 실패
-**증상**: Firestore 데이터가 로드되지 않음
+### 3. Firebase Connection Failure
+**Symptom**: Firestore data not loading
 
-**해결**:
-1. `google-services.json` 파일 확인
-2. Firebase 프로젝트 설정 확인
-3. Firestore 규칙 확인 (개발 모드: 읽기/쓰기 허용)
+**Solution**:
+1. Verify `google-services.json` file
+2. Check Firebase project configuration
+3. Verify Firestore rules (development mode: allow read/write)
 
-### 4. 이미지 업로드 실패
-**증상**: Firebase Storage 업로드 오류
+### 4. Image Upload Failure
+**Symptom**: Firebase Storage upload error
 
-**해결**:
-1. Storage 규칙 확인
-2. CORS 설정 확인 (`firebase_storage_cors.json`)
-3. 네트워크 연결 확인
-
----
-
-## 📚 추가 문서
-
-- [QUICKSTART.md](./QUICKSTART.md) - 3분 빠른 시작 가이드
-- [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) - Docker 상세 배포 가이드
-- [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - 프로젝트 구조 상세
-- [server/README.md](./server/README.md) - 서버 API 문서
-- [server/ai/README_MODEL.md](./server/ai/README_MODEL.md) - AI 모델 상세 가이드
+**Solution**:
+1. Verify Storage rules
+2. Check CORS configuration (`firebase_storage_cors.json`)
+3. Verify network connection
 
 ---
 
-## 🗺 로드맵
+## Additional Documentation
 
-### 단기 (완료)
-- ✅ 국가유산 검색 및 상세 정보 조회
-- ✅ AI 기반 손상 탐지
-- ✅ Firebase 실시간 데이터 동기화
-- ✅ 손상부 조사 UI/UX 개선
-- ✅ 수정 이력 추적
-
-### 중기 (진행 중)
-- 🔄 종목/지역 코드 서버 제공
-- 🔄 상세 화면 대표 이미지 추가
-- 🔄 보존관리 이력 API 연동
-- 🔄 AI 예측 기능 고도화
-
-### 장기 (계획)
-- 📋 손상 지도 시각화
-- 📋 모바일 앱 최적화
-- 📋 오프라인 모드 지원
-- 📋 다국어 지원
+- [QUICKSTART.md](./QUICKSTART.md) - 3-minute quick start guide
+- [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) - Detailed Docker deployment guide
+- [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - Detailed project structure
+- [server/README.md](./server/README.md) - Server API documentation
+- [server/ai/README_MODEL.md](./server/ai/README_MODEL.md) - Detailed AI model guide
 
 ---
 
-## 📄 라이선스
+## Roadmap
 
-이 프로젝트는 내부 사용을 위한 프로젝트입니다.
+### Short-term (Completed)
+- Heritage search and detailed information retrieval
+- AI-based damage detection
+- Firebase real-time data synchronization
+- Damage survey UI/UX improvement
+- Edit history tracking
+
+### Mid-term (In Progress)
+- Server-side designation type/region code provision
+- Representative image addition to detail screen
+- Preservation management history API integration
+- Advanced AI prediction capabilities
+
+### Long-term (Planned)
+- Damage map visualization
+- Mobile app optimization
+- Offline mode support
+- Multi-language support
 
 ---
 
-## 👥 기여
+## License
 
-프로젝트 개선을 위한 제안 및 버그 리포트는 이슈 트래커를 통해 제출해주세요.
+This project is intended for internal use.
 
 ---
 
-**마지막 업데이트**: 2024년 1월
+## Contributing
+
+Please submit suggestions for project improvements and bug reports through the issue tracker.
+
+---
+
+**Last Updated**: November 2025
